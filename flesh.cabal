@@ -15,8 +15,10 @@ cabal-version:       >= 1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Flesh.Source.Position
-  build-depends:       base >= 4.7 && < 5
+  exposed-modules:     Flesh.Language.Parser.Error,
+                       Flesh.Source.Position
+  build-depends:       base >= 4.7 && < 5,
+                       mtl >= 2.2.1 && < 2.3
   default-language:    Haskell2010
 
 executable flesh
