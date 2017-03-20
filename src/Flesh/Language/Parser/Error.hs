@@ -133,7 +133,7 @@ instance Monad m => Alternative (AttemptT m) where
     a' <- a
     case a' of
       Left (Soft, _) -> b
-      _              -> return a'
+      _              -> a
 
 instance Monad m => Monad (AttemptT m) where
   return = AttemptT . return
