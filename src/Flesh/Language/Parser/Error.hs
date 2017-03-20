@@ -17,9 +17,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Trustworthy #-} -- should be safe
+{-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
@@ -40,6 +39,7 @@ module Flesh.Language.Parser.Error (
 
 import Control.Applicative
 import Control.Monad.Except
+import Data.Foldable
 import qualified Flesh.Source.Position as P
 
 -- | Reason of a parse error.
@@ -79,7 +79,7 @@ defaultError = (Hard, Error UnknownReason (P.dummyPosition ""))
 -- converted to 'Soft' errors by 'try'. Only 'Soft' errors are recovered by
 -- the '<|>' operator, which helps returning user-friendly error messages.
 newtype AttemptT m a = AttemptT (ExceptT (Severity, Error) m a)
-  deriving (Functor, Foldable, Applicative, Monad, Eq, Show)
+  deriving (Eq, Show)
 
 -- | Converts 'AttemptT' to 'ExceptT'.
 exceptFromAttemptT :: AttemptT m a -> ExceptT (Severity, Error) m a
@@ -99,6 +99,34 @@ mapAttemptT ::
   -> AttemptT m a -> AttemptT n b
 mapAttemptT f (AttemptT e) = attempt $ f $ runExceptT e
 
+instance Functor m => Functor (AttemptT m) where
+  fmap f = AttemptT . fmap f . exceptFromAttemptT
+  a <$ AttemptT b = AttemptT (a <$ b)
+
+instance Foldable m => Foldable (AttemptT m) where
+  fold = fold . exceptFromAttemptT
+  foldMap f = foldMap f . exceptFromAttemptT
+  foldr f z = foldr f z . exceptFromAttemptT
+  foldr' f z = foldr' f z . exceptFromAttemptT
+  foldl f z = foldl f z . exceptFromAttemptT
+  foldl' f z = foldl' f z . exceptFromAttemptT
+  foldr1 f = foldr1 f . exceptFromAttemptT
+  foldl1 f = foldl1 f . exceptFromAttemptT
+  toList = toList . exceptFromAttemptT
+  null = null . exceptFromAttemptT
+  length = length . exceptFromAttemptT
+  elem e = elem e . exceptFromAttemptT
+  maximum = maximum . exceptFromAttemptT
+  minimum = minimum . exceptFromAttemptT
+  sum = sum . exceptFromAttemptT
+  product = product . exceptFromAttemptT
+
+instance Monad m => Applicative (AttemptT m) where
+  pure = AttemptT . pure
+  AttemptT a <*> AttemptT b = AttemptT (a <*> b)
+  AttemptT a  *> AttemptT b = AttemptT (a  *> b)
+  AttemptT a <*  AttemptT b = AttemptT (a <*  b)
+
 instance Monad m => Alternative (AttemptT m) where
   empty = attempt $ pure $ Left defaultError
   AttemptT (ExceptT a) <|> AttemptT (ExceptT b) = attempt $ do
@@ -106,6 +134,11 @@ instance Monad m => Alternative (AttemptT m) where
     case a' of
       Left (Soft, _) -> b
       _              -> return a'
+
+instance Monad m => Monad (AttemptT m) where
+  return = AttemptT . return
+  AttemptT a >>= f = AttemptT (a >>= exceptFromAttemptT . f)
+  AttemptT a >> AttemptT b = AttemptT (a >> b)
 
 instance Monad m => MonadPlus (AttemptT m) where
   mzero = empty
