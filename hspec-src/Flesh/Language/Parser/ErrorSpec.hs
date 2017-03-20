@@ -53,6 +53,12 @@ isUnknownReason a =
     Left (_, Error UnknownReason _) -> True
     _                               -> False
 
+isHardError :: AttemptT Identity a -> Bool
+isHardError a =
+  case runIdentity $ runAttemptT a of
+    Left (Hard, _) -> True
+    _              -> False
+
 spec :: Spec
 spec = do
   describe "Alternative (AttemptT m) (<|>)" $ do
@@ -77,5 +83,13 @@ spec = do
     prop "retains known reason" $ \e a ->
       not (isUnknownReason a) ==>
         setReason e a === (a :: AttemptT Identity Int)
+
+  describe "MonadAttempt (AttemptT m) try" $ do
+    prop "converts hard errors to soft" $ \e ->
+      try (throwError (Hard, e)) ===
+        (throwError (Soft, e) :: AttemptT Identity Int)
+
+    prop "retains successes and soft errors intact" $ \a ->
+      not (isHardError a) ==> try a === (a :: AttemptT Identity Int)
 
 -- vim: set et sw=2 sts=2 tw=78:
