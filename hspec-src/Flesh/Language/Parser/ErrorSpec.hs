@@ -15,6 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Flesh.Language.Parser.ErrorSpec (spec) where
 
 import Control.Applicative
@@ -22,33 +24,58 @@ import Control.Monad.Identity
 import Flesh.Language.Parser.Error
 import Flesh.Source.Position
 import Test.Hspec
+import Test.Hspec.QuickCheck
+import Test.QuickCheck
 
-hardError :: AttemptT Identity Int
-hardError = failure $ Error SomeReason (dummyPosition "")
+instance Arbitrary Reason where
+  arbitrary = elements [UnknownReason, SomeReason]
 
-softError :: AttemptT Identity Int
-softError = try hardError
+instance Arbitrary Error where
+  arbitrary = do
+    r <- arbitrary
+    s <- arbitrary
+    return $ Error r $ dummyPosition s
+
+instance Arbitrary Severity where
+  arbitrary = elements [Hard, Soft]
+
+instance (Monad m, Arbitrary a) => Arbitrary (AttemptT m a) where
+  arbitrary = oneof [success_, failure_]
+    where success_ = return <$> arbitrary
+          failure_ = do
+            s <- arbitrary
+            e <- arbitrary
+            return $ throwError (s, e)
+
+isUnknownReason :: AttemptT Identity a -> Bool
+isUnknownReason a =
+  case runIdentity $ runAttemptT a of
+    Left (_, Error UnknownReason _) -> True
+    _                               -> False
 
 spec :: Spec
 spec = do
   describe "Alternative (AttemptT m) (<|>)" $ do
-    it "returns hard errors intact" $
-      (hardError <|> return 0) `shouldBe` hardError
+    prop "returns hard errors intact" $ \e a ->
+      let f = failure e
+       in (f <|> (a :: AttemptT Identity Int)) === f
 
-    it "returns success intact" $
-      (return 42 <|> hardError) `shouldBe` return 42
+    prop "returns success intact" $ \i a ->
+      let s = return i
+       in (s <|> (a :: AttemptT Identity Int)) === s
 
-    it "recovers soft errors" $
-      (softError <|> return 123) `shouldBe` return 123
+    prop "recovers soft errors" $ \e a ->
+      let f = try $ failure e
+       in (f <|> (a :: AttemptT Identity Int)) === a
 
   describe "MonadAttempt (AttemptT m) setReason" $ do
-    it "replaces UnknownReason, keeping hard severity" $
-      let e = Error SomeReason (dummyPosition "abc") in
-      setReason e empty `shouldBe` (failure e :: AttemptT Identity Int)
+    prop "replaces UnknownReason" $ \s e ->
+      let Error _ p = e
+       in setReason e (throwError (s, Error UnknownReason p)) ===
+         (throwError (s, e) :: AttemptT Identity Int)
 
-    it "replaces UnknownReason, keeping soft severity" $
-      let e = Error SomeReason (dummyPosition "abc") in
-      setReason e (try empty) `shouldBe`
-        try (failure e :: AttemptT Identity Int)
+    prop "retains known reason" $ \e a ->
+      not (isUnknownReason a) ==>
+        setReason e a === (a :: AttemptT Identity Int)
 
 -- vim: set et sw=2 sts=2 tw=78:

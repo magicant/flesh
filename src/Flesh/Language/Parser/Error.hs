@@ -29,6 +29,7 @@ This module defines types that describe parse errors for the shell language
 and a monad transformer that injects parse error handling into another monad.
 -}
 module Flesh.Language.Parser.Error (
+  MonadError(..),
   -- * Basic types
   Reason(..), Error(..), Severity(..),
   -- * The AttemptT monad transformer
