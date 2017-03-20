@@ -39,6 +39,8 @@ module Flesh.Language.Parser.Error (
 
 import Control.Applicative
 import Control.Monad.Except
+import qualified Control.Monad.Writer.Lazy as WL
+import qualified Control.Monad.Writer.Strict as WS
 import Data.Foldable
 import qualified Flesh.Source.Position as P
 
@@ -170,6 +172,14 @@ instance Monad m => MonadAttempt (AttemptT m) where
   try = mapAttemptT (fmap f)
     where f (Left (Hard, e)) = Left (Soft, e)
           f r                = r
+
+instance (Monoid w, MonadAttempt m) => MonadAttempt (WL.WriterT w m) where
+  setReason e = WL.mapWriterT (setReason e)
+  try = WL.mapWriterT try
+
+instance (Monoid w, MonadAttempt m) => MonadAttempt (WS.WriterT w m) where
+  setReason e = WS.mapWriterT (setReason e)
+  try = WS.mapWriterT try
 
 -- | Returns a failed attempt with the given (hard) error.
 failure :: MonadError (Severity, Error) m => Error -> m a
