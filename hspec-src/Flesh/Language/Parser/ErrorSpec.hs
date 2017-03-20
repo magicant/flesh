@@ -63,33 +63,38 @@ spec :: Spec
 spec = do
   describe "Alternative (AttemptT m) (<|>)" $ do
     prop "returns hard errors intact" $ \e a ->
-      let f = failure e
-       in (f <|> (a :: AttemptT Identity Int)) === f
+      let _ = a :: AttemptT Identity Int
+          f = failure e
+       in (f <|> a) === f
 
     prop "returns success intact" $ \i a ->
-      let s = return i
-       in (s <|> (a :: AttemptT Identity Int)) === s
+      let _ = a :: AttemptT Identity Int
+          s = return i
+       in (s <|> a) === s
 
     prop "recovers soft errors" $ \e a ->
-      let f = try $ failure e
-       in (f <|> (a :: AttemptT Identity Int)) === a
+      let _ = a :: AttemptT Identity Int
+          f = try $ failure e
+       in (f <|> a) === a
 
   describe "MonadAttempt (AttemptT m) setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
-      let Error _ p = e
-       in setReason e (throwError (s, Error UnknownReason p)) ===
-         (throwError (s, e) :: AttemptT Identity Int)
+      let a         = throwError (s, e) :: AttemptT Identity Int
+          Error _ p = e
+       in setReason e (throwError (s, Error UnknownReason p)) === a
 
     prop "retains known reason" $ \e a ->
-      not (isUnknownReason a) ==>
-        setReason e a === (a :: AttemptT Identity Int)
+      not (isUnknownReason (a :: AttemptT Identity Int)) ==>
+        setReason e a === a
 
   describe "MonadAttempt (AttemptT m) try" $ do
     prop "converts hard errors to soft" $ \e ->
-      try (throwError (Hard, e)) ===
-        (throwError (Soft, e) :: AttemptT Identity Int)
+      let h = throwError (Hard, e) :: AttemptT Identity Int
+          s = throwError (Soft, e) :: AttemptT Identity Int
+       in try h === s
 
     prop "retains successes and soft errors intact" $ \a ->
-      not (isHardError a) ==> try a === (a :: AttemptT Identity Int)
+      let _ = a :: AttemptT Identity Int
+       in not (isHardError a) ==> try a === a
 
 -- vim: set et sw=2 sts=2 tw=78:
