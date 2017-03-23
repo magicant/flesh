@@ -51,7 +51,7 @@ data Reason =
   deriving (Eq, Show)
 
 -- | Parse error description.
-data Error = Error {reason :: Reason, position :: P.Position}
+data Error = Error {reason :: !Reason, position :: !P.Position}
   deriving (Eq, Show)
 
 -- | Error severity.

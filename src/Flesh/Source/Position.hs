@@ -40,48 +40,48 @@ data Situation =
   -- | Script file.
   | File {
       -- | Path to the script file (for informative purposes only).
-      path :: String,
+      path :: !String,
       -- | Position of the dot built-in that sourced this file. (Nothing if
       -- not sourced by the dot built-in.)
-      dotBuiltinPosition :: Maybe Position}
+      dotBuiltinPosition :: !(Maybe Position)}
   -- | Command string evaluated by the eval built-in.
   | Eval {
-      evalBuiltinPosition :: Position}
+      evalBuiltinPosition :: !Position}
   -- | Command Substitution.
   | CommandSubstitution {
       -- | Position at which substitution/expansion/function call occurred.
-      position :: Position}
+      position :: !Position}
   -- | Part of code that resulted from alias substitution.
   | Alias {
-      position :: Position,
+      position :: !Position,
       -- | Definition of the alias substituted.
-      aliasDefinition :: AliasDefinition}
+      aliasDefinition :: !AliasDefinition}
   -- | Arithmetic expansion.
   | ArithmeticExpansion {
-      position :: Position}
+      position :: !Position}
   -- | Function call.
   | FunctionCall {
-      position :: Position,
+      position :: !Position,
       -- | Definition of the function called.
-      functionDefinition :: FunctionDefinition}
+      functionDefinition :: !FunctionDefinition}
   deriving (Eq, Show)
 
 -- | Source code fragment, typically a single line of code.
 data Fragment = Fragment {
     -- | Source code.
-    code :: String,
+    code :: !String,
     -- | Situation in which the source code occurred.
-    situation :: Situation,
+    situation :: !Situation,
     -- | Line number (starts from 0).
-    lineNo :: Int}
+    lineNo :: !Int}
   deriving (Eq, Show)
 
 -- | Position of a character that occurs in a source code fragment.
 data Position = Position {
     -- | Fragment whose code the index is to.
-    fragment :: Fragment,
+    fragment :: !Fragment,
     -- | Index to the character in the code of the fragment (starts from 0).
-    index :: Int}
+    index :: !Int}
   deriving (Eq, Show)
 
 -- | Unmeaningful position for testing.
