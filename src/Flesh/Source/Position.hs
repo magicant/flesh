@@ -99,6 +99,6 @@ next (Position fragment_ index_) = Position fragment_ (index_ + 1)
 -- | Given a position for the first element of a list, returns a list of
 -- elements positioned successively.
 spread :: Position -> [a] -> [Positioned a]
-spread p xs = zip (iterate next p) xs
+spread p = zip (iterate next p)
 
 -- vim: set et sw=2 sts=2 tw=78:
