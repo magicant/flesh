@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : POSIX
+Portability : portable
 
 This module defines elements for positioning source code characters and
 describing origin of them.
@@ -29,8 +29,12 @@ module Flesh.Source.Position (
     Situation(..), Fragment(..), Position(..), dummyPosition,
     Positioned, next, spread) where
 
--- FIXME
-type AliasDefinition = Position
+import qualified Flesh.Language.Alias.Core as Alias
+
+-- | Alias definition.
+type AliasDefinition = Alias.Definition Position
+
+-- | Function definition.
 type FunctionDefinition = Position
 
 -- | Situation in which a code fragment is executed/evaluated.
