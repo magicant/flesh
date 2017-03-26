@@ -21,6 +21,7 @@ library
                        Flesh.Language.Parser.Error,
                        Flesh.Language.Parser.HereDoc,
                        Flesh.Language.Parser.Input,
+                       Flesh.Language.Parser.Warning,
                        Flesh.Source.Position
   build-depends:       base >= 4.7 && < 5,
                        mtl >= 2.2.1 && < 2.3,
