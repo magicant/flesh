@@ -35,7 +35,7 @@ module Flesh.Language.Parser.Error (
   -- * The AttemptT monad transformer
   AttemptT(..), attempt, runAttemptT, mapAttemptT,
   -- * Class of attempt monads
-  MonadAttempt(..), failure, recover) where
+  MonadAttempt(..), failure, failure', recover) where
 
 import Control.Applicative
 import Control.Monad.Except
@@ -184,6 +184,10 @@ instance (Monoid w, MonadAttempt m) => MonadAttempt (WS.WriterT w m) where
 -- | Returns a failed attempt with the given (hard) error.
 failure :: MonadError (Severity, Error) m => Error -> m a
 failure e = throwError (Hard, e)
+
+-- | Failure of unknown reason.
+failure' :: MonadError (Severity, Error) m => P.Position -> m a
+failure' p = failure (Error {reason = UnknownReason, position = p})
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.

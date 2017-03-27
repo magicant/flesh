@@ -18,6 +18,7 @@ library
   exposed-modules:     Flesh.Language.Alias,
                        Flesh.Language.Alias.Core,
                        Flesh.Language.Parser.Alias,
+                       Flesh.Language.Parser.Char,
                        Flesh.Language.Parser.Error,
                        Flesh.Language.Parser.HereDoc,
                        Flesh.Language.Parser.Input,
