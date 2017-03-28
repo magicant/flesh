@@ -23,8 +23,9 @@ library
                        Flesh.Language.Parser.HereDoc,
                        Flesh.Language.Parser.Input,
                        Flesh.Language.Parser.Warning,
+                       Flesh.Language.Syntax,
                        Flesh.Source.Position
-  build-depends:       base >= 4.7 && < 5,
+  build-depends:       base >= 4.9 && < 5,
                        mtl >= 2.2.1 && < 2.3,
                        transformers >= 0.4 && < 0.6
   ghc-options:         -Wall
