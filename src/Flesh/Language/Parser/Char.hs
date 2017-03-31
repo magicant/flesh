@@ -33,7 +33,7 @@ import Flesh.Source.Position
 -- | Parses a single character that satisfies the given predicate.
 --
 -- Returns 'UnknownReason' on dissatisfaction.
-satisfy :: (MonadPosition n m, MonadAttempt m)
+satisfy :: (MonadInput m, MonadAttempt m)
         => (Char -> Bool) -> m (Positioned Char)
 satisfy pred_ = do
   e <- popChar
@@ -45,24 +45,24 @@ satisfy pred_ = do
 -- | Parses the given single character.
 --
 -- Returns 'UnknownReason' on failure.
-char :: (MonadPosition n m, MonadAttempt m) => Char -> m (Positioned Char)
+char :: (MonadInput m, MonadAttempt m) => Char -> m (Positioned Char)
 char c = satisfy (c ==)
 
 -- | Parses any single character.
 --
 -- Returns 'UnknownReason' if there is no next character.
-anyChar :: (MonadPosition n m, MonadAttempt m) => m (Positioned Char)
+anyChar :: (MonadInput m, MonadAttempt m) => m (Positioned Char)
 anyChar = satisfy (const True)
 
 -- | Parses a sequence of characters.
 --
 -- Returns 'UnknownReason' on failure.
-string :: (MonadPosition n m, MonadAttempt m) => String -> m [Positioned Char]
+string :: (MonadInput m, MonadAttempt m) => String -> m [Positioned Char]
 string [] = return []
 string (c:cs) = (:) <$> char c <*> string cs
 
 -- | Parses the /end-of-file/.
-eof :: (MonadPosition n m, MonadAttempt m) => m Position
+eof :: (MonadInput m, MonadAttempt m) => m Position
 eof = do
   e <- peekChar
   case e of
