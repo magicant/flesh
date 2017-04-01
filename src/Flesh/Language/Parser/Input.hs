@@ -15,6 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
@@ -31,6 +32,7 @@ module Flesh.Language.Parser.Input (
   MonadInput(..), currentPosition) where
 
 import Flesh.Source.Position
+import Control.Monad.State.Strict
 
 -- | Monad for character input operations.
 --
@@ -71,5 +73,33 @@ class Monad m => MonadInput m where
 -- | Returns the current position.
 currentPosition :: MonadInput m => m Position
 currentPosition = either id fst <$> peekChar
+
+-- This would result in undecidable instance.
+-- instance (Monad m, MonadState PositionedString m) => MonadInput m where
+instance Monad m => MonadInput (StateT PositionedString m) where
+  popChar = do
+    cs <- get
+    case cs of
+      Nil p -> return (Left p)
+      c :~ cs' -> do
+        put cs'
+        return (Right c)
+
+  static m = do
+    savedstate <- get
+    result <- m
+    put savedstate
+    return result
+
+  peekChar = do
+    cs <- get
+    return $ case cs of
+      Nil p -> Left p
+      c :~ _ -> Right c
+
+  pushChars [] = return ()
+  pushChars (c:cs) = do
+    pushChars cs
+    modify' (c :~)
 
 -- vim: set et sw=2 sts=2 tw=78:
