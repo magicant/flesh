@@ -42,6 +42,7 @@ import Control.Monad.Except
 import qualified Control.Monad.Writer.Lazy as WL
 import qualified Control.Monad.Writer.Strict as WS
 import Data.Foldable
+import Flesh.Language.Parser.Input
 import qualified Flesh.Source.Position as P
 
 -- | Reason of a parse error.
@@ -62,9 +63,6 @@ data Severity =
   -- | Severity of errors that may be recovered by another parse.
   | Soft
   deriving (Eq, Show)
-
-defaultError :: (Severity, Error)
-defaultError = (Hard, Error UnknownReason (P.dummyPosition ""))
 
 -- | Result of an attempt to parse something. Type parameter @a@ is the result
 -- type of a successful parse. As a monad transformer, @AttemptT@ injects the
@@ -99,7 +97,12 @@ runAttemptT = runExceptT . exceptFromAttemptT
 mapAttemptT ::
   (m (Either (Severity, Error) a) -> n (Either (Severity, Error) b))
   -> AttemptT m a -> AttemptT n b
-mapAttemptT f (AttemptT e) = attempt $ f $ runExceptT e
+mapAttemptT f = attempt . f . runAttemptT
+
+instance Monad m => MonadError (Severity, Error) (AttemptT m) where
+  throwError = AttemptT . throwError
+  catchError (AttemptT a) f =
+    AttemptT $ catchError a (exceptFromAttemptT . f)
 
 instance Functor m => Functor (AttemptT m) where
   fmap f = AttemptT . fmap f . exceptFromAttemptT
@@ -129,30 +132,30 @@ instance Monad m => Applicative (AttemptT m) where
   AttemptT a  *> AttemptT b = AttemptT (a  *> b)
   AttemptT a <*  AttemptT b = AttemptT (a <*  b)
 
-instance Monad m => Alternative (AttemptT m) where
-  empty = attempt $ pure $ Left defaultError
-  AttemptT (ExceptT a) <|> AttemptT (ExceptT b) = attempt $ do
-    a' <- a
-    case a' of
-      Left (Soft, _) -> b
-      _              -> a
-
 instance Monad m => Monad (AttemptT m) where
   return = AttemptT . return
   AttemptT a >>= f = AttemptT (a >>= exceptFromAttemptT . f)
   AttemptT a >> AttemptT b = AttemptT (a >> b)
 
-instance Monad m => MonadPlus (AttemptT m) where
-  mzero = empty
-  mplus = (<|>)
-
 instance MonadTrans AttemptT where
   lift = AttemptT . ExceptT . liftM Right
 
-instance Monad m => MonadError (Severity, Error) (AttemptT m) where
-  throwError = AttemptT . throwError
-  catchError (AttemptT a) f =
-    AttemptT $ catchError a (exceptFromAttemptT . f)
+instance MonadInput m => MonadInput (AttemptT m) where
+  popChar = lift popChar
+  static = mapAttemptT static
+  peekChar = lift peekChar
+  pushChars = lift <$> pushChars
+
+instance MonadInput m => Alternative (AttemptT m) where
+  empty = do
+    p <- currentPosition
+    throwError (Hard, Error UnknownReason p)
+  a <|> b = do
+    a `catchError` handle
+      where handle (Soft, _) = b
+            handle e = throwError e
+
+instance MonadInput m => MonadPlus (AttemptT m)
 
 -- | Extension of 'MonadError' with operations to modify attempt results.
 class MonadError (Severity, Error) m => MonadAttempt m where

@@ -104,6 +104,7 @@ type Positioned a = (Position, a)
 
 -- | Like @['Positioned' a]@, but the last nil also has its position.
 data PositionedList a = Nil Position | (:~) (Positioned a) (PositionedList a)
+  deriving Eq
 infixr 5 :~
 
 -- | Like @['Positioned' 'Char']@, but the last nil also has its position.
@@ -115,7 +116,7 @@ unposition :: PositionedList a -> [Positioned a]
 unposition (Nil _) = []
 unposition (x :~ xs) = x : unposition xs
 
-instance Show (PositionedList Char) where
+instance Show a => Show (PositionedList a) where
   show s = show l
     where l = snd $ unzip $ unposition s
 
