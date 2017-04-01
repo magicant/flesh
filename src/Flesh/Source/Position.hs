@@ -15,19 +15,21 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : portable
+Portability : non-portable (flexible instances)
 
 This module defines elements for positioning source code characters and
 describing origin of them.
 -}
 module Flesh.Source.Position (
-    Situation(..), Fragment(..), Position(..), dummyPosition,
-    Positioned, next, spread) where
+    Situation(..), Fragment(..), Position(..), dummyPosition, next,
+    Positioned, PositionedList(..), PositionedString, unposition, spread)
+    where
 
 import qualified Flesh.Language.Alias.Core as Alias
 
@@ -93,16 +95,35 @@ dummyPosition :: String -> Position
 dummyPosition c = Position {fragment = f, index = 0}
   where f = Fragment {code = c, situation = StandardInput, lineNo = 0}
 
--- | Something with a record of position from which it originated.
-type Positioned a = (Position, a)
-
 -- | Increments the index of a position.
 next :: Position -> Position
 next (Position fragment_ index_) = Position fragment_ (index_ + 1)
 
+-- | Something with a record of position from which it originated.
+type Positioned a = (Position, a)
+
+-- | Like @['Positioned' a]@, but the last nil also has its position.
+data PositionedList a = Nil Position | (:~) (Positioned a) (PositionedList a)
+  deriving Eq
+infixr 5 :~
+
+-- | Like @['Positioned' 'Char']@, but the last nil also has its position.
+type PositionedString = PositionedList Char
+
+-- | Converts @'PositionedList' a@ to @['Positioned' a]@ by ignoring the last
+-- position.
+unposition :: PositionedList a -> [Positioned a]
+unposition (Nil _) = []
+unposition (x :~ xs) = x : unposition xs
+
+instance Show a => Show (PositionedList a) where
+  show s = show l
+    where l = snd $ unzip $ unposition s
+
 -- | Given a position for the first element of a list, returns a list of
 -- elements positioned successively.
-spread :: Position -> [a] -> [Positioned a]
-spread p = zip (iterate next p)
+spread :: Position -> [a] -> PositionedList a
+spread p [] = Nil p
+spread p (x:xs) = (p, x) :~ spread (next p) xs
 
 -- vim: set et sw=2 sts=2 tw=78:

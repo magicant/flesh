@@ -15,38 +15,91 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : portable
+Portability : non-portable (GHC language extensions)
 
 This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  InputT(..), prepend,
-  PositionT) where
+  MonadInput(..), currentPosition) where
 
 import Flesh.Source.Position
 import Control.Monad.State.Strict
 
--- | Monad for reading input.
+-- | Monad for character input operations.
 --
--- The monad should simply return a single position (denoting the end of
--- input) or a pair of a positioned character and next input monad.
+-- Input depends on an internal state of the monad. The state must contain
+-- information that is necessary to track the current input position, which
+-- determines the next character to be read. The state must be updated as
+-- characters are read and the position is advanced.
 --
--- The monad may have side effects, but the same monad instance must yield the
--- same result for repeated reads. That is, the monad must be idempotent.
-newtype InputT m = InputT (m (Either Position (Positioned Char, InputT m)))
+-- The 'static' function may be used to rewind the position after some input
+-- is read. In this function, the state must be restored to indicate the
+-- position before the characters were read. Thereafter the same characters
+-- must be returned in subsequent read operations.
+--
+-- Reading a character may be an operation with a side effect. Such side
+-- effects must be encoded in the monad. When re-reading characters after the
+-- position was rewound, however, characters must be read without side
+-- effects. In other words, reading operations must be idempotent in terms of
+-- side effects.
+class Monad m => MonadInput m where
+  -- | Reads one character at the current position, advancing the position to
+  -- the next character. If the current position is end-of-input, the position
+  -- must not be changed and @Left position@ is returned.
+  popChar :: m (Either Position (Positioned Char))
+  -- | Returns the result of the given monad but cancels any position update
+  -- that have occurred in the monad, i.e., the position is rewound to the
+  -- original.
+  static :: m a -> m a
+  -- | Returns the character at the current position without advancing the
+  -- position. The default implementation is @static popChar@.
+  peekChar :: m (Either Position (Positioned Char))
+  peekChar = static popChar
+  -- | Pushes the given characters into the current position. Subsequent reads
+  -- must first return the inserted characters and then return to the original
+  -- position, continuing to characters that would have been immediately read
+  -- if 'pushChars' was not used.
+  pushChars :: [Positioned Char] -> m ()
 
--- | @prepend cs m@ returns an input monad that first yields the elements of
--- @cs@ and then @m@.
-prepend :: [Positioned Char] -> InputT m -> InputT m
-prepend = undefined -- FIXME
+-- | Returns the current position.
+currentPosition :: MonadInput m => m Position
+currentPosition = either id fst <$> peekChar
 
--- | Monad transformer that manages input position as a state.
-type PositionT n = StateT (InputT n)
+-- This would result in undecidable instance.
+-- instance (Monad m, MonadState PositionedString m) => MonadInput m where
+instance Monad m => MonadInput (StateT PositionedString m) where
+  popChar = do
+    cs <- get
+    case cs of
+      Nil p -> return (Left p)
+      c :~ cs' -> do
+        put cs'
+        return (Right c)
+
+  static m = do
+    savedstate <- get
+    result <- m
+    put savedstate
+    return result
+
+  peekChar = do
+    cs <- get
+    return $ case cs of
+      Nil p -> Left p
+      c :~ _ -> Right c
+
+  pushChars [] = return ()
+  pushChars (c:cs) = do
+    pushChars cs
+    modify' (c :~)
 
 -- vim: set et sw=2 sts=2 tw=78:

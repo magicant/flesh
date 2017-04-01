@@ -1,0 +1,54 @@
+{-
+Copyright (C) 2017 WATANABE Yuki <magicant@wonderwand.net>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-}
+
+{-# LANGUAGE Safe #-}
+
+{-|
+Copyright   : (C) 2017 WATANABE Yuki
+License     : GPL-2
+Portability : portable
+
+This module defines the abstract syntax tree of the shell language.
+-}
+module Flesh.Language.Syntax (
+  DoubleQuoteUnit(..),
+  WordUnit(..)) where
+
+import qualified Data.List.NonEmpty as NE
+import Flesh.Source.Position
+
+-- | Element of double quotes.
+data DoubleQuoteUnit =
+    -- | Single bear character.
+    Char Char
+    -- | Character escaped by a backslash.
+    | Backslashed Char
+    -- | Parameter expansion.
+    | Parameter -- FIXME
+    | CommandSubstitution -- FIXME of the $(...) form
+    | Backquoted -- FIXME command substitution
+    | Arithmetic -- FIXME
+
+-- | Element of words.
+data WordUnit =
+    -- | Unquoted double-quote unit as a word unit.
+    Unquoted DoubleQuoteUnit
+    -- | Double-quote.
+    | DoubleQuote (NE.NonEmpty (Positioned DoubleQuoteUnit))
+    | SingleQuote -- FIXME Text
+
+-- vim: set et sw=2 sts=2 tw=78:

@@ -21,6 +21,7 @@ module Flesh.Language.Parser.ErrorSpec (spec) where
 
 import Control.Applicative
 import Control.Monad.Identity
+import Control.Monad.State.Strict
 import Flesh.Language.Parser.Error
 import Flesh.Source.Position
 import Test.Hspec
@@ -47,6 +48,12 @@ instance (Monad m, Arbitrary a) => Arbitrary (AttemptT m a) where
             e <- arbitrary
             return $ throwError (s, e)
 
+instance Arbitrary a => Arbitrary (PositionedList a) where
+  arbitrary = do
+    s <- arbitrary
+    xs <- arbitrary
+    return $ spread (dummyPosition s) xs
+
 isUnknownReason :: AttemptT Identity a -> Bool
 isUnknownReason a =
   case runIdentity $ runAttemptT a of
@@ -59,23 +66,31 @@ isHardError a =
     Left (Hard, _) -> True
     _              -> False
 
+run :: AttemptT (State PositionedString) a
+    -> PositionedString
+    -> (Either (Severity, Error) a, PositionedString)
+run m = runState (runAttemptT m)
+
 spec :: Spec
 spec = do
   describe "Alternative (AttemptT m) (<|>)" $ do
-    prop "returns hard errors intact" $ \e a ->
+    prop "returns hard errors intact" $ \e a i ->
       let _ = a :: AttemptT Identity Int
-          f = failure e
-       in (f <|> a) === f
+          a' = mapAttemptT (return . runIdentity) a
+          f  = failure e
+       in run (f <|> a') i === run f i
 
-    prop "returns success intact" $ \i a ->
+    prop "returns success intact" $ \v a i ->
       let _ = a :: AttemptT Identity Int
-          s = return i
-       in (s <|> a) === s
+          a' = mapAttemptT (return . runIdentity) a
+          s  = return v
+       in run (s <|> a') i === run s i
 
-    prop "recovers soft errors" $ \e a ->
+    prop "recovers soft errors" $ \e a i ->
       let _ = a :: AttemptT Identity Int
-          f = try $ failure e
-       in (f <|> a) === a
+          a' = mapAttemptT (return . runIdentity) a
+          f  = try $ failure e
+       in run (f <|> a') i === run a' i
 
   describe "MonadAttempt (AttemptT m) setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
