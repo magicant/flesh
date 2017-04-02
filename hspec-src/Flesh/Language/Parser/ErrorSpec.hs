@@ -77,7 +77,7 @@ spec = do
     prop "returns hard errors intact" $ \e a i ->
       let _ = a :: AttemptT Identity Int
           a' = mapAttemptT (return . runIdentity) a
-          f  = failure e
+          f  = failureOfError e
        in run (f <|> a') i === run f i
 
     prop "returns success intact" $ \v a i ->
@@ -89,7 +89,7 @@ spec = do
     prop "recovers soft errors" $ \e a i ->
       let _ = a :: AttemptT Identity Int
           a' = mapAttemptT (return . runIdentity) a
-          f  = try $ failure e
+          f  = try $ failureOfError e
        in run (f <|> a') i === run a' i
 
   describe "setReason" $ do

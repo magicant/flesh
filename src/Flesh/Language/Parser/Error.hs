@@ -32,7 +32,7 @@ module Flesh.Language.Parser.Error (
   -- * Basic types
   Reason(..), Error(..), Severity(..),
   -- * Utilities for 'MonadError'
-  MonadError(..), failure, failure', recover, setReason, try,
+  MonadError(..), failureOfError, failure', recover, setReason, try,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), attempt, runAttemptT, mapAttemptT) where
 
@@ -62,12 +62,12 @@ data Severity =
   deriving (Eq, Show)
 
 -- | Returns a failed attempt with the given (hard) error.
-failure :: MonadError (Severity, Error) m => Error -> m a
-failure e = throwError (Hard, e)
+failureOfError :: MonadError (Severity, Error) m => Error -> m a
+failureOfError e = throwError (Hard, e)
 
 -- | Failure of unknown reason.
 failure' :: MonadError (Severity, Error) m => P.Position -> m a
-failure' p = failure (Error {reason = UnknownReason, position = p})
+failure' p = failureOfError (Error {reason = UnknownReason, position = p})
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.
