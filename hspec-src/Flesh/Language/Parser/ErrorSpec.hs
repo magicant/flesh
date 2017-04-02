@@ -73,25 +73,6 @@ run m = runState (runAttemptT m)
 
 spec :: Spec
 spec = do
-  describe "Alternative (AttemptT m) (<|>)" $ do
-    prop "returns hard errors intact" $ \e a i ->
-      let _ = a :: AttemptT Identity Int
-          a' = mapAttemptT (return . runIdentity) a
-          f  = failureOfError e
-       in run (f <|> a') i === run f i
-
-    prop "returns success intact" $ \v a i ->
-      let _ = a :: AttemptT Identity Int
-          a' = mapAttemptT (return . runIdentity) a
-          s  = return v
-       in run (s <|> a') i === run s i
-
-    prop "recovers soft errors" $ \e a i ->
-      let _ = a :: AttemptT Identity Int
-          a' = mapAttemptT (return . runIdentity) a
-          f  = try $ failureOfError e
-       in run (f <|> a') i === run a' i
-
   describe "setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
       let Error r p = e
@@ -112,5 +93,24 @@ spec = do
     prop "retains successes and soft errors intact" $ \a ->
       let _ = a :: AttemptT Identity Int
        in not (isHardError a) ==> try a === a
+
+  describe "Alternative (AttemptT m) (<|>)" $ do
+    prop "returns hard errors intact" $ \e a i ->
+      let _ = a :: AttemptT Identity Int
+          a' = mapAttemptT (return . runIdentity) a
+          f  = failureOfError e
+       in run (f <|> a') i === run f i
+
+    prop "returns success intact" $ \v a i ->
+      let _ = a :: AttemptT Identity Int
+          a' = mapAttemptT (return . runIdentity) a
+          s  = return v
+       in run (s <|> a') i === run s i
+
+    prop "recovers soft errors" $ \e a i ->
+      let _ = a :: AttemptT Identity Int
+          a' = mapAttemptT (return . runIdentity) a
+          f  = try $ failureOfError e
+       in run (f <|> a') i === run a' i
 
 -- vim: set et sw=2 sts=2 tw=78:
