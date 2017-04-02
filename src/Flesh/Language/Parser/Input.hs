@@ -32,6 +32,7 @@ module Flesh.Language.Parser.Input (
   MonadInput(..), currentPosition) where
 
 import Flesh.Source.Position
+import Control.Monad.Except
 import Control.Monad.State.Strict
 
 -- | Monad for character input operations.
@@ -101,5 +102,11 @@ instance Monad m => MonadInput (StateT PositionedString m) where
   pushChars (c:cs) = do
     pushChars cs
     modify' (c :~)
+
+instance MonadInput m => MonadInput (ExceptT e m) where
+  popChar = lift popChar
+  followedBy = mapExceptT followedBy
+  peekChar = lift peekChar
+  pushChars = lift . pushChars
 
 -- vim: set et sw=2 sts=2 tw=78:

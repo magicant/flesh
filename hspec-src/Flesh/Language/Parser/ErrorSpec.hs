@@ -15,11 +15,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Flesh.Language.Parser.ErrorSpec (spec) where
 
 import Control.Applicative
+import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.State.Strict
 import Flesh.Language.Parser.Error
@@ -40,12 +43,13 @@ instance Arbitrary Error where
 instance Arbitrary Severity where
   arbitrary = elements [Hard, Soft]
 
-instance (Monad m, Arbitrary a) => Arbitrary (AttemptT m a) where
+instance (MonadError (Severity, Error) m, Arbitrary a)
+    => Arbitrary (AttemptT m a) where
   arbitrary = oneof [success_, failure_]
     where success_ = return <$> arbitrary
           failure_ = do
-            s <- arbitrary
-            e <- arbitrary
+            s <- arbitrary :: Gen Severity
+            e <- arbitrary :: Gen Error
             return $ throwError (s, e)
 
 instance Arbitrary a => Arbitrary (PositionedList a) where
@@ -54,22 +58,27 @@ instance Arbitrary a => Arbitrary (PositionedList a) where
     xs <- arbitrary
     return $ spread (dummyPosition s) xs
 
-isUnknownReason :: AttemptT Identity a -> Bool
+type AE = AttemptT (ExceptT (Severity, Error) Identity)
+type AES = AttemptT (ExceptT (Severity, Error) (State PositionedString))
+
+isUnknownReason :: AE a -> Bool
 isUnknownReason a =
-  case runIdentity $ runAttemptT a of
+  case runIdentity $ runExceptT $ runAttemptT a of
     Left (_, Error UnknownReason _) -> True
     _                               -> False
 
-isHardError :: AttemptT Identity a -> Bool
+isHardError :: AE a -> Bool
 isHardError a =
-  case runIdentity $ runAttemptT a of
+  case runIdentity $ runExceptT $ runAttemptT a of
     Left (Hard, _) -> True
     _              -> False
 
-run :: AttemptT (State PositionedString) a
-    -> PositionedString
-    -> (Either (Severity, Error) a, PositionedString)
-run m = runState (runAttemptT m)
+run :: AES a
+    -> PositionedString -> (Either (Severity, Error) a, PositionedString)
+run = runState . runExceptT . runAttemptT
+
+aesFromAE :: AE a -> AES a
+aesFromAE = AttemptT . mapExceptT (return . runIdentity) . runAttemptT
 
 spec :: Spec
 spec = do
@@ -85,40 +94,40 @@ spec = do
   describe "setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
       let Error r p = e
-          a         = throwError (s, e) :: AttemptT Identity Int
+          a         = throwError (s, e) :: AE Int
           a'        = throwError (s, Error UnknownReason p)
        in setReason r a' === a
 
     prop "retains known reason" $ \r a ->
-      not (isUnknownReason (a :: AttemptT Identity Int)) ==>
+      not (isUnknownReason (a :: AE Int)) ==>
         setReason r a === a
 
   describe "try" $ do
     prop "converts hard errors to soft" $ \e ->
-      let h = throwError (Hard, e) :: AttemptT Identity Int
-          s = throwError (Soft, e) :: AttemptT Identity Int
+      let h = throwError (Hard, e) :: AE Int
+          s = throwError (Soft, e) :: AE Int
        in try h === s
 
     prop "retains successes and soft errors intact" $ \a ->
-      let _ = a :: AttemptT Identity Int
+      let _ = a :: AE Int
        in not (isHardError a) ==> try a === a
 
   describe "Alternative (AttemptT m) (<|>)" $ do
     prop "returns hard errors intact" $ \e a i ->
-      let _ = a :: AttemptT Identity Int
-          a' = mapAttemptT (return . runIdentity) a
+      let _ = a :: AE Int
+          a' = aesFromAE a
           f  = failureOfError e
        in run (f <|> a') i === run f i
 
     prop "returns success intact" $ \v a i ->
-      let _ = a :: AttemptT Identity Int
-          a' = mapAttemptT (return . runIdentity) a
+      let _ = a :: AE Int
+          a' = aesFromAE a
           s  = return v
        in run (s <|> a') i === run s i
 
     prop "recovers soft errors" $ \e a i ->
-      let _ = a :: AttemptT Identity Int
-          a' = mapAttemptT (return . runIdentity) a
+      let _ = a :: AE Int
+          a' = aesFromAE a
           f  = try $ failureOfError e
        in run (f <|> a') i === run a' i
 
