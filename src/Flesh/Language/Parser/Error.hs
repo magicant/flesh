@@ -32,7 +32,8 @@ module Flesh.Language.Parser.Error (
   -- * Basic types
   Reason(..), Error(..), Severity(..),
   -- * Utilities for 'MonadError'
-  MonadError(..), failureOfError, failureOfPosition, recover, setReason, try,
+  MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
+  recover, setReason, try,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), attempt, runAttemptT, mapAttemptT) where
 
@@ -68,6 +69,18 @@ failureOfError e = throwError (Hard, e)
 -- | Failure of unknown reason.
 failureOfPosition :: MonadError (Severity, Error) m => P.Position -> m a
 failureOfPosition p = failureOfError (Error UnknownReason p)
+
+-- | Failure of unknown reason at the current position.
+failure :: (MonadInput m, MonadError (Severity, Error) m) => m a
+failure = currentPosition >>= failureOfPosition
+
+-- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
+-- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
+satisfying :: (MonadInput m, MonadError (Severity, Error) m)
+           => m a -> (a -> Bool) -> m a
+satisfying m p = do
+  r <- m
+  if p r then return r else failure
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.
@@ -172,9 +185,7 @@ instance MonadInput m => MonadInput (AttemptT m) where
   pushChars = lift <$> pushChars
 
 instance MonadInput m => Alternative (AttemptT m) where
-  empty = do
-    p <- currentPosition
-    throwError (Hard, Error UnknownReason p)
+  empty = failure
   a <|> b = do
     a `catchError` handle
       where handle (Soft, _) = b

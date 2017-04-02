@@ -31,17 +31,23 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
+-- | Parses any single character.
+--
+-- Returns 'UnknownReason' if there is no next character.
+anyChar :: (MonadInput m, MonadError (Severity, Error) m)
+        => m (Positioned Char)
+anyChar = do
+  e <- popChar
+  case e of
+    Left pos -> failureOfPosition pos
+    Right pc -> return pc
+
 -- | Parses a single character that satisfies the given predicate.
 --
 -- Returns 'UnknownReason' on dissatisfaction.
 satisfy :: (MonadInput m, MonadError (Severity, Error) m)
         => (Char -> Bool) -> m (Positioned Char)
-satisfy pred_ = do
-  e <- popChar
-  case e of
-    Left pos -> failureOfPosition pos
-    Right pc@(pos, c) | pred_ c   -> return pc
-                      | otherwise -> failureOfPosition pos
+satisfy p = anyChar `satisfying` (p . snd)
 
 -- | Parses the given single character.
 --
@@ -49,13 +55,6 @@ satisfy pred_ = do
 char :: (MonadInput m, MonadError (Severity, Error) m)
      => Char -> m (Positioned Char)
 char c = satisfy (c ==)
-
--- | Parses any single character.
---
--- Returns 'UnknownReason' if there is no next character.
-anyChar :: (MonadInput m, MonadError (Severity, Error) m)
-        => m (Positioned Char)
-anyChar = satisfy (const True)
 
 -- | Parses a sequence of characters.
 --
