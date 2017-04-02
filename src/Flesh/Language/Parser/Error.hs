@@ -33,7 +33,7 @@ module Flesh.Language.Parser.Error (
   Reason(..), Error(..), Severity(..),
   -- * Utilities for 'MonadError'
   MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
-  recover, setReason, try,
+  notFollowedBy, recover, setReason, try,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), attempt, runAttemptT, mapAttemptT) where
 
@@ -81,6 +81,12 @@ satisfying :: (MonadInput m, MonadError (Severity, Error) m)
 satisfying m p = do
   r <- m
   if p r then return r else failure
+
+-- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
+-- equivalent to 'failure'.
+notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
+notFollowedBy m =
+  join $ catchError (m >> return failure) (const $ return $ return ())
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.

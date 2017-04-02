@@ -73,6 +73,15 @@ run m = runState (runAttemptT m)
 
 spec :: Spec
 spec = do
+  describe "notFollowedBy" $ do
+    prop "succeeds if argument fails" $ \e i ->
+      let f = failureOfError e
+       in run (notFollowedBy f) i === run (return ()) i
+
+    prop "fails if argument succeeds" $ \v i ->
+      let _ = v :: Int
+       in run (notFollowedBy (return v)) i === run failure i
+
   describe "setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
       let Error r p = e
