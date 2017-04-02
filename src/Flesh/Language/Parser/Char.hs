@@ -39,9 +39,9 @@ satisfy :: (MonadInput m, MonadError (Severity, Error) m)
 satisfy pred_ = do
   e <- popChar
   case e of
-    Left pos -> failure' pos
+    Left pos -> failureOfPosition pos
     Right pc@(pos, c) | pred_ c   -> return pc
-                      | otherwise -> failure' pos
+                      | otherwise -> failureOfPosition pos
 
 -- | Parses the given single character.
 --
@@ -71,6 +71,6 @@ eof = do
   e <- peekChar
   case e of
     Left pos -> return pos
-    Right (pos, _) -> failure' pos
+    Right (pos, _) -> failureOfPosition pos
 
 -- vim: set et sw=2 sts=2 tw=78:
