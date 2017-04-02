@@ -159,29 +159,29 @@ instance MonadInput m => MonadPlus (AttemptT m)
 
 -- | Extension of 'MonadError' with operations to modify attempt results.
 class MonadError (Severity, Error) m => MonadAttempt m where
-  -- | @setReason e a@ modifies the result of attempt @a@ by replacing an
-  -- error of 'UnknownReason' with the given error @e@. For other reasons or
+  -- | @setReason r a@ modifies the result of attempt @a@ by replacing an
+  -- error of 'UnknownReason' with the given reason @r@. For other reasons or
   -- successful results, 'setReason' does not do anything.
-  setReason :: Error -> m a -> m a
+  setReason :: Reason -> m a -> m a
   -- | 'try' rewrites the result of an attempt by converting a hard error to a
   -- soft error with the same reason. The result is not modified if
   -- successful.
   try :: m a -> m a
 
 instance Monad m => MonadAttempt (AttemptT m) where
-  setReason e = mapAttemptT (fmap f)
-    where f (Left (s, (Error UnknownReason _))) = Left (s, e)
-          f r                                   = r
+  setReason r = mapAttemptT (fmap f)
+    where f (Left (s, (Error UnknownReason p))) = Left (s, Error r p)
+          f x                                   = x
   try = mapAttemptT (fmap f)
     where f (Left (Hard, e)) = Left (Soft, e)
-          f r                = r
+          f x                = x
 
 instance (Monoid w, MonadAttempt m) => MonadAttempt (WL.WriterT w m) where
-  setReason e = WL.mapWriterT (setReason e)
+  setReason = WL.mapWriterT . setReason
   try = WL.mapWriterT try
 
 instance (Monoid w, MonadAttempt m) => MonadAttempt (WS.WriterT w m) where
-  setReason e = WS.mapWriterT (setReason e)
+  setReason = WS.mapWriterT . setReason
   try = WS.mapWriterT try
 
 -- | Returns a failed attempt with the given (hard) error.

@@ -94,13 +94,14 @@ spec = do
 
   describe "MonadAttempt (AttemptT m) setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
-      let a         = throwError (s, e) :: AttemptT Identity Int
-          Error _ p = e
-       in setReason e (throwError (s, Error UnknownReason p)) === a
+      let Error r p = e
+          a         = throwError (s, e) :: AttemptT Identity Int
+          a'        = throwError (s, Error UnknownReason p)
+       in setReason r a' === a
 
-    prop "retains known reason" $ \e a ->
+    prop "retains known reason" $ \r a ->
       not (isUnknownReason (a :: AttemptT Identity Int)) ==>
-        setReason e a === a
+        setReason r a === a
 
   describe "MonadAttempt (AttemptT m) try" $ do
     prop "converts hard errors to soft" $ \e ->
