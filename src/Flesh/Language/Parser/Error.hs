@@ -142,7 +142,7 @@ instance MonadTrans AttemptT where
 
 instance MonadInput m => MonadInput (AttemptT m) where
   popChar = lift popChar
-  static = mapAttemptT static
+  followedBy = mapAttemptT followedBy
   peekChar = lift peekChar
   pushChars = lift <$> pushChars
 
