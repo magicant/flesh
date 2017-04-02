@@ -29,13 +29,12 @@ This module defines types that describe parse errors for the shell language
 and a monad transformer that injects parse error handling into another monad.
 -}
 module Flesh.Language.Parser.Error (
-  MonadError(..),
   -- * Basic types
   Reason(..), Error(..), Severity(..),
-  -- * The 'AttemptT' monad transformer
-  AttemptT(..), attempt, runAttemptT, mapAttemptT,
   -- * Utilities for 'MonadError'
-  failure, failure', recover, setReason, try) where
+  MonadError(..), failure, failure', recover, setReason, try,
+  -- * The 'AttemptT' monad transformer
+  AttemptT(..), attempt, runAttemptT, mapAttemptT) where
 
 import Control.Applicative
 import Control.Monad.Except
@@ -61,6 +60,34 @@ data Severity =
   -- | Severity of errors that may be recovered by another parse.
   | Soft
   deriving (Eq, Show)
+
+-- | Returns a failed attempt with the given (hard) error.
+failure :: MonadError (Severity, Error) m => Error -> m a
+failure e = throwError (Hard, e)
+
+-- | Failure of unknown reason.
+failure' :: MonadError (Severity, Error) m => P.Position -> m a
+failure' p = failure (Error {reason = UnknownReason, position = p})
+
+-- | Recovers from an error. This is a simple wrapper around 'catchError' that
+-- ignores the error's 'Severity'.
+recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
+recover a f = catchError a (f . snd)
+
+-- | @setReason r a@ modifies the result of attempt @a@ by replacing an error
+-- of 'UnknownReason' with the given reason @r@. For other reasons or
+-- successful results, 'setReason' does not do anything.
+setReason :: MonadError (Severity, Error) m => Reason -> m a -> m a
+setReason r m = catchError m (throwError . fmap handle)
+  where handle (Error UnknownReason p) = Error r p
+        handle x                       = x
+
+-- | 'try' rewrites the result of an attempt by converting a hard error to a
+-- soft error with the same reason. The result is not modified if
+-- successful.
+try :: MonadError (Severity, Error) m => m a -> m a
+try m = catchError m (throwError . handle)
+  where handle (_, e) = (Soft, e)
 
 -- | Result of an attempt to parse something. Type parameter @a@ is the result
 -- type of a successful parse. As a monad transformer, @AttemptT@ injects the
@@ -154,33 +181,5 @@ instance MonadInput m => Alternative (AttemptT m) where
             handle e = throwError e
 
 instance MonadInput m => MonadPlus (AttemptT m)
-
--- | Returns a failed attempt with the given (hard) error.
-failure :: MonadError (Severity, Error) m => Error -> m a
-failure e = throwError (Hard, e)
-
--- | Failure of unknown reason.
-failure' :: MonadError (Severity, Error) m => P.Position -> m a
-failure' p = failure (Error {reason = UnknownReason, position = p})
-
--- | Recovers from an error. This is a simple wrapper around 'catchError' that
--- ignores the error's 'Severity'.
-recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
-recover a f = catchError a (f . snd)
-
--- | @setReason r a@ modifies the result of attempt @a@ by replacing an error
--- of 'UnknownReason' with the given reason @r@. For other reasons or
--- successful results, 'setReason' does not do anything.
-setReason :: MonadError (Severity, Error) m => Reason -> m a -> m a
-setReason r m = catchError m (throwError . fmap handle)
-  where handle (Error UnknownReason p) = Error r p
-        handle x                       = x
-
--- | 'try' rewrites the result of an attempt by converting a hard error to a
--- soft error with the same reason. The result is not modified if
--- successful.
-try :: MonadError (Severity, Error) m => m a -> m a
-try m = catchError m (throwError . handle)
-  where handle (_, e) = (Soft, e)
 
 -- vim: set et sw=2 sts=2 tw=78:
