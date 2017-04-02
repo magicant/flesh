@@ -15,12 +15,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : portable
+Portability : non-portable (flexible contexts)
 
 This module defines character parsers.
 -}
@@ -33,7 +34,7 @@ import Flesh.Source.Position
 -- | Parses a single character that satisfies the given predicate.
 --
 -- Returns 'UnknownReason' on dissatisfaction.
-satisfy :: (MonadInput m, MonadAttempt m)
+satisfy :: (MonadInput m, MonadError (Severity, Error) m)
         => (Char -> Bool) -> m (Positioned Char)
 satisfy pred_ = do
   e <- popChar
@@ -45,24 +46,27 @@ satisfy pred_ = do
 -- | Parses the given single character.
 --
 -- Returns 'UnknownReason' on failure.
-char :: (MonadInput m, MonadAttempt m) => Char -> m (Positioned Char)
+char :: (MonadInput m, MonadError (Severity, Error) m)
+     => Char -> m (Positioned Char)
 char c = satisfy (c ==)
 
 -- | Parses any single character.
 --
 -- Returns 'UnknownReason' if there is no next character.
-anyChar :: (MonadInput m, MonadAttempt m) => m (Positioned Char)
+anyChar :: (MonadInput m, MonadError (Severity, Error) m)
+        => m (Positioned Char)
 anyChar = satisfy (const True)
 
 -- | Parses a sequence of characters.
 --
 -- Returns 'UnknownReason' on failure.
-string :: (MonadInput m, MonadAttempt m) => String -> m [Positioned Char]
+string :: (MonadInput m, MonadError (Severity, Error) m)
+       => String -> m [Positioned Char]
 string [] = return []
 string (c:cs) = (:) <$> char c <*> string cs
 
 -- | Parses the /end-of-file/.
-eof :: (MonadInput m, MonadAttempt m) => m Position
+eof :: (MonadInput m, MonadError (Severity, Error) m) => m Position
 eof = do
   e <- peekChar
   case e of

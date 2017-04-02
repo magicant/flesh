@@ -32,15 +32,13 @@ module Flesh.Language.Parser.Error (
   MonadError(..),
   -- * Basic types
   Reason(..), Error(..), Severity(..),
-  -- * The AttemptT monad transformer
+  -- * The 'AttemptT' monad transformer
   AttemptT(..), attempt, runAttemptT, mapAttemptT,
-  -- * Class of attempt monads
-  MonadAttempt(..), failure, failure', recover) where
+  -- * Utilities for 'MonadError'
+  failure, failure', recover, setReason, try) where
 
 import Control.Applicative
 import Control.Monad.Except
-import qualified Control.Monad.Writer.Lazy as WL
-import qualified Control.Monad.Writer.Strict as WS
 import Data.Foldable
 import Flesh.Language.Parser.Input
 import qualified Flesh.Source.Position as P
@@ -157,33 +155,6 @@ instance MonadInput m => Alternative (AttemptT m) where
 
 instance MonadInput m => MonadPlus (AttemptT m)
 
--- | Extension of 'MonadError' with operations to modify attempt results.
-class MonadError (Severity, Error) m => MonadAttempt m where
-  -- | @setReason r a@ modifies the result of attempt @a@ by replacing an
-  -- error of 'UnknownReason' with the given reason @r@. For other reasons or
-  -- successful results, 'setReason' does not do anything.
-  setReason :: Reason -> m a -> m a
-  -- | 'try' rewrites the result of an attempt by converting a hard error to a
-  -- soft error with the same reason. The result is not modified if
-  -- successful.
-  try :: m a -> m a
-
-instance Monad m => MonadAttempt (AttemptT m) where
-  setReason r = mapAttemptT (fmap f)
-    where f (Left (s, (Error UnknownReason p))) = Left (s, Error r p)
-          f x                                   = x
-  try = mapAttemptT (fmap f)
-    where f (Left (Hard, e)) = Left (Soft, e)
-          f x                = x
-
-instance (Monoid w, MonadAttempt m) => MonadAttempt (WL.WriterT w m) where
-  setReason = WL.mapWriterT . setReason
-  try = WL.mapWriterT try
-
-instance (Monoid w, MonadAttempt m) => MonadAttempt (WS.WriterT w m) where
-  setReason = WS.mapWriterT . setReason
-  try = WS.mapWriterT try
-
 -- | Returns a failed attempt with the given (hard) error.
 failure :: MonadError (Severity, Error) m => Error -> m a
 failure e = throwError (Hard, e)
@@ -196,5 +167,20 @@ failure' p = failure (Error {reason = UnknownReason, position = p})
 -- ignores the error's 'Severity'.
 recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
 recover a f = catchError a (f . snd)
+
+-- | @setReason r a@ modifies the result of attempt @a@ by replacing an error
+-- of 'UnknownReason' with the given reason @r@. For other reasons or
+-- successful results, 'setReason' does not do anything.
+setReason :: MonadError (Severity, Error) m => Reason -> m a -> m a
+setReason r m = catchError m (throwError . fmap handle)
+  where handle (Error UnknownReason p) = Error r p
+        handle x                       = x
+
+-- | 'try' rewrites the result of an attempt by converting a hard error to a
+-- soft error with the same reason. The result is not modified if
+-- successful.
+try :: MonadError (Severity, Error) m => m a -> m a
+try m = catchError m (throwError . handle)
+  where handle (_, e) = (Soft, e)
 
 -- vim: set et sw=2 sts=2 tw=78:

@@ -92,7 +92,7 @@ spec = do
           f  = try $ failure e
        in run (f <|> a') i === run a' i
 
-  describe "MonadAttempt (AttemptT m) setReason" $ do
+  describe "setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
       let Error r p = e
           a         = throwError (s, e) :: AttemptT Identity Int
@@ -103,7 +103,7 @@ spec = do
       not (isUnknownReason (a :: AttemptT Identity Int)) ==>
         setReason r a === a
 
-  describe "MonadAttempt (AttemptT m) try" $ do
+  describe "try" $ do
     prop "converts hard errors to soft" $ \e ->
       let h = throwError (Hard, e) :: AttemptT Identity Int
           s = throwError (Soft, e) :: AttemptT Identity Int
