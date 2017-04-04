@@ -22,6 +22,7 @@ library
                        Flesh.Language.Parser.Error,
                        Flesh.Language.Parser.HereDoc,
                        Flesh.Language.Parser.Input,
+                       Flesh.Language.Parser.Syntax,
                        Flesh.Language.Parser.Warning,
                        Flesh.Language.Syntax,
                        Flesh.Source.Position
