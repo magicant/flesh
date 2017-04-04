@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
@@ -29,18 +30,16 @@ This module defines types that describe parse errors for the shell language
 and a monad transformer that injects parse error handling into another monad.
 -}
 module Flesh.Language.Parser.Error (
-  MonadError(..),
   -- * Basic types
   Reason(..), Error(..), Severity(..),
-  -- * The AttemptT monad transformer
-  AttemptT(..), attempt, runAttemptT, mapAttemptT,
-  -- * Class of attempt monads
-  MonadAttempt(..), failure, failure', recover) where
+  -- * Utilities for 'MonadError'
+  MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
+  notFollowedBy, recover, setReason, try,
+  -- * The 'AttemptT' monad transformer
+  AttemptT(..), runAttemptT, mapAttemptT) where
 
 import Control.Applicative
 import Control.Monad.Except
-import qualified Control.Monad.Writer.Lazy as WL
-import qualified Control.Monad.Writer.Strict as WS
 import Data.Foldable
 import Flesh.Language.Parser.Input
 import qualified Flesh.Source.Position as P
@@ -64,69 +63,100 @@ data Severity =
   | Soft
   deriving (Eq, Show)
 
--- | Result of an attempt to parse something. Type parameter @a@ is the result
--- type of a successful parse. As a monad transformer, @AttemptT@ injects the
--- result into monad @m@.
+-- | Returns a failed attempt with the given (hard) error.
+failureOfError :: MonadError (Severity, Error) m => Error -> m a
+failureOfError e = throwError (Hard, e)
+
+-- | Failure of unknown reason.
+failureOfPosition :: MonadError (Severity, Error) m => P.Position -> m a
+failureOfPosition p = failureOfError (Error UnknownReason p)
+
+-- | Failure of unknown reason at the current position.
+failure :: (MonadInput m, MonadError (Severity, Error) m) => m a
+failure = currentPosition >>= failureOfPosition
+
+-- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
+-- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
+satisfying :: (MonadInput m, MonadError (Severity, Error) m)
+           => m a -> (a -> Bool) -> m a
+satisfying m p = do
+  r <- m
+  if p r then return r else failure
+
+-- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
+-- equivalent to 'failure'.
+notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
+notFollowedBy m =
+  join $ catchError (m >> return failure) (const $ return $ return ())
+
+-- | Recovers from an error. This is a simple wrapper around 'catchError' that
+-- ignores the error's 'Severity'.
+recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
+recover a f = catchError a (f . snd)
+
+-- | @setReason r a@ modifies the result of attempt @a@ by replacing an error
+-- of 'UnknownReason' with the given reason @r@. For other reasons or
+-- successful results, 'setReason' does not do anything.
+setReason :: MonadError (Severity, Error) m => Reason -> m a -> m a
+setReason r m = catchError m (throwError . fmap handle)
+  where handle (Error UnknownReason p) = Error r p
+        handle x                       = x
+
+-- | 'try' rewrites the result of an attempt by converting a hard error to a
+-- soft error with the same reason. The result is not modified if
+-- successful.
+try :: MonadError (Severity, Error) m => m a -> m a
+try m = catchError m (throwError . handle)
+  where handle (_, e) = (Soft, e)
+
+-- | Modifies the behavior of a monad in the 'Alternative' (and 'MonadPlus')
+-- operations so that 'Hard' errors are not recovered by the '<|>' operation.
 --
 -- As an instance of 'Functor', 'Foldable', 'Applicative' and 'Monad',
--- 'AttemptT' behaves the same as 'ExceptT'. The difference between them lies
--- in the implementation of 'Alternative'. 'ExceptT' requires the error type
--- to be a 'Monoid', but 'AttemptT' does not. An error value of 'AttemptT'
--- always denotes a single error. For 'AttemptT', 'empty' is defined as an
--- unmeaningful default error that should be replaced by 'setReason'. Errors
--- in 'AttemptT' are categorized into two levels of severity: 'Hard' and
--- 'Soft'. The 'failure' function returns 'Hard' errors, but they can be
--- converted to 'Soft' errors by 'try'. Only 'Soft' errors are recovered by
--- the '<|>' operator, which helps returning user-friendly error messages.
-newtype AttemptT m a = AttemptT (ExceptT (Severity, Error) m a)
+-- @AttemptT m@ behaves the same as the original monad @m@. The difference
+-- between them lies in the implementation of 'Alternative'. @'Alternative'
+-- ('ExceptT' e m)@ requires the error type @e@ to be a 'Monoid', but
+-- 'AttemptT' does not. An error value of 'AttemptT' always denotes a single
+-- error. For 'AttemptT', 'empty' is defined as 'failure', whose reason should
+-- be set by 'setReason'. Errors in 'AttemptT' are categorized into two levels
+-- of severity: 'Hard' and 'Soft'. The 'failure' function returns 'Hard'
+-- errors, but they can be converted to 'Soft' errors by 'try'. Only 'Soft'
+-- errors are recovered by the '<|>' operator, which helps returning
+-- user-friendly error messages.
+newtype AttemptT m a = AttemptT (m a)
   deriving (Eq, Show)
 
--- | Converts 'AttemptT' to 'ExceptT'.
-exceptFromAttemptT :: AttemptT m a -> ExceptT (Severity, Error) m a
-exceptFromAttemptT (AttemptT e) = e
-
--- | Constructs an 'AttemptT' value.
-attempt :: m (Either (Severity, Error) a) -> AttemptT m a
-attempt = AttemptT . ExceptT
-
 -- | Returns the value of 'AttemptT'.
-runAttemptT :: AttemptT m a -> m (Either (Severity, Error) a)
-runAttemptT = runExceptT . exceptFromAttemptT
+runAttemptT :: AttemptT m a -> m a
+runAttemptT (AttemptT m) = m
 
 -- | Directly modifies the value of 'AttemptT'.
-mapAttemptT ::
-  (m (Either (Severity, Error) a) -> n (Either (Severity, Error) b))
-  -> AttemptT m a -> AttemptT n b
-mapAttemptT f = attempt . f . runAttemptT
-
-instance Monad m => MonadError (Severity, Error) (AttemptT m) where
-  throwError = AttemptT . throwError
-  catchError (AttemptT a) f =
-    AttemptT $ catchError a (exceptFromAttemptT . f)
+mapAttemptT :: (m a -> n b) -> AttemptT m a -> AttemptT n b
+mapAttemptT f = AttemptT . f . runAttemptT
 
 instance Functor m => Functor (AttemptT m) where
-  fmap f = AttemptT . fmap f . exceptFromAttemptT
+  fmap f = AttemptT . fmap f . runAttemptT
   a <$ AttemptT b = AttemptT (a <$ b)
 
 instance Foldable m => Foldable (AttemptT m) where
-  fold = fold . exceptFromAttemptT
-  foldMap f = foldMap f . exceptFromAttemptT
-  foldr f z = foldr f z . exceptFromAttemptT
-  foldr' f z = foldr' f z . exceptFromAttemptT
-  foldl f z = foldl f z . exceptFromAttemptT
-  foldl' f z = foldl' f z . exceptFromAttemptT
-  foldr1 f = foldr1 f . exceptFromAttemptT
-  foldl1 f = foldl1 f . exceptFromAttemptT
-  toList = toList . exceptFromAttemptT
-  null = null . exceptFromAttemptT
-  length = length . exceptFromAttemptT
-  elem e = elem e . exceptFromAttemptT
-  maximum = maximum . exceptFromAttemptT
-  minimum = minimum . exceptFromAttemptT
-  sum = sum . exceptFromAttemptT
-  product = product . exceptFromAttemptT
+  fold = fold . runAttemptT
+  foldMap f = foldMap f . runAttemptT
+  foldr f z = foldr f z . runAttemptT
+  foldr' f z = foldr' f z . runAttemptT
+  foldl f z = foldl f z . runAttemptT
+  foldl' f z = foldl' f z . runAttemptT
+  foldr1 f = foldr1 f . runAttemptT
+  foldl1 f = foldl1 f . runAttemptT
+  toList = toList . runAttemptT
+  null = null . runAttemptT
+  length = length . runAttemptT
+  elem e = elem e . runAttemptT
+  maximum = maximum . runAttemptT
+  minimum = minimum . runAttemptT
+  sum = sum . runAttemptT
+  product = product . runAttemptT
 
-instance Monad m => Applicative (AttemptT m) where
+instance Applicative m => Applicative (AttemptT m) where
   pure = AttemptT . pure
   AttemptT a <*> AttemptT b = AttemptT (a <*> b)
   AttemptT a  *> AttemptT b = AttemptT (a  *> b)
@@ -134,67 +164,31 @@ instance Monad m => Applicative (AttemptT m) where
 
 instance Monad m => Monad (AttemptT m) where
   return = AttemptT . return
-  AttemptT a >>= f = AttemptT (a >>= exceptFromAttemptT . f)
+  AttemptT a >>= f = AttemptT (a >>= runAttemptT . f)
   AttemptT a >> AttemptT b = AttemptT (a >> b)
 
 instance MonadTrans AttemptT where
-  lift = AttemptT . ExceptT . liftM Right
+  lift = AttemptT
 
 instance MonadInput m => MonadInput (AttemptT m) where
   popChar = lift popChar
-  static = mapAttemptT static
+  followedBy = mapAttemptT followedBy
   peekChar = lift peekChar
   pushChars = lift <$> pushChars
 
-instance MonadInput m => Alternative (AttemptT m) where
-  empty = do
-    p <- currentPosition
-    throwError (Hard, Error UnknownReason p)
-  a <|> b = do
+instance MonadError e m => MonadError e (AttemptT m) where
+  throwError = AttemptT . throwError
+  catchError (AttemptT m) f = AttemptT (catchError m (runAttemptT . f))
+
+instance (MonadInput m, MonadError (Severity, Error) m)
+    => Alternative (AttemptT m) where
+  empty = failure
+  a <|> b =
     a `catchError` handle
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance MonadInput m => MonadPlus (AttemptT m)
-
--- | Extension of 'MonadError' with operations to modify attempt results.
-class MonadError (Severity, Error) m => MonadAttempt m where
-  -- | @setReason e a@ modifies the result of attempt @a@ by replacing an
-  -- error of 'UnknownReason' with the given error @e@. For other reasons or
-  -- successful results, 'setReason' does not do anything.
-  setReason :: Error -> m a -> m a
-  -- | 'try' rewrites the result of an attempt by converting a hard error to a
-  -- soft error with the same reason. The result is not modified if
-  -- successful.
-  try :: m a -> m a
-
-instance Monad m => MonadAttempt (AttemptT m) where
-  setReason e = mapAttemptT (fmap f)
-    where f (Left (s, (Error UnknownReason _))) = Left (s, e)
-          f r                                   = r
-  try = mapAttemptT (fmap f)
-    where f (Left (Hard, e)) = Left (Soft, e)
-          f r                = r
-
-instance (Monoid w, MonadAttempt m) => MonadAttempt (WL.WriterT w m) where
-  setReason e = WL.mapWriterT (setReason e)
-  try = WL.mapWriterT try
-
-instance (Monoid w, MonadAttempt m) => MonadAttempt (WS.WriterT w m) where
-  setReason e = WS.mapWriterT (setReason e)
-  try = WS.mapWriterT try
-
--- | Returns a failed attempt with the given (hard) error.
-failure :: MonadError (Severity, Error) m => Error -> m a
-failure e = throwError (Hard, e)
-
--- | Failure of unknown reason.
-failure' :: MonadError (Severity, Error) m => P.Position -> m a
-failure' p = failure (Error {reason = UnknownReason, position = p})
-
--- | Recovers from an error. This is a simple wrapper around 'catchError' that
--- ignores the error's 'Severity'.
-recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
-recover a f = catchError a (f . snd)
+instance (MonadInput m, MonadError (Severity, Error) m)
+  => MonadPlus (AttemptT m)
 
 -- vim: set et sw=2 sts=2 tw=78:
