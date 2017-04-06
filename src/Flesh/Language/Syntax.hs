@@ -29,7 +29,7 @@ module Flesh.Language.Syntax (
   WordUnit(..)) where
 
 import qualified Data.List.NonEmpty as NE
-import Flesh.Source.Position
+import qualified Flesh.Source.Position as P
 
 -- | Element of double quotes.
 data DoubleQuoteUnit =
@@ -42,13 +42,22 @@ data DoubleQuoteUnit =
     | CommandSubstitution -- FIXME of the $(...) form
     | Backquoted -- FIXME command substitution
     | Arithmetic -- FIXME
+  deriving (Eq)
+
+instance Show DoubleQuoteUnit where
+  showsPrec _ (Char c) = (c:)
+  showsPrec _ (Backslashed c) = \s -> '\\':c:s
+  showsPrec _ Parameter = id
+  showsPrec _ CommandSubstitution = id
+  showsPrec _ Backquoted = id
+  showsPrec _ Arithmetic = id
 
 -- | Element of words.
 data WordUnit =
     -- | Unquoted double-quote unit as a word unit.
     Unquoted DoubleQuoteUnit
     -- | Double-quote.
-    | DoubleQuote (NE.NonEmpty (Positioned DoubleQuoteUnit))
+    | DoubleQuote (NE.NonEmpty (P.Positioned DoubleQuoteUnit))
     | SingleQuote -- FIXME Text
 
 -- vim: set et sw=2 sts=2 tw=78:

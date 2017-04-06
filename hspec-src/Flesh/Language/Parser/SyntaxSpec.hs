@@ -17,16 +17,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
---import Flesh.Language.Parser.Syntax
+import Flesh.Language.Parser.Syntax
+import Flesh.Language.Parser.TestUtil
 import Test.Hspec
 
 spec :: Spec
 spec = do
   describe "doubleQuoteUnit" $ do
-    it "parses backslashed backslash" $ pending
+    context "parses backslashed backslash" $ do
+      expectSuccess "\\\\" "" (snd <$> doubleQuoteUnit) (Backslashed '\\')
 
-    it "parses single alphanumeric" $ pending
+    context "parses single alphanumeric" $ do
+      expectSuccess "a" "" (snd <$> doubleQuoteUnit) (Char 'a')
+      -- TODO test position
+      -- TODO test that remainders are irrelevant
 
-    it "skips line continuations" $ pending
+    context "skips line continuations" $ do
+      expectSuccess "\\\n\\\na" "" (snd <$> doubleQuoteUnit) (Char 'a')
+      -- TODO test position
 
 -- vim: set et sw=2 sts=2 tw=78:

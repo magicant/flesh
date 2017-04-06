@@ -43,7 +43,7 @@ import Flesh.Source.Position
 -- | Parses a line continuation: a backslash followed by a newline.
 lineContinuation :: (MonadInput m, MonadError (Severity, Error) m)
                  => m Position
-lineContinuation = fst . head <$> string "\\\n"
+lineContinuation = try $ fst . head <$> string "\\\n"
 
 -- | @lc m@ parses @m@ optionally preceded by any number of line
 -- continuations.
@@ -54,7 +54,7 @@ lc m = many lineContinuation *> m
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: (MonadInput m, MonadError (Severity, Error) m)
             => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-backslashed m = char '\\' *> fmap (fmap Backslashed) m
+backslashed m = try (char '\\') *> fmap (fmap Backslashed) m
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: (Alternative m, MonadInput m,
