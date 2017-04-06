@@ -56,6 +56,13 @@ char :: (MonadInput m, MonadError (Severity, Error) m)
      => Char -> m (Positioned Char)
 char c = satisfy (c ==)
 
+-- | Parses one of the given characters.
+--
+-- Returns 'UnknownReason' on failure.
+oneOfChars :: (MonadInput m, MonadError (Severity, Error) m)
+           => [Char] -> m (Positioned Char)
+oneOfChars cs = satisfy (flip elem cs)
+
 -- | Parses a sequence of characters.
 --
 -- Returns 'UnknownReason' on failure.

@@ -28,7 +28,10 @@ tree, error, and warnings.
 -}
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
-  lineContinuation, lc) where
+  -- * Syntactic primitives
+  lineContinuation, lc,
+  -- * Tokens
+  backslashed, doubleQuoteUnit) where
 
 import Control.Applicative
 import Flesh.Language.Parser.Char
@@ -47,5 +50,17 @@ lineContinuation = fst . head <$> string "\\\n"
 lc :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
    => m a -> m a
 lc m = many lineContinuation *> m
+
+-- | Parses a backslash-escaped character that is parsed by the given parser.
+backslashed :: (MonadInput m, MonadError (Severity, Error) m)
+            => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
+backslashed m = char '\\' *> fmap (fmap Backslashed) m
+
+-- | Parses a double-quote unit, possibly preceded by line continuations.
+doubleQuoteUnit :: (Alternative m, MonadInput m,
+                    MonadError (Severity, Error) m)
+  => m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit = lc $ -- TODO parse expansions
+  backslashed (oneOfChars "\\\"$`") <|> fmap (fmap Char) anyChar
 
 -- vim: set et sw=2 sts=2 tw=78:
