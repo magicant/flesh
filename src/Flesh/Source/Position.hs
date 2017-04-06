@@ -28,8 +28,8 @@ describing origin of them.
 -}
 module Flesh.Source.Position (
     Situation(..), Fragment(..), Position(..), dummyPosition, next,
-    Positioned, PositionedList(..), PositionedString, unposition, spread)
-    where
+    Positioned, PositionedList(..), PositionedString, unposition, spread,
+    dropP) where
 
 import qualified Flesh.Language.Alias.Core as Alias
 
@@ -125,5 +125,11 @@ instance Show a => Show (PositionedList a) where
 spread :: Position -> [a] -> PositionedList a
 spread p [] = Nil p
 spread p (x:xs) = (p, x) :~ spread (next p) xs
+
+-- | Drop as many first items as specified from the positioned list.
+dropP :: Int -> PositionedList a -> PositionedList a
+dropP 0 xs = xs
+dropP _ n@(Nil _) = n
+dropP n (_ :~ xs) = (dropP $! n - 1) xs
 
 -- vim: set et sw=2 sts=2 tw=78:

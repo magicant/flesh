@@ -46,7 +46,8 @@ test-suite flesh-hspec
   hs-source-dirs:      hspec-src
   main-is:             Main.hs
   other-modules:       Flesh.Language.Parser.ErrorSpec,
-                       Flesh.Language.Parser.SyntaxSpec
+                       Flesh.Language.Parser.SyntaxSpec,
+                       Flesh.Language.Parser.TestUtil
   build-depends:       base,
                        flesh,
                        hspec >= 2 && < 3,
