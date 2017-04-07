@@ -26,14 +26,26 @@ spec = do
   describe "doubleQuoteUnit" $ do
     context "parses backslashed backslash" $ do
       expectSuccess "\\\\" "" (snd <$> doubleQuoteUnit) (Backslashed '\\')
+      expectPosition "\\\\" (fst <$> doubleQuoteUnit) 1
+
+    context "parses literal backslash followed by alphanumeric" $ do
+      expectSuccess "\\" "a" (snd <$> doubleQuoteUnit) (Char '\\')
+
+    context "parses literal backslash followed by end-of-input" $ do
+      expectSuccess "\\" "" (snd <$> doubleQuoteUnit) (Char '\\')
 
     context "parses single alphanumeric" $ do
       expectSuccess "a" "" (snd <$> doubleQuoteUnit) (Char 'a')
-      -- TODO test position
+      expectPosition "a" (fst <$> doubleQuoteUnit) 0
       -- TODO test that remainders are irrelevant
 
     context "skips line continuations" $ do
-      expectSuccess "\\\n\\\na" "" (snd <$> doubleQuoteUnit) (Char 'a')
-      -- TODO test position
+      expectSuccess "\\\na" "" (snd <$> doubleQuoteUnit) (Char 'a')
+      expectPosition "\\\na" (fst <$> doubleQuoteUnit) 2
+      expectSuccess "\\\n\\\n\\$" "" (snd <$> doubleQuoteUnit)
+        (Backslashed '$')
+      expectPosition "\\\n\\\n\\$" (fst <$> doubleQuoteUnit) 5
+
+-- TODO test error reason
 
 -- vim: set et sw=2 sts=2 tw=78:

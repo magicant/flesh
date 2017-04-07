@@ -30,17 +30,30 @@ import Test.Hspec
 type Tester = AttemptT
   (StateT PositionedString (ExceptT (Severity, Error) Identity))
 
+runTester :: Tester a -> PositionedString
+          -> Either (Severity, Error) (a, PositionedString)
+runTester parser = runIdentity . runExceptT . runStateT (runAttemptT parser)
+
 expectSuccess :: (Eq a, Show a) =>
   String -> String -> Tester a -> a -> SpecWith ()
 expectSuccess consumed lookahead parser result =
   let s = consumed ++ lookahead
       s' = spread (dummyPosition s) s
-      e = runIdentity $ runExceptT $ runStateT (runAttemptT parser) s'
+      e = runTester parser s'
    in context s $ do
      it "returns expected result successfully" $
        fmap fst e `shouldBe` Right result
 
      it "consumes expected part of source code" $
        fmap snd e `shouldBe` Right (dropP (length consumed) s')
+
+expectPosition :: String -> Tester Position -> Int -> SpecWith ()
+expectPosition input parser expectedPositionIndex =
+  let s' = spread (dummyPosition input) input
+      e = runTester parser s'
+      expectedPosition = headPosition (dropP expectedPositionIndex s')
+   in context input $ do
+     it "returns expected position" $
+       fmap fst e `shouldBe` Right expectedPosition
 
 -- vim: set et sw=2 sts=2 tw=78:

@@ -61,6 +61,6 @@ doubleQuoteUnit :: (Alternative m, MonadInput m,
                     MonadError (Severity, Error) m)
   => m (Positioned DoubleQuoteUnit)
 doubleQuoteUnit = lc $ -- TODO parse expansions
-  backslashed (oneOfChars "\\\"$`") <|> fmap (fmap Char) anyChar
+  try (backslashed (oneOfChars "\\\"$`")) <|> fmap (fmap Char) anyChar
 
 -- vim: set et sw=2 sts=2 tw=78:
