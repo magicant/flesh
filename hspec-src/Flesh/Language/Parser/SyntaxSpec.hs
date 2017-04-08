@@ -32,12 +32,11 @@ spec = do
       expectSuccess "\\" "a" (snd <$> doubleQuoteUnit) (Char '\\')
 
     context "parses literal backslash followed by end-of-input" $ do
-      expectSuccess "\\" "" (snd <$> doubleQuoteUnit) (Char '\\')
+      expectSuccessEof "\\" "" (snd <$> doubleQuoteUnit) (Char '\\')
 
     context "parses single alphanumeric" $ do
       expectSuccess "a" "" (snd <$> doubleQuoteUnit) (Char 'a')
       expectPosition "a" (fst <$> doubleQuoteUnit) 0
-      -- TODO test that remainders are irrelevant
 
     context "skips line continuations" $ do
       expectSuccess "\\\na" "" (snd <$> doubleQuoteUnit) (Char 'a')
