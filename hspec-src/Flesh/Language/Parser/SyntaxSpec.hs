@@ -45,6 +45,19 @@ spec = do
         (Backslashed '$')
       expectPosition "\\\n\\\n\\$" (fst <$> doubleQuoteUnit) 5
 
+  describe "doubleQuote" $ do
+    context "parses empty quotes" $ do
+      expectSuccess "\"\"" "" (snd <$> doubleQuote) (DoubleQuote [])
+      expectPosition "\"\"" (fst <$> doubleQuote) 0
+
+    context "parses single character in quotes" $ do
+      -- TODO This test is not enough
+      expectPosition "\"a\"" (fst <$> doubleQuote) 0
+
+    context "ignores line continuations" $ do
+      expectSuccess "\\\n\"\\\n\"" "" (snd <$> doubleQuote) (DoubleQuote [])
+      expectPosition "\\\n\"\\\n\"" (fst <$> doubleQuote) 2
+
 -- TODO test error reason
 
 -- vim: set et sw=2 sts=2 tw=78:

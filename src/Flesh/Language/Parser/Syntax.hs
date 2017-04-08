@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntactic primitives
   lineContinuation, lc,
   -- * Tokens
-  backslashed, doubleQuoteUnit) where
+  backslashed, doubleQuoteUnit, doubleQuote) where
 
 import Control.Applicative
 import Flesh.Language.Parser.Char
@@ -61,6 +61,17 @@ doubleQuoteUnit :: (Alternative m, MonadInput m,
                     MonadError (Severity, Error) m)
   => m (Positioned DoubleQuoteUnit)
 doubleQuoteUnit = lc $ -- TODO parse expansions
-  try (backslashed (oneOfChars "\\\"$`")) <|> fmap (fmap Char) anyChar
+  try (backslashed (oneOfChars "\\\"$`")) <|> try (fmap (fmap Char) anyChar)
+
+-- | Parses a pair of double quotes containing any number of double-quote
+-- units.
+doubleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+            => m (Positioned WordUnit)
+doubleQuote = do
+  let dq = lc (char '"')
+  (p, _) <- try dq
+  let f units = (p, DoubleQuote units)
+      closeQuote = setReason UnclosedDoubleQuote dq
+  f <$> doubleQuoteUnit `manyTill` closeQuote
 
 -- vim: set et sw=2 sts=2 tw=78:
