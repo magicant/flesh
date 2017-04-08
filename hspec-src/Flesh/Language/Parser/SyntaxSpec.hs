@@ -51,7 +51,7 @@ spec = do
       expectPosition "\"\"" (fst <$> doubleQuote) 0
 
     context "parses single character in quotes" $ do
-      -- TODO This test is not enough
+      expectShow "\"a\"" "" (snd <$> doubleQuote) "\"a\""
       expectPosition "\"a\"" (fst <$> doubleQuote) 0
 
     context "ignores line continuations" $ do
