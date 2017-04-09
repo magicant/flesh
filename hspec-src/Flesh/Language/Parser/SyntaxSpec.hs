@@ -65,4 +65,26 @@ spec = do
       expectFailureEof "\"\\" doubleQuote Hard UnclosedDoubleQuote 2
       expectFailureEof "\"\\\"" doubleQuote Hard UnclosedDoubleQuote 3
 
+  describe "singleQuote" $ do
+    context "parses empty quotes" $ do
+      expectSuccess "''" "" (snd <$> singleQuote) (SingleQuote [])
+      expectPosition "''" (fst <$> singleQuote) 0
+
+    context "parses characters in quotes" $ do
+      expectShow "'a'" "" (snd <$> singleQuote) "'a'"
+      expectPosition "'a'" (fst <$> singleQuote) 0
+      expectShow "'qwerty'" "" (snd <$> singleQuote) "'qwerty'"
+      expectPosition "'qwerty''" (fst <$> singleQuote) 0
+
+    context "ignores line continuations for opening quote" $ do
+      expectSuccess "\\\n\\\n''" "" (snd <$> singleQuote) (SingleQuote [])
+
+    context "backslashes are literal inside single quotes" $ do
+      expectShow "'\\a\\n\\'" "" (snd <$> singleQuote) "'\\a\\n\\'"
+
+    context "fails on unclosed quotes" $ do
+      expectFailureEof "'" singleQuote Hard UnclosedSingleQuote 1
+      expectFailureEof "'x" singleQuote Hard UnclosedSingleQuote 2
+      expectFailureEof "'\\\\" singleQuote Hard UnclosedSingleQuote 3
+
 -- vim: set et sw=2 sts=2 tw=78:

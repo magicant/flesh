@@ -53,7 +53,7 @@ instance Show DoubleQuoteUnit where
   showsPrec _ Arithmetic = id
   -- | Just joins the given units, without enclosing double quotes.
   showList [] s = s
-  showList (u:us) s = show u ++ showList us s
+  showList (u:us) s = showsPrec 0 u $ showList us s
 
 -- | Element of words.
 data WordUnit =
@@ -61,15 +61,18 @@ data WordUnit =
     Unquoted DoubleQuoteUnit
     -- | Double-quote.
     | DoubleQuote [P.Positioned DoubleQuoteUnit]
-    | SingleQuote -- FIXME Text
+    -- | Single-quote.
+    | SingleQuote [P.Positioned Char]
   deriving (Eq)
 
 instance Show WordUnit where
   showsPrec n (Unquoted unit) s = showsPrec n unit s
   showsPrec n (DoubleQuote units) s =
-    '"' : (showsPrec n (snd <$> units) ('"' : s))
-  showsPrec _ SingleQuote s = s -- FIXME
+    '"' : (showsPrec n (snd (unzip units)) ('"' : s))
+  showsPrec _ (SingleQuote chars) s =
+    '\'' : (foldr f ('\'' : s) chars)
+      where f (_, c) s' = c : s'
   showList [] s = s
-  showList (u:us) s = show u ++ showList us s
+  showList (u:us) s = showsPrec 0 u $ showList us s
 
 -- vim: set et sw=2 sts=2 tw=78:

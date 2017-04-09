@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntactic primitives
   lineContinuation, lc,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote) where
+  backslashed, doubleQuoteUnit, doubleQuote, singleQuote) where
 
 import Control.Applicative
 import Flesh.Language.Parser.Char
@@ -73,5 +73,15 @@ doubleQuote = do
   let f units = (p, DoubleQuote units)
       closeQuote = setReason UnclosedDoubleQuote dq
   require $ f <$> doubleQuoteUnit `manyTill` closeQuote
+
+-- | Parses a pair of single quotes containing any number of characters.
+singleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+            => m (Positioned WordUnit)
+singleQuote = do
+  let sq = char '\''
+  (p, _) <- lc sq
+  let f chars = (p, SingleQuote chars)
+      closeQuote = setReason UnclosedSingleQuote (char '\'')
+  require $ f <$> anyChar `manyTill` closeQuote
 
 -- vim: set et sw=2 sts=2 tw=78:

@@ -49,6 +49,7 @@ data Reason =
   UnknownReason -- TODO TBD
   | SomeReason -- ^ only for testing
   | UnclosedDoubleQuote
+  | UnclosedSingleQuote
   deriving (Eq, Show)
 
 -- | Parse error description.
