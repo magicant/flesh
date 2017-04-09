@@ -73,6 +73,12 @@ isHardError a =
     Left (Hard, _) -> True
     _              -> False
 
+isSoftError :: AE a -> Bool
+isSoftError a =
+  case runIdentity $ runExceptT $ runAttemptT a of
+    Left (Soft, _) -> True
+    _              -> False
+
 run :: AES a
     -> PositionedString -> (Either (Severity, Error) a, PositionedString)
 run = runState . runExceptT . runAttemptT
@@ -111,6 +117,16 @@ spec = do
     prop "retains successes and soft errors intact" $ \a ->
       let _ = a :: AE Int
        in not (isHardError a) ==> try a === a
+
+  describe "require" $ do
+    prop "converts soft errors to hard" $ \e ->
+      let h = throwError (Hard, e) :: AE Int
+          s = throwError (Soft, e) :: AE Int
+       in require s === h
+
+    prop "retains successes and hard errors intact" $ \a ->
+      let _ = a :: AE Int
+       in not (isSoftError a) ==> require a === a
 
   describe "Alternative (AttemptT m) (<|>)" $ do
     prop "returns hard errors intact" $ \e a i ->

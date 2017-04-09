@@ -68,10 +68,10 @@ doubleQuoteUnit = lc $ -- TODO parse expansions
 doubleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
             => m (Positioned WordUnit)
 doubleQuote = do
-  let dq = lc (char '"')
-  (p, _) <- try dq
+  let dq = try (lc (char '"'))
+  (p, _) <- dq
   let f units = (p, DoubleQuote units)
       closeQuote = setReason UnclosedDoubleQuote dq
-  f <$> doubleQuoteUnit `manyTill` closeQuote
+  require $ f <$> doubleQuoteUnit `manyTill` closeQuote
 
 -- vim: set et sw=2 sts=2 tw=78:

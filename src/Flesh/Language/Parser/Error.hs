@@ -34,7 +34,7 @@ module Flesh.Language.Parser.Error (
   Reason(..), Error(..), Severity(..),
   -- * Utilities for 'MonadError'
   MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
-  notFollowedBy, manyTill, recover, setReason, try,
+  notFollowedBy, manyTill, recover, setReason, try, require,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), runAttemptT, mapAttemptT) where
 
@@ -96,13 +96,12 @@ notFollowedBy m = do
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 manyTill :: MonadError (Severity, Error) m => m a -> m end -> m [a]
 a `manyTill` end = m
-  where m = catchError ([] <$ end) $ \e1 ->
-              let a' = catchError a $ \e2 ->
-                        throwError $ case (e1, e2) of
-                                      ((Soft, _), (Hard, _)) -> e2
-                                      _                      -> e1
-               in (:) <$> a' <*> m
--- Using 'catchError' to recover from not only soft but also hard errors.
+  where m = catchError ([] <$ end) loop
+        loop e@(Hard, _) = throwError e
+        loop e@(Soft, _) = (:) <$> a' <*> m
+          where a' = catchError a reerror
+                reerror e'@(Hard, _) = throwError e'
+                reerror _            = throwError e
 -- If @a@ fails, re-throw the original error from @end@ for a better error
 -- message (unless the error severity of @a@ wins).
 
@@ -125,6 +124,13 @@ setReason r m = catchError m (throwError . fmap handle)
 try :: MonadError (Severity, Error) m => m a -> m a
 try m = catchError m (throwError . handle)
   where handle (_, e) = (Soft, e)
+
+-- | 'require' rewrites the result of an attempt by converting a soft error to
+-- a hard error with the same reason. The result is not modified if
+-- successful.
+require :: MonadError (Severity, Error) m => m a -> m a
+require m = catchError m (throwError . handle)
+  where handle (_, e) = (Hard, e)
 
 -- | Modifies the behavior of a monad in the 'Alternative' (and 'MonadPlus')
 -- operations so that 'Hard' errors are not recovered by the '<|>' operation.
