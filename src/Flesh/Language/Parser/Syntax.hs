@@ -31,7 +31,8 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntactic primitives
   lineContinuation, lc,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote, singleQuote) where
+  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, word1till)
+  where
 
 import Control.Applicative
 import Flesh.Language.Parser.Char
@@ -57,11 +58,19 @@ backslashed :: (MonadInput m, MonadError (Severity, Error) m)
 backslashed m = char '\\' *> fmap (fmap Backslashed) m
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
+--
+-- The argument parser is used to parse a backslashed character.
+doubleQuoteUnit' :: (Alternative m, MonadInput m,
+                     MonadError (Severity, Error) m)
+  => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit' c = lc $ -- TODO parse expansions
+  backslashed c <|> fmap (fmap Char) anyChar
+
+-- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: (Alternative m, MonadInput m,
                     MonadError (Severity, Error) m)
   => m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit = lc $ -- TODO parse expansions
-  backslashed (oneOfChars "\\\"$`") <|> fmap (fmap Char) anyChar
+doubleQuoteUnit = doubleQuoteUnit' (oneOfChars "\\\"$`")
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
@@ -83,5 +92,17 @@ singleQuote = do
   let f chars = (p, SingleQuote chars)
       closeQuote = setReason UnclosedSingleQuote (char '\'')
   require $ f <$> anyChar `manyTill` closeQuote
+
+-- | Parses a word unit.
+wordUnit :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+         => m (Positioned WordUnit)
+wordUnit = lc $
+  doubleQuote <|> singleQuote <|>
+    fmap (fmap Unquoted) (doubleQuoteUnit' anyChar)
+
+-- | Parses a non-empty word until @end@ occurs.
+word1till :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+          => m a -> m Word1
+word1till a = notFollowedBy a >> (require $ Word1 <$> wordUnit `someTill` a)
 
 -- vim: set et sw=2 sts=2 tw=78:

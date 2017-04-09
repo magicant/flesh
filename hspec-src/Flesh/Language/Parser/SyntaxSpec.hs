@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
@@ -86,5 +87,14 @@ spec = do
       expectFailureEof "'" singleQuote Hard UnclosedSingleQuote 1
       expectFailureEof "'x" singleQuote Hard UnclosedSingleQuote 2
       expectFailureEof "'\\\\" singleQuote Hard UnclosedSingleQuote 3
+
+  describe "word1till" $ do
+    context "parses some word units" $ do
+      expectShowEof "\\\nabc\\x\"d\"'s'" "" (word1till eof) "abc\\x\"d\"'s'"
+      expectShow "a\\\nX" "" (word1till (lc (char 'X'))) "a"
+
+    context "rejects empty word" $ do
+      expectFailureEof "\\\n)" (word1till (lc (char ')')))
+        Soft UnknownReason 0
 
 -- vim: set et sw=2 sts=2 tw=78:
