@@ -43,7 +43,7 @@ import Flesh.Source.Position
 -- | Parses a line continuation: a backslash followed by a newline.
 lineContinuation :: (MonadInput m, MonadError (Severity, Error) m)
                  => m Position
-lineContinuation = try $ fst . head <$> string "\\\n"
+lineContinuation = fst . head <$> string "\\\n"
 
 -- | @lc m@ parses @m@ optionally preceded by any number of line
 -- continuations.
@@ -54,14 +54,14 @@ lc m = many lineContinuation *> m
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: (MonadInput m, MonadError (Severity, Error) m)
             => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-backslashed m = try (char '\\') *> fmap (fmap Backslashed) m
+backslashed m = char '\\' *> fmap (fmap Backslashed) m
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: (Alternative m, MonadInput m,
                     MonadError (Severity, Error) m)
   => m (Positioned DoubleQuoteUnit)
 doubleQuoteUnit = lc $ -- TODO parse expansions
-  try (backslashed (oneOfChars "\\\"$`")) <|> try (fmap (fmap Char) anyChar)
+  backslashed (oneOfChars "\\\"$`") <|> fmap (fmap Char) anyChar
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
@@ -69,9 +69,9 @@ doubleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
             => m (Positioned WordUnit)
 doubleQuote = do
   let dq = lc (char '"')
-  (p, _) <- try dq
+  (p, _) <- dq
   let f units = (p, DoubleQuote units)
       closeQuote = setReason UnclosedDoubleQuote dq
-  f <$> doubleQuoteUnit `manyTill` closeQuote
+  require $ f <$> doubleQuoteUnit `manyTill` closeQuote
 
 -- vim: set et sw=2 sts=2 tw=78:
