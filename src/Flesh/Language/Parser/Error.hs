@@ -96,6 +96,9 @@ notFollowedBy m = do
   join $ catchError m' (const $ return $ return ())
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
+--
+-- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- unconsumed.
 manyTill :: MonadError (Severity, Error) m => m a -> m end -> m [a]
 a `manyTill` end = m
   where m = catchError ([] <$ end) loop
@@ -109,7 +112,10 @@ a `manyTill` end = m
 
 -- | @a `someTill` end@ parses one or more @a@ until @end@ occurs.
 --
--- Note that @end@ is not tested before @a@ succeeds first. Use
+-- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- unconsumed.
+--
+-- Also note that @end@ is not tested before @a@ succeeds first. Use
 -- @'notFollowedBy' end@ to test @end@ first.
 someTill :: MonadError (Severity, Error) m
          => m a -> m end -> m (NE.NonEmpty a)
