@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
 import Test.Hspec
@@ -58,6 +59,10 @@ spec = do
       expectSuccess "\\\n\"\\\n\"" "" (snd <$> doubleQuote) (DoubleQuote [])
       expectPosition "\\\n\"\\\n\"" (fst <$> doubleQuote) 2
 
--- TODO test error reason
+    context "fails on unclosed quotes" $ do
+      expectFailureEof "\"" doubleQuote Hard UnclosedDoubleQuote 1
+      expectFailureEof "\"x" doubleQuote Hard UnclosedDoubleQuote 2
+      expectFailureEof "\"\\" doubleQuote Hard UnclosedDoubleQuote 2
+      expectFailureEof "\"\\\"" doubleQuote Hard UnclosedDoubleQuote 3
 
 -- vim: set et sw=2 sts=2 tw=78:

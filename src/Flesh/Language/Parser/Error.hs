@@ -81,23 +81,27 @@ failure = currentPosition >>= failureOfPosition
 satisfying :: (MonadInput m, MonadError (Severity, Error) m)
            => m a -> (a -> Bool) -> m a
 satisfying m p = do
+  pos <- currentPosition
   r <- m
-  if p r then return r else failure
+  if p r then return r else failureOfPosition pos
 
 -- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
 -- equivalent to 'failure'.
 notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
-notFollowedBy m =
-  join $ catchError (m >> return failure) (const $ return $ return ())
+notFollowedBy m = do
+  pos <- currentPosition
+  let m' = m >> return (failureOfPosition pos)
+  join $ catchError m' (const $ return $ return ())
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 manyTill :: MonadError (Severity, Error) m => m a -> m end -> m [a]
 a `manyTill` end = m
   where m = catchError ([] <$ end) $ \e1 ->
-              catchError ((:) <$> a <*> m) $ \e2 ->
-                throwError $ case (e1, e2) of
-                               ((Soft, _), (Hard, _)) -> e2
-                               _                      -> e1
+              let a' = catchError a $ \e2 ->
+                        throwError $ case (e1, e2) of
+                                      ((Soft, _), (Hard, _)) -> e2
+                                      _                      -> e1
+               in (:) <$> a' <*> m
 -- Using 'catchError' to recover from not only soft but also hard errors.
 -- If @a@ fails, re-throw the original error from @end@ for a better error
 -- message (unless the error severity of @a@ wins).

@@ -100,4 +100,20 @@ expectShow :: (Eq a, Show a) =>
 expectShow consumed lookahead parser =
   expectSuccess consumed lookahead (show <$> parser)
 
+-- | @expectFailureEof input parser severity reason position@ runs the given
+-- @parser@ for the given @input@ and tests if it fails for the expected error
+-- of the given @severity@, @reason@, and @position@.
+--
+-- Type parameter @a@ needs to be 'Show' and 'Eq'. Map to @()@ if you want to
+-- apply to a non-Show or non-Eq @a@.
+expectFailureEof :: (Eq a, Show a) =>
+  String -> Tester a -> Severity -> Reason -> Int -> SpecWith ()
+expectFailureEof input parser s r expectedPositionIndex =
+  let s' = spread (dummyPosition input) input
+      e = runTester parser s'
+      expectedPosition = headPosition (dropP expectedPositionIndex s')
+   in context input $ do
+     it "fails" $
+       e `shouldBe` Left (s, Error r expectedPosition)
+
 -- vim: set et sw=2 sts=2 tw=78:
