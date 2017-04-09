@@ -22,6 +22,7 @@ library
                        Flesh.Language.Parser.Error,
                        Flesh.Language.Parser.HereDoc,
                        Flesh.Language.Parser.Input,
+                       Flesh.Language.Parser.Syntax,
                        Flesh.Language.Parser.Warning,
                        Flesh.Language.Syntax,
                        Flesh.Source.Position
@@ -44,6 +45,9 @@ test-suite flesh-hspec
   type:                exitcode-stdio-1.0
   hs-source-dirs:      hspec-src
   main-is:             Main.hs
+  other-modules:       Flesh.Language.Parser.ErrorSpec,
+                       Flesh.Language.Parser.SyntaxSpec,
+                       Flesh.Language.Parser.TestUtil
   build-depends:       base,
                        flesh,
                        hspec >= 2 && < 3,

@@ -28,8 +28,8 @@ module Flesh.Language.Syntax (
   DoubleQuoteUnit(..),
   WordUnit(..)) where
 
-import qualified Data.List.NonEmpty as NE
-import Flesh.Source.Position
+--import qualified Data.List.NonEmpty as NE
+import qualified Flesh.Source.Position as P
 
 -- | Element of double quotes.
 data DoubleQuoteUnit =
@@ -42,13 +42,34 @@ data DoubleQuoteUnit =
     | CommandSubstitution -- FIXME of the $(...) form
     | Backquoted -- FIXME command substitution
     | Arithmetic -- FIXME
+  deriving (Eq)
+
+instance Show DoubleQuoteUnit where
+  showsPrec _ (Char c) = (c:)
+  showsPrec _ (Backslashed c) = \s -> '\\':c:s
+  showsPrec _ Parameter = id
+  showsPrec _ CommandSubstitution = id
+  showsPrec _ Backquoted = id
+  showsPrec _ Arithmetic = id
+  -- | Just joins the given units, without enclosing double quotes.
+  showList [] s = s
+  showList (u:us) s = show u ++ showList us s
 
 -- | Element of words.
 data WordUnit =
     -- | Unquoted double-quote unit as a word unit.
     Unquoted DoubleQuoteUnit
     -- | Double-quote.
-    | DoubleQuote (NE.NonEmpty (Positioned DoubleQuoteUnit))
+    | DoubleQuote [P.Positioned DoubleQuoteUnit]
     | SingleQuote -- FIXME Text
+  deriving (Eq)
+
+instance Show WordUnit where
+  showsPrec n (Unquoted unit) s = showsPrec n unit s
+  showsPrec n (DoubleQuote units) s =
+    '"' : (showsPrec n (snd <$> units) ('"' : s))
+  showsPrec _ SingleQuote s = s -- FIXME
+  showList [] s = s
+  showList (u:us) s = show u ++ showList us s
 
 -- vim: set et sw=2 sts=2 tw=78:
