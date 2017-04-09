@@ -26,9 +26,10 @@ This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
   DoubleQuoteUnit(..),
-  WordUnit(..)) where
+  WordUnit(..),
+  Word1(..), word1units) where
 
---import qualified Data.List.NonEmpty as NE
+import qualified Data.List.NonEmpty as NE
 import qualified Flesh.Source.Position as P
 
 -- | Element of double quotes.
@@ -74,5 +75,19 @@ instance Show WordUnit where
       where f (_, c) s' = c : s'
   showList [] s = s
   showList (u:us) s = showsPrec 0 u $ showList us s
+
+-- | Non-empty word.
+newtype Word1 = Word1 (NE.NonEmpty (P.Positioned WordUnit))
+  deriving (Eq)
+
+-- | Returns the content of a non-empty word.
+word1units :: Word1 -> NE.NonEmpty (P.Positioned WordUnit)
+word1units (Word1 us) = us
+
+instance Show Word1 where
+  showsPrec n (Word1 us) s = foldr (showsPrec n . snd) s us
+  showList [] s = s
+  showList [w] s = showsPrec 0 w s
+  showList (w:ws) s = showsPrec 0 w $ ' ' : showList ws s
 
 -- vim: set et sw=2 sts=2 tw=78:
