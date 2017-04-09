@@ -64,9 +64,9 @@ data Severity =
   | Soft
   deriving (Eq, Show)
 
--- | Returns a failed attempt with the given (hard) error.
+-- | Returns a failed attempt with the given (soft) error.
 failureOfError :: MonadError (Severity, Error) m => Error -> m a
-failureOfError e = throwError (Hard, e)
+failureOfError e = throwError (Soft, e)
 
 -- | Failure of unknown reason.
 failureOfPosition :: MonadError (Severity, Error) m => P.Position -> m a
@@ -142,9 +142,9 @@ require m = catchError m (throwError . handle)
 -- 'AttemptT' does not. An error value of 'AttemptT' always denotes a single
 -- error. For 'AttemptT', 'empty' is defined as 'failure', whose reason should
 -- be set by 'setReason'. Errors in 'AttemptT' are categorized into two levels
--- of severity: 'Hard' and 'Soft'. The 'failure' function returns 'Hard'
--- errors, but they can be converted to 'Soft' errors by 'try'. Only 'Soft'
--- errors are recovered by the '<|>' operator, which helps returning
+-- of severity: 'Hard' and 'Soft'. The 'failure' function returns 'Soft'
+-- errors, but they can be converted to 'Hard' errors by 'require'. Only
+-- 'Soft' errors are recovered by the '<|>' operator, which helps returning
 -- user-friendly error messages.
 newtype AttemptT m a = AttemptT (m a)
   deriving (Eq, Show)
