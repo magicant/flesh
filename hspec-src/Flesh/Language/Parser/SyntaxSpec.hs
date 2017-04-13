@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
@@ -64,5 +65,36 @@ spec = do
       expectFailureEof "\"x" doubleQuote Hard UnclosedDoubleQuote 2
       expectFailureEof "\"\\" doubleQuote Hard UnclosedDoubleQuote 2
       expectFailureEof "\"\\\"" doubleQuote Hard UnclosedDoubleQuote 3
+
+  describe "singleQuote" $ do
+    context "parses empty quotes" $ do
+      expectSuccess "''" "" (snd <$> singleQuote) (SingleQuote [])
+      expectPosition "''" (fst <$> singleQuote) 0
+
+    context "parses characters in quotes" $ do
+      expectShow "'a'" "" (snd <$> singleQuote) "'a'"
+      expectPosition "'a'" (fst <$> singleQuote) 0
+      expectShow "'qwerty'" "" (snd <$> singleQuote) "'qwerty'"
+      expectPosition "'qwerty''" (fst <$> singleQuote) 0
+
+    context "ignores line continuations for opening quote" $ do
+      expectSuccess "\\\n\\\n''" "" (snd <$> singleQuote) (SingleQuote [])
+
+    context "backslashes are literal inside single quotes" $ do
+      expectShow "'\\a\\n\\'" "" (snd <$> singleQuote) "'\\a\\n\\'"
+
+    context "fails on unclosed quotes" $ do
+      expectFailureEof "'" singleQuote Hard UnclosedSingleQuote 1
+      expectFailureEof "'x" singleQuote Hard UnclosedSingleQuote 2
+      expectFailureEof "'\\\\" singleQuote Hard UnclosedSingleQuote 3
+
+  describe "tokenTill" $ do
+    context "parses some word units" $ do
+      expectShowEof "\\\nabc\\x\"d\"'s'" "" (tokenTill eof) "abc\\x\"d\"'s'"
+      expectShow "a\\\nX" "" (tokenTill (lc (char 'X'))) "a"
+
+    context "rejects empty token" $ do
+      expectFailureEof "\\\n)" (tokenTill (lc (char ')')))
+        Soft UnknownReason 0
 
 -- vim: set et sw=2 sts=2 tw=78:

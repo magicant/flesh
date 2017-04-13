@@ -31,7 +31,8 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntactic primitives
   lineContinuation, lc,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote) where
+  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill)
+  where
 
 import Control.Applicative
 import Flesh.Language.Parser.Char
@@ -57,11 +58,19 @@ backslashed :: (MonadInput m, MonadError (Severity, Error) m)
 backslashed m = char '\\' *> fmap (fmap Backslashed) m
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
+--
+-- The argument parser is used to parse a backslashed character.
+doubleQuoteUnit' :: (Alternative m, MonadInput m,
+                     MonadError (Severity, Error) m)
+  => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit' c = lc $ -- TODO parse expansions
+  backslashed c <|> fmap (fmap Char) anyChar
+
+-- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: (Alternative m, MonadInput m,
                     MonadError (Severity, Error) m)
   => m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit = lc $ -- TODO parse expansions
-  backslashed (oneOfChars "\\\"$`") <|> fmap (fmap Char) anyChar
+doubleQuoteUnit = doubleQuoteUnit' (oneOfChars "\\\"$`")
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
@@ -73,5 +82,30 @@ doubleQuote = do
   let f units = (p, DoubleQuote units)
       closeQuote = setReason UnclosedDoubleQuote dq
   require $ f <$> doubleQuoteUnit `manyTill` closeQuote
+
+-- | Parses a pair of single quotes containing any number of characters.
+singleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+            => m (Positioned WordUnit)
+singleQuote = do
+  let sq = char '\''
+  (p, _) <- lc sq
+  let f chars = (p, SingleQuote chars)
+      closeQuote = setReason UnclosedSingleQuote (char '\'')
+  require $ f <$> anyChar `manyTill` closeQuote
+
+-- | Parses a word unit.
+wordUnit :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+         => m (Positioned WordUnit)
+wordUnit = lc $
+  doubleQuote <|> singleQuote <|>
+    fmap (fmap Unquoted) (doubleQuoteUnit' anyChar)
+
+-- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
+--
+-- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- unconsumed.
+tokenTill :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+          => m a -> m Token
+tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 
 -- vim: set et sw=2 sts=2 tw=78:

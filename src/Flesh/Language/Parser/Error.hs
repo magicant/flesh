@@ -34,13 +34,14 @@ module Flesh.Language.Parser.Error (
   Reason(..), Error(..), Severity(..),
   -- * Utilities for 'MonadError'
   MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
-  notFollowedBy, manyTill, recover, setReason, try, require,
+  notFollowedBy, manyTill, someTill, recover, setReason, try, require,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), runAttemptT, mapAttemptT) where
 
 import Control.Applicative
 import Control.Monad.Except
 import Data.Foldable
+import qualified Data.List.NonEmpty as NE
 import Flesh.Language.Parser.Input
 import qualified Flesh.Source.Position as P
 
@@ -49,6 +50,7 @@ data Reason =
   UnknownReason -- TODO TBD
   | SomeReason -- ^ only for testing
   | UnclosedDoubleQuote
+  | UnclosedSingleQuote
   deriving (Eq, Show)
 
 -- | Parse error description.
@@ -94,6 +96,9 @@ notFollowedBy m = do
   join $ catchError m' (const $ return $ return ())
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
+--
+-- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- unconsumed.
 manyTill :: MonadError (Severity, Error) m => m a -> m end -> m [a]
 a `manyTill` end = m
   where m = catchError ([] <$ end) loop
@@ -104,6 +109,17 @@ a `manyTill` end = m
                 reerror _            = throwError e
 -- If @a@ fails, re-throw the original error from @end@ for a better error
 -- message (unless the error severity of @a@ wins).
+
+-- | @a `someTill` end@ parses one or more @a@ until @end@ occurs.
+--
+-- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- unconsumed.
+--
+-- Also note that @end@ is not tested before @a@ succeeds first. Use
+-- @'notFollowedBy' end@ to test @end@ first.
+someTill :: MonadError (Severity, Error) m
+         => m a -> m end -> m (NE.NonEmpty a)
+a `someTill` end = (NE.:|) <$> a <*> (a `manyTill` end)
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.
