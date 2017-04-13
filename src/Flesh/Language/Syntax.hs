@@ -27,7 +27,7 @@ This module defines the abstract syntax tree of the shell language.
 module Flesh.Language.Syntax (
   DoubleQuoteUnit(..),
   WordUnit(..),
-  Word1(..), word1units) where
+  Token(..), tokenUnits) where
 
 import qualified Data.List.NonEmpty as NE
 import qualified Flesh.Source.Position as P
@@ -76,16 +76,17 @@ instance Show WordUnit where
   showList [] s = s
   showList (u:us) s = showsPrec 0 u $ showList us s
 
--- | Non-empty word.
-newtype Word1 = Word1 (NE.NonEmpty (P.Positioned WordUnit))
+-- | Non-empty word, defined as a (lexical) token with the token identifier
+-- @TOKEN@ in POSIX.
+newtype Token = Token (NE.NonEmpty (P.Positioned WordUnit))
   deriving (Eq)
 
--- | Returns the content of a non-empty word.
-word1units :: Word1 -> NE.NonEmpty (P.Positioned WordUnit)
-word1units (Word1 us) = us
+-- | Returns the content of a token.
+tokenUnits :: Token -> NE.NonEmpty (P.Positioned WordUnit)
+tokenUnits (Token us) = us
 
-instance Show Word1 where
-  showsPrec n (Word1 us) s = foldr (showsPrec n . snd) s us
+instance Show Token where
+  showsPrec n (Token us) s = foldr (showsPrec n . snd) s us
   showList [] s = s
   showList [w] s = showsPrec 0 w s
   showList (w:ws) s = showsPrec 0 w $ ' ' : showList ws s

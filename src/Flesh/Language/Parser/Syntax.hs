@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntactic primitives
   lineContinuation, lc,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, word1till)
+  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill)
   where
 
 import Control.Applicative
@@ -100,9 +100,12 @@ wordUnit = lc $
   doubleQuote <|> singleQuote <|>
     fmap (fmap Unquoted) (doubleQuoteUnit' anyChar)
 
--- | Parses a non-empty word until @end@ occurs.
-word1till :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
-          => m a -> m Word1
-word1till a = notFollowedBy a >> (require $ Word1 <$> wordUnit `someTill` a)
+-- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
+--
+-- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- unconsumed.
+tokenTill :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
+          => m a -> m Token
+tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 
 -- vim: set et sw=2 sts=2 tw=78:

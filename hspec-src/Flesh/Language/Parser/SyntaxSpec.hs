@@ -88,13 +88,13 @@ spec = do
       expectFailureEof "'x" singleQuote Hard UnclosedSingleQuote 2
       expectFailureEof "'\\\\" singleQuote Hard UnclosedSingleQuote 3
 
-  describe "word1till" $ do
+  describe "tokenTill" $ do
     context "parses some word units" $ do
-      expectShowEof "\\\nabc\\x\"d\"'s'" "" (word1till eof) "abc\\x\"d\"'s'"
-      expectShow "a\\\nX" "" (word1till (lc (char 'X'))) "a"
+      expectShowEof "\\\nabc\\x\"d\"'s'" "" (tokenTill eof) "abc\\x\"d\"'s'"
+      expectShow "a\\\nX" "" (tokenTill (lc (char 'X'))) "a"
 
-    context "rejects empty word" $ do
-      expectFailureEof "\\\n)" (word1till (lc (char ')')))
+    context "rejects empty token" $ do
+      expectFailureEof "\\\n)" (tokenTill (lc (char ')')))
         Soft UnknownReason 0
 
 -- vim: set et sw=2 sts=2 tw=78:
