@@ -35,6 +35,8 @@ module Flesh.Language.Parser.Error (
   -- * Utilities for 'MonadError'
   MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
   notFollowedBy, manyTill, someTill, recover, setReason, try, require,
+  -- * The 'MonadParser' class
+  MonadParser,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), runAttemptT, mapAttemptT) where
 
@@ -147,6 +149,18 @@ try m = catchError m (throwError . handle)
 require :: MonadError (Severity, Error) m => m a -> m a
 require m = catchError m (throwError . handle)
   where handle (_, e) = (Hard, e)
+
+-- | Collection of properties required for basic parser implementation.
+--
+-- @MonadParser@ is a subclass of the input and error handling monads,
+-- supporting the basic behavior of the parser. It is also an instance of
+-- 'Alternative' and 'MonadPlus', where
+--
+--  * 'empty' and 'mzero' are equal to 'failure'; and
+--  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
+--    failures.
+class (MonadPlus m, MonadInput m, MonadError (Severity, Error) m)
+    => MonadParser m
 
 -- | Modifies the behavior of a monad in the 'Alternative' (and 'MonadPlus')
 -- operations so that 'Hard' errors are not recovered by the '<|>' operation.
