@@ -25,12 +25,15 @@ Portability : portable
 This module defines utilities for lexical parsing that are specific to the
 shell language.
 -}
-module Flesh.Language.Parser.Lex (lineContinuation, lc) where
+module Flesh.Language.Parser.Lex (
+  lineContinuation, lc, blank, comment, whites, operatorChar) where
 
 import Control.Applicative
+import Data.Char
 import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Input
 
 -- | Parses a line continuation: a backslash followed by a newline.
 lineContinuation :: MonadParser m => m Position
@@ -40,5 +43,33 @@ lineContinuation = fst . head <$> string "\\\n"
 -- continuations.
 lc :: MonadParser m => m a -> m a
 lc m = many lineContinuation *> m
+
+-- | Parses a blank character, possibly preceded by line continuations.
+--
+-- In this implementation, the definition of blank characters is
+-- locale-independent: it is solely based on the Unicode general category of
+-- characters.
+blank :: MonadParser m => m (Positioned Char)
+blank = lc $ satisfy isBlank
+  where isBlank = (||) <$> isTab <*> isSpace
+        isTab = ('\t' ==)
+
+-- | Parses a comment, possibly preceded by line continuations.
+--
+-- A comment starts with a @#@ sign and continues up to (but not including) a
+-- newline. The returned string does not contain the initial @#@.
+comment :: MonadParser m => m [Positioned Char]
+comment = lc $ do
+  _ <- char '#'
+  anyChar `manyTill` (() <$ followedBy (char '\n') <|> () <$ eof)
+
+-- | Parses any number of 'blank' characters possibly followed by a 'comment'.
+-- Returns the result of 'comment' or 'Nothing' if no comment.
+whites :: MonadParser m => m (Maybe [Positioned Char])
+whites = many blank *> (Just <$> comment <|> return Nothing)
+
+-- | Parses a single operator char, possibly preceded by line continuations.
+operatorChar :: MonadParser m => m (Positioned Char)
+operatorChar = lc $ oneOfChars ";|&<>()"
 
 -- vim: set et sw=2 sts=2 tw=78:
