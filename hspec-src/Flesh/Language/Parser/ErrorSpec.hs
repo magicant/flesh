@@ -32,7 +32,8 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
 instance Arbitrary Reason where
-  arbitrary = elements [UnknownReason, SomeReason]
+  arbitrary =
+    elements [UnknownReason, UnclosedDoubleQuote, UnclosedSingleQuote]
 
 instance Arbitrary Error where
   arbitrary = do

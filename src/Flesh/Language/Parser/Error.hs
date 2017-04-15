@@ -49,8 +49,7 @@ import qualified Flesh.Source.Position as P
 
 -- | Reason of a parse error.
 data Reason =
-  UnknownReason -- TODO TBD
-  | SomeReason -- ^ only for testing
+  UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   deriving (Eq, Show)
