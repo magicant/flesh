@@ -15,13 +15,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : non-portable (flexible contexts)
+Portability : portable
 
 This module defines character parsers.
 -}
