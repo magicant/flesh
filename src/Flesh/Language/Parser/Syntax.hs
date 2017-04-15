@@ -27,8 +27,6 @@ tree, error, and warnings.
 -}
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
-  -- * Syntactic primitives
-  lineContinuation, lc,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill)
   where
@@ -36,17 +34,9 @@ module Flesh.Language.Parser.Syntax (
 import Control.Applicative
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
-
--- | Parses a line continuation: a backslash followed by a newline.
-lineContinuation :: MonadParser m => m Position
-lineContinuation = fst . head <$> string "\\\n"
-
--- | @lc m@ parses @m@ optionally preceded by any number of line
--- continuations.
-lc :: MonadParser m => m a -> m a
-lc m = many lineContinuation *> m
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m

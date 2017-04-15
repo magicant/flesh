@@ -19,6 +19,7 @@ module Flesh.Language.Parser.SyntaxSpec (spec) where
 
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
 import Test.Hspec
