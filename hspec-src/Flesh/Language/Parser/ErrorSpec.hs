@@ -44,7 +44,7 @@ instance Arbitrary Severity where
   arbitrary = elements [Hard, Soft]
 
 instance (MonadError (Severity, Error) m, Arbitrary a)
-    => Arbitrary (AttemptT m a) where
+    => Arbitrary (ParserT m a) where
   arbitrary = oneof [success_, failure_]
     where success_ = return <$> arbitrary
           failure_ = do
@@ -58,33 +58,33 @@ instance Arbitrary a => Arbitrary (PositionedList a) where
     xs <- arbitrary
     return $ spread (dummyPosition s) xs
 
-type AE = AttemptT (ExceptT (Severity, Error) Identity)
-type AES = AttemptT (ExceptT (Severity, Error) (State PositionedString))
+type AE = ParserT (ExceptT (Severity, Error) Identity)
+type AES = ParserT (ExceptT (Severity, Error) (State PositionedString))
 
 isUnknownReason :: AE a -> Bool
 isUnknownReason a =
-  case runIdentity $ runExceptT $ runAttemptT a of
+  case runIdentity $ runExceptT $ runParserT a of
     Left (_, Error UnknownReason _) -> True
     _                               -> False
 
 isHardError :: AE a -> Bool
 isHardError a =
-  case runIdentity $ runExceptT $ runAttemptT a of
+  case runIdentity $ runExceptT $ runParserT a of
     Left (Hard, _) -> True
     _              -> False
 
 isSoftError :: AE a -> Bool
 isSoftError a =
-  case runIdentity $ runExceptT $ runAttemptT a of
+  case runIdentity $ runExceptT $ runParserT a of
     Left (Soft, _) -> True
     _              -> False
 
 run :: AES a
     -> PositionedString -> (Either (Severity, Error) a, PositionedString)
-run = runState . runExceptT . runAttemptT
+run = runState . runExceptT . runParserT
 
 aesFromAE :: AE a -> AES a
-aesFromAE = AttemptT . mapExceptT (return . runIdentity) . runAttemptT
+aesFromAE = ParserT . mapExceptT (return . runIdentity) . runParserT
 
 spec :: Spec
 spec = do
@@ -128,7 +128,7 @@ spec = do
       let _ = a :: AE Int
        in not (isSoftError a) ==> require a === a
 
-  describe "Alternative (AttemptT m) (<|>)" $ do
+  describe "Alternative (ParserT m) (<|>)" $ do
     prop "returns hard errors intact" $ \e a i ->
       let _ = a :: AE Int
           a' = aesFromAE a

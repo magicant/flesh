@@ -37,8 +37,8 @@ module Flesh.Language.Parser.Error (
   recover, setReason, try, require,
   -- * The 'MonadParser' class
   MonadParser, failure, satisfying, notFollowedBy,
-  -- * The 'AttemptT' monad transformer
-  AttemptT(..), runAttemptT, mapAttemptT) where
+  -- * The 'ParserT' monad transformer
+  ParserT(..), runParserT, mapParserT) where
 
 import Control.Applicative
 import Control.Monad.Except
@@ -165,68 +165,68 @@ notFollowedBy m = do
 -- 'MonadError'.
 --
 -- As an instance of 'Functor', 'Foldable', 'Applicative' and 'Monad',
--- @AttemptT m@ behaves the same as the original monad @m@. The 'Alternative'
--- instance for @AttemptT@ is constructed from the 'MonadError' instance to
+-- @ParserT m@ behaves the same as the original monad @m@. The 'Alternative'
+-- instance for @ParserT@ is constructed from the 'MonadError' instance to
 -- obey the 'MonadParser' laws.
-newtype AttemptT m a = AttemptT (m a)
+newtype ParserT m a = ParserT (m a)
   deriving (Eq, Show)
 
--- | Returns the value of 'AttemptT'.
-runAttemptT :: AttemptT m a -> m a
-runAttemptT (AttemptT m) = m
+-- | Returns the value of 'ParserT'.
+runParserT :: ParserT m a -> m a
+runParserT (ParserT m) = m
 
--- | Directly modifies the value of 'AttemptT'.
-mapAttemptT :: (m a -> n b) -> AttemptT m a -> AttemptT n b
-mapAttemptT f = AttemptT . f . runAttemptT
+-- | Directly modifies the value of 'ParserT'.
+mapParserT :: (m a -> n b) -> ParserT m a -> ParserT n b
+mapParserT f = ParserT . f . runParserT
 
-instance Functor m => Functor (AttemptT m) where
-  fmap f = AttemptT . fmap f . runAttemptT
-  a <$ AttemptT b = AttemptT (a <$ b)
+instance Functor m => Functor (ParserT m) where
+  fmap f = ParserT . fmap f . runParserT
+  a <$ ParserT b = ParserT (a <$ b)
 
-instance Foldable m => Foldable (AttemptT m) where
-  fold = fold . runAttemptT
-  foldMap f = foldMap f . runAttemptT
-  foldr f z = foldr f z . runAttemptT
-  foldr' f z = foldr' f z . runAttemptT
-  foldl f z = foldl f z . runAttemptT
-  foldl' f z = foldl' f z . runAttemptT
-  foldr1 f = foldr1 f . runAttemptT
-  foldl1 f = foldl1 f . runAttemptT
-  toList = toList . runAttemptT
-  null = null . runAttemptT
-  length = length . runAttemptT
-  elem e = elem e . runAttemptT
-  maximum = maximum . runAttemptT
-  minimum = minimum . runAttemptT
-  sum = sum . runAttemptT
-  product = product . runAttemptT
+instance Foldable m => Foldable (ParserT m) where
+  fold = fold . runParserT
+  foldMap f = foldMap f . runParserT
+  foldr f z = foldr f z . runParserT
+  foldr' f z = foldr' f z . runParserT
+  foldl f z = foldl f z . runParserT
+  foldl' f z = foldl' f z . runParserT
+  foldr1 f = foldr1 f . runParserT
+  foldl1 f = foldl1 f . runParserT
+  toList = toList . runParserT
+  null = null . runParserT
+  length = length . runParserT
+  elem e = elem e . runParserT
+  maximum = maximum . runParserT
+  minimum = minimum . runParserT
+  sum = sum . runParserT
+  product = product . runParserT
 
-instance Applicative m => Applicative (AttemptT m) where
-  pure = AttemptT . pure
-  AttemptT a <*> AttemptT b = AttemptT (a <*> b)
-  AttemptT a  *> AttemptT b = AttemptT (a  *> b)
-  AttemptT a <*  AttemptT b = AttemptT (a <*  b)
+instance Applicative m => Applicative (ParserT m) where
+  pure = ParserT . pure
+  ParserT a <*> ParserT b = ParserT (a <*> b)
+  ParserT a  *> ParserT b = ParserT (a  *> b)
+  ParserT a <*  ParserT b = ParserT (a <*  b)
 
-instance Monad m => Monad (AttemptT m) where
-  return = AttemptT . return
-  AttemptT a >>= f = AttemptT (a >>= runAttemptT . f)
-  AttemptT a >> AttemptT b = AttemptT (a >> b)
+instance Monad m => Monad (ParserT m) where
+  return = ParserT . return
+  ParserT a >>= f = ParserT (a >>= runParserT . f)
+  ParserT a >> ParserT b = ParserT (a >> b)
 
-instance MonadTrans AttemptT where
-  lift = AttemptT
+instance MonadTrans ParserT where
+  lift = ParserT
 
-instance MonadInput m => MonadInput (AttemptT m) where
+instance MonadInput m => MonadInput (ParserT m) where
   popChar = lift popChar
-  followedBy = mapAttemptT followedBy
+  followedBy = mapParserT followedBy
   peekChar = lift peekChar
   pushChars = lift <$> pushChars
 
-instance MonadError e m => MonadError e (AttemptT m) where
-  throwError = AttemptT . throwError
-  catchError (AttemptT m) f = AttemptT (catchError m (runAttemptT . f))
+instance MonadError e m => MonadError e (ParserT m) where
+  throwError = ParserT . throwError
+  catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
 instance (MonadInput m, MonadError (Severity, Error) m)
-    => Alternative (AttemptT m) where
+    => Alternative (ParserT m) where
   empty = failure
   a <|> b =
     a `catchError` handle
@@ -234,9 +234,9 @@ instance (MonadInput m, MonadError (Severity, Error) m)
             handle e = throwError e
 
 instance (MonadInput m, MonadError (Severity, Error) m)
-  => MonadPlus (AttemptT m)
+  => MonadPlus (ParserT m)
 
 instance (MonadInput m, MonadError (Severity, Error) m)
-  => MonadParser (AttemptT m)
+  => MonadParser (ParserT m)
 
 -- vim: set et sw=2 sts=2 tw=78:
