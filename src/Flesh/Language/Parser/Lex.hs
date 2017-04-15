@@ -26,7 +26,8 @@ This module defines utilities for lexical parsing that are specific to the
 shell language.
 -}
 module Flesh.Language.Parser.Lex (
-  lineContinuation, lc, blank, comment, whites, operatorChar) where
+  lineContinuation, lc, blank, comment, whites, operatorChar, endOfToken)
+    where
 
 import Control.Applicative
 import Data.Char
@@ -44,15 +45,18 @@ lineContinuation = fst . head <$> string "\\\n"
 lc :: MonadParser m => m a -> m a
 lc m = many lineContinuation *> m
 
+blank' :: MonadParser m => m (Positioned Char)
+blank' = satisfy isBlank
+  where isBlank = (||) <$> isTab <*> isSpace
+        isTab = ('\t' ==)
+
 -- | Parses a blank character, possibly preceded by line continuations.
 --
 -- In this implementation, the definition of blank characters is
 -- locale-independent: it is solely based on the Unicode general category of
 -- characters.
 blank :: MonadParser m => m (Positioned Char)
-blank = lc $ satisfy isBlank
-  where isBlank = (||) <$> isTab <*> isSpace
-        isTab = ('\t' ==)
+blank = lc blank'
 
 -- | Parses a comment, possibly preceded by line continuations.
 --
@@ -68,8 +72,18 @@ comment = lc $ do
 whites :: MonadParser m => m (Maybe [Positioned Char])
 whites = many blank *> (Just <$> comment <|> return Nothing)
 
+operatorChars :: [Char]
+operatorChars = ";|&<>()"
+
 -- | Parses a single operator char, possibly preceded by line continuations.
 operatorChar :: MonadParser m => m (Positioned Char)
-operatorChar = lc $ oneOfChars ";|&<>()"
+operatorChar = lc $ oneOfChars operatorChars
+
+-- | Succeeds before an end-of-token character. Consumes line continuations
+-- but nothing else.
+endOfToken :: MonadParser m => m ()
+endOfToken = lc $ i op <|> i blank' <|> i eof
+  where op = oneOfChars ('\n' : operatorChars)
+        i m = () <$ followedBy m
 
 -- vim: set et sw=2 sts=2 tw=78:
