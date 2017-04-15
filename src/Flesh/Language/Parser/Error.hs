@@ -33,10 +33,10 @@ module Flesh.Language.Parser.Error (
   -- * Basic types
   Reason(..), Error(..), Severity(..),
   -- * Utilities for 'MonadError'
-  MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
-  notFollowedBy, manyTill, someTill, recover, setReason, try, require,
+  MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
+  recover, setReason, try, require,
   -- * The 'MonadParser' class
-  MonadParser,
+  MonadParser, failure, satisfying, notFollowedBy,
   -- * The 'AttemptT' monad transformer
   AttemptT(..), runAttemptT, mapAttemptT) where
 
@@ -75,27 +75,6 @@ failureOfError e = throwError (Soft, e)
 -- | Failure of unknown reason.
 failureOfPosition :: MonadError (Severity, Error) m => P.Position -> m a
 failureOfPosition p = failureOfError (Error UnknownReason p)
-
--- | Failure of unknown reason at the current position.
-failure :: (MonadInput m, MonadError (Severity, Error) m) => m a
-failure = currentPosition >>= failureOfPosition
-
--- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
--- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: (MonadInput m, MonadError (Severity, Error) m)
-           => m a -> (a -> Bool) -> m a
-satisfying m p = do
-  pos <- currentPosition
-  r <- m
-  if p r then return r else failureOfPosition pos
-
--- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
--- equivalent to 'failure'.
-notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
-notFollowedBy m = do
-  pos <- currentPosition
-  let m' = m >> return (failureOfPosition pos)
-  join $ catchError m' (const $ return $ return ())
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 --
@@ -161,6 +140,29 @@ require m = catchError m (throwError . handle)
 --    failures.
 class (MonadPlus m, MonadInput m, MonadError (Severity, Error) m)
     => MonadParser m
+
+-- TODO Below functions should depend on MonadParser
+
+-- | Failure of unknown reason at the current position.
+failure :: (MonadInput m, MonadError (Severity, Error) m) => m a
+failure = currentPosition >>= failureOfPosition
+
+-- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
+-- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
+satisfying :: (MonadInput m, MonadError (Severity, Error) m)
+           => m a -> (a -> Bool) -> m a
+satisfying m p = do
+  pos <- currentPosition
+  r <- m
+  if p r then return r else failureOfPosition pos
+
+-- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
+-- equivalent to 'failure'.
+notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
+notFollowedBy m = do
+  pos <- currentPosition
+  let m' = m >> return (failureOfPosition pos)
+  join $ catchError m' (const $ return $ return ())
 
 -- | Modifies the behavior of a monad in the 'Alternative' (and 'MonadPlus')
 -- operations so that 'Hard' errors are not recovered by the '<|>' operation.
