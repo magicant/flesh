@@ -31,7 +31,7 @@ and a monad transformer that injects parse error handling into another monad.
 -}
 module Flesh.Language.Parser.Error (
   -- * Basic types
-  Reason(..), Error(..), Severity(..),
+  Reason(..), Error(..), Severity(..), Failure,
   -- * Utilities for 'MonadError'
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
   recover, setReason, try, require,
@@ -68,19 +68,22 @@ data Severity =
   | Soft
   deriving (Eq, Show)
 
+-- | Result of a failed parse.
+type Failure = (Severity, Error)
+
 -- | Returns a failed attempt with the given (soft) error.
-failureOfError :: MonadError (Severity, Error) m => Error -> m a
+failureOfError :: MonadError Failure m => Error -> m a
 failureOfError e = throwError (Soft, e)
 
 -- | Failure of unknown reason.
-failureOfPosition :: MonadError (Severity, Error) m => P.Position -> m a
+failureOfPosition :: MonadError Failure m => P.Position -> m a
 failureOfPosition p = failureOfError (Error UnknownReason p)
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 --
 -- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
 -- unconsumed.
-manyTill :: MonadError (Severity, Error) m => m a -> m end -> m [a]
+manyTill :: MonadError Failure m => m a -> m end -> m [a]
 a `manyTill` end = m
   where m = catchError ([] <$ end) loop
         loop e@(Hard, _) = throwError e
@@ -98,19 +101,18 @@ a `manyTill` end = m
 --
 -- Also note that @end@ is not tested before @a@ succeeds first. Use
 -- @'notFollowedBy' end@ to test @end@ first.
-someTill :: MonadError (Severity, Error) m
-         => m a -> m end -> m (NE.NonEmpty a)
+someTill :: MonadError Failure m => m a -> m end -> m (NE.NonEmpty a)
 a `someTill` end = (NE.:|) <$> a <*> (a `manyTill` end)
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.
-recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
+recover :: MonadError Failure m => m a -> (Error -> m a) -> m a
 recover a f = catchError a (f . snd)
 
 -- | @setReason r a@ modifies the result of attempt @a@ by replacing an error
 -- of 'UnknownReason' with the given reason @r@. For other reasons or
 -- successful results, 'setReason' does not do anything.
-setReason :: MonadError (Severity, Error) m => Reason -> m a -> m a
+setReason :: MonadError Failure m => Reason -> m a -> m a
 setReason r m = catchError m (throwError . fmap handle)
   where handle (Error UnknownReason p) = Error r p
         handle x                       = x
@@ -118,14 +120,14 @@ setReason r m = catchError m (throwError . fmap handle)
 -- | 'try' rewrites the result of an attempt by converting a hard error to a
 -- soft error with the same reason. The result is not modified if
 -- successful.
-try :: MonadError (Severity, Error) m => m a -> m a
+try :: MonadError Failure m => m a -> m a
 try m = catchError m (throwError . handle)
   where handle (_, e) = (Soft, e)
 
 -- | 'require' rewrites the result of an attempt by converting a soft error to
 -- a hard error with the same reason. The result is not modified if
 -- successful.
-require :: MonadError (Severity, Error) m => m a -> m a
+require :: MonadError Failure m => m a -> m a
 require m = catchError m (throwError . handle)
   where handle (_, e) = (Hard, e)
 
@@ -138,8 +140,7 @@ require m = catchError m (throwError . handle)
 --  * 'empty' and 'mzero' are equal to 'failure'; and
 --  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
 --    failures.
-class (MonadPlus m, MonadInput m, MonadError (Severity, Error) m)
-    => MonadParser m
+class (MonadPlus m, MonadInput m, MonadError Failure m) => MonadParser m
 
 -- | Failure of unknown reason at the current position.
 failure :: MonadParser m => m a
@@ -225,7 +226,7 @@ instance MonadError e m => MonadError e (ParserT m) where
   throwError = ParserT . throwError
   catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
-instance (MonadInput m, MonadError (Severity, Error) m)
+instance (MonadInput m, MonadError Failure m)
     => Alternative (ParserT m) where
   empty = failure
   a <|> b =
@@ -233,10 +234,10 @@ instance (MonadInput m, MonadError (Severity, Error) m)
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadInput m, MonadError (Severity, Error) m)
+instance (MonadInput m, MonadError Failure m)
   => MonadPlus (ParserT m)
 
-instance (MonadInput m, MonadError (Severity, Error) m)
+instance (MonadInput m, MonadError Failure m)
   => MonadParser (ParserT m)
 
 -- vim: set et sw=2 sts=2 tw=78:

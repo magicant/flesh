@@ -43,7 +43,7 @@ instance Arbitrary Error where
 instance Arbitrary Severity where
   arbitrary = elements [Hard, Soft]
 
-instance (MonadError (Severity, Error) m, Arbitrary a)
+instance (MonadError Failure m, Arbitrary a)
     => Arbitrary (ParserT m a) where
   arbitrary = oneof [success_, failure_]
     where success_ = return <$> arbitrary
@@ -58,8 +58,8 @@ instance Arbitrary a => Arbitrary (PositionedList a) where
     xs <- arbitrary
     return $ spread (dummyPosition s) xs
 
-type AE = ParserT (ExceptT (Severity, Error) Identity)
-type AES = ParserT (ExceptT (Severity, Error) (State PositionedString))
+type AE = ParserT (ExceptT Failure Identity)
+type AES = ParserT (ExceptT Failure (State PositionedString))
 
 isUnknownReason :: AE a -> Bool
 isUnknownReason a =
@@ -79,8 +79,7 @@ isSoftError a =
     Left (Soft, _) -> True
     _              -> False
 
-run :: AES a
-    -> PositionedString -> (Either (Severity, Error) a, PositionedString)
+run :: AES a -> PositionedString -> (Either Failure a, PositionedString)
 run = runState . runExceptT . runParserT
 
 aesFromAE :: AE a -> AES a

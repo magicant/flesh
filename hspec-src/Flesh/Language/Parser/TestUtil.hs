@@ -29,11 +29,10 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
-type Tester = ParserT
-  (StateT PositionedString (ExceptT (Severity, Error) Identity))
+type Tester = ParserT (StateT PositionedString (ExceptT Failure Identity))
 
 runTester :: Tester a -> PositionedString
-          -> Either (Severity, Error) (a, PositionedString)
+          -> Either Failure (a, PositionedString)
 runTester parser = runIdentity . runExceptT . runStateT (runParserT parser)
 
 -- | @expectSuccessEof consumed lookahead parser result@ runs the given
