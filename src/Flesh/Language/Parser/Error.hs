@@ -31,12 +31,14 @@ and a monad transformer that injects parse error handling into another monad.
 -}
 module Flesh.Language.Parser.Error (
   -- * Basic types
-  Reason(..), Error(..), Severity(..),
+  Reason(..), Error(..), Severity(..), Failure,
   -- * Utilities for 'MonadError'
-  MonadError(..), failureOfError, failureOfPosition, failure, satisfying,
-  notFollowedBy, manyTill, someTill, recover, setReason, try, require,
-  -- * The 'AttemptT' monad transformer
-  AttemptT(..), runAttemptT, mapAttemptT) where
+  MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
+  recover, setReason, try, require,
+  -- * The 'MonadParser' class
+  MonadParser, failure, satisfying, notFollowedBy,
+  -- * The 'ParserT' monad transformer
+  ParserT(..), runParserT, mapParserT) where
 
 import Control.Applicative
 import Control.Monad.Except
@@ -47,8 +49,7 @@ import qualified Flesh.Source.Position as P
 
 -- | Reason of a parse error.
 data Reason =
-  UnknownReason -- TODO TBD
-  | SomeReason -- ^ only for testing
+  UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   deriving (Eq, Show)
@@ -66,40 +67,22 @@ data Severity =
   | Soft
   deriving (Eq, Show)
 
+-- | Result of a failed parse.
+type Failure = (Severity, Error)
+
 -- | Returns a failed attempt with the given (soft) error.
-failureOfError :: MonadError (Severity, Error) m => Error -> m a
+failureOfError :: MonadError Failure m => Error -> m a
 failureOfError e = throwError (Soft, e)
 
 -- | Failure of unknown reason.
-failureOfPosition :: MonadError (Severity, Error) m => P.Position -> m a
+failureOfPosition :: MonadError Failure m => P.Position -> m a
 failureOfPosition p = failureOfError (Error UnknownReason p)
-
--- | Failure of unknown reason at the current position.
-failure :: (MonadInput m, MonadError (Severity, Error) m) => m a
-failure = currentPosition >>= failureOfPosition
-
--- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
--- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: (MonadInput m, MonadError (Severity, Error) m)
-           => m a -> (a -> Bool) -> m a
-satisfying m p = do
-  pos <- currentPosition
-  r <- m
-  if p r then return r else failureOfPosition pos
-
--- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
--- equivalent to 'failure'.
-notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
-notFollowedBy m = do
-  pos <- currentPosition
-  let m' = m >> return (failureOfPosition pos)
-  join $ catchError m' (const $ return $ return ())
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 --
 -- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
 -- unconsumed.
-manyTill :: MonadError (Severity, Error) m => m a -> m end -> m [a]
+manyTill :: MonadError Failure m => m a -> m end -> m [a]
 a `manyTill` end = m
   where m = catchError ([] <$ end) loop
         loop e@(Hard, _) = throwError e
@@ -117,19 +100,18 @@ a `manyTill` end = m
 --
 -- Also note that @end@ is not tested before @a@ succeeds first. Use
 -- @'notFollowedBy' end@ to test @end@ first.
-someTill :: MonadError (Severity, Error) m
-         => m a -> m end -> m (NE.NonEmpty a)
+someTill :: MonadError Failure m => m a -> m end -> m (NE.NonEmpty a)
 a `someTill` end = (NE.:|) <$> a <*> (a `manyTill` end)
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.
-recover :: MonadError (Severity, Error) m => m a -> (Error -> m a) -> m a
+recover :: MonadError Failure m => m a -> (Error -> m a) -> m a
 recover a f = catchError a (f . snd)
 
 -- | @setReason r a@ modifies the result of attempt @a@ by replacing an error
 -- of 'UnknownReason' with the given reason @r@. For other reasons or
 -- successful results, 'setReason' does not do anything.
-setReason :: MonadError (Severity, Error) m => Reason -> m a -> m a
+setReason :: MonadError Failure m => Reason -> m a -> m a
 setReason r m = catchError m (throwError . fmap handle)
   where handle (Error UnknownReason p) = Error r p
         handle x                       = x
@@ -137,97 +119,124 @@ setReason r m = catchError m (throwError . fmap handle)
 -- | 'try' rewrites the result of an attempt by converting a hard error to a
 -- soft error with the same reason. The result is not modified if
 -- successful.
-try :: MonadError (Severity, Error) m => m a -> m a
+try :: MonadError Failure m => m a -> m a
 try m = catchError m (throwError . handle)
   where handle (_, e) = (Soft, e)
 
 -- | 'require' rewrites the result of an attempt by converting a soft error to
 -- a hard error with the same reason. The result is not modified if
 -- successful.
-require :: MonadError (Severity, Error) m => m a -> m a
+require :: MonadError Failure m => m a -> m a
 require m = catchError m (throwError . handle)
   where handle (_, e) = (Hard, e)
 
--- | Modifies the behavior of a monad in the 'Alternative' (and 'MonadPlus')
--- operations so that 'Hard' errors are not recovered by the '<|>' operation.
+-- | Collection of properties required for basic parser implementation.
+--
+-- @MonadParser@ is a subclass of the input and error handling monads,
+-- supporting the basic behavior of the parser. It is also an instance of
+-- 'Alternative' and 'MonadPlus', where
+--
+--  * 'empty' and 'mzero' are equal to 'failure'; and
+--  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
+--    failures.
+class (MonadPlus m, MonadInput m, MonadError Failure m) => MonadParser m
+
+-- | Failure of unknown reason at the current position.
+failure :: MonadParser m => m a
+failure = currentPosition >>= failureOfPosition
+
+-- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
+-- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
+satisfying :: MonadParser m => m a -> (a -> Bool) -> m a
+satisfying m p = do
+  pos <- currentPosition
+  r <- m
+  if p r then return r else failureOfPosition pos
+
+-- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
+-- equivalent to 'failure'.
+notFollowedBy :: MonadParser m => m a -> m ()
+notFollowedBy m = do
+  pos <- currentPosition
+  let m' = m >> return (failureOfPosition pos)
+  join $ catchError m' (const $ return $ return ())
+
+-- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
+-- 'MonadError'.
 --
 -- As an instance of 'Functor', 'Foldable', 'Applicative' and 'Monad',
--- @AttemptT m@ behaves the same as the original monad @m@. The difference
--- between them lies in the implementation of 'Alternative'. @'Alternative'
--- ('ExceptT' e m)@ requires the error type @e@ to be a 'Monoid', but
--- 'AttemptT' does not. An error value of 'AttemptT' always denotes a single
--- error. For 'AttemptT', 'empty' is defined as 'failure', whose reason should
--- be set by 'setReason'. Errors in 'AttemptT' are categorized into two levels
--- of severity: 'Hard' and 'Soft'. The 'failure' function returns 'Soft'
--- errors, but they can be converted to 'Hard' errors by 'require'. Only
--- 'Soft' errors are recovered by the '<|>' operator, which helps returning
--- user-friendly error messages.
-newtype AttemptT m a = AttemptT (m a)
+-- @ParserT m@ behaves the same as the original monad @m@. The 'Alternative'
+-- instance for @ParserT@ is constructed from the 'MonadError' instance to
+-- obey the 'MonadParser' laws.
+newtype ParserT m a = ParserT (m a)
   deriving (Eq, Show)
 
--- | Returns the value of 'AttemptT'.
-runAttemptT :: AttemptT m a -> m a
-runAttemptT (AttemptT m) = m
+-- | Returns the value of 'ParserT'.
+runParserT :: ParserT m a -> m a
+runParserT (ParserT m) = m
 
--- | Directly modifies the value of 'AttemptT'.
-mapAttemptT :: (m a -> n b) -> AttemptT m a -> AttemptT n b
-mapAttemptT f = AttemptT . f . runAttemptT
+-- | Directly modifies the value of 'ParserT'.
+mapParserT :: (m a -> n b) -> ParserT m a -> ParserT n b
+mapParserT f = ParserT . f . runParserT
 
-instance Functor m => Functor (AttemptT m) where
-  fmap f = AttemptT . fmap f . runAttemptT
-  a <$ AttemptT b = AttemptT (a <$ b)
+instance Functor m => Functor (ParserT m) where
+  fmap f = ParserT . fmap f . runParserT
+  a <$ ParserT b = ParserT (a <$ b)
 
-instance Foldable m => Foldable (AttemptT m) where
-  fold = fold . runAttemptT
-  foldMap f = foldMap f . runAttemptT
-  foldr f z = foldr f z . runAttemptT
-  foldr' f z = foldr' f z . runAttemptT
-  foldl f z = foldl f z . runAttemptT
-  foldl' f z = foldl' f z . runAttemptT
-  foldr1 f = foldr1 f . runAttemptT
-  foldl1 f = foldl1 f . runAttemptT
-  toList = toList . runAttemptT
-  null = null . runAttemptT
-  length = length . runAttemptT
-  elem e = elem e . runAttemptT
-  maximum = maximum . runAttemptT
-  minimum = minimum . runAttemptT
-  sum = sum . runAttemptT
-  product = product . runAttemptT
+instance Foldable m => Foldable (ParserT m) where
+  fold = fold . runParserT
+  foldMap f = foldMap f . runParserT
+  foldr f z = foldr f z . runParserT
+  foldr' f z = foldr' f z . runParserT
+  foldl f z = foldl f z . runParserT
+  foldl' f z = foldl' f z . runParserT
+  foldr1 f = foldr1 f . runParserT
+  foldl1 f = foldl1 f . runParserT
+  toList = toList . runParserT
+  null = null . runParserT
+  length = length . runParserT
+  elem e = elem e . runParserT
+  maximum = maximum . runParserT
+  minimum = minimum . runParserT
+  sum = sum . runParserT
+  product = product . runParserT
 
-instance Applicative m => Applicative (AttemptT m) where
-  pure = AttemptT . pure
-  AttemptT a <*> AttemptT b = AttemptT (a <*> b)
-  AttemptT a  *> AttemptT b = AttemptT (a  *> b)
-  AttemptT a <*  AttemptT b = AttemptT (a <*  b)
+instance Applicative m => Applicative (ParserT m) where
+  pure = ParserT . pure
+  ParserT a <*> ParserT b = ParserT (a <*> b)
+  ParserT a  *> ParserT b = ParserT (a  *> b)
+  ParserT a <*  ParserT b = ParserT (a <*  b)
 
-instance Monad m => Monad (AttemptT m) where
-  return = AttemptT . return
-  AttemptT a >>= f = AttemptT (a >>= runAttemptT . f)
-  AttemptT a >> AttemptT b = AttemptT (a >> b)
+instance Monad m => Monad (ParserT m) where
+  return = ParserT . return
+  ParserT a >>= f = ParserT (a >>= runParserT . f)
+  ParserT a >> ParserT b = ParserT (a >> b)
 
-instance MonadTrans AttemptT where
-  lift = AttemptT
+instance MonadTrans ParserT where
+  lift = ParserT
 
-instance MonadInput m => MonadInput (AttemptT m) where
+instance MonadInput m => MonadInput (ParserT m) where
   popChar = lift popChar
-  followedBy = mapAttemptT followedBy
+  followedBy = mapParserT followedBy
   peekChar = lift peekChar
   pushChars = lift <$> pushChars
 
-instance MonadError e m => MonadError e (AttemptT m) where
-  throwError = AttemptT . throwError
-  catchError (AttemptT m) f = AttemptT (catchError m (runAttemptT . f))
+instance MonadError e m => MonadError e (ParserT m) where
+  throwError = ParserT . throwError
+  catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
-instance (MonadInput m, MonadError (Severity, Error) m)
-    => Alternative (AttemptT m) where
+instance (MonadInput m, MonadError Failure m)
+    => Alternative (ParserT m) where
   empty = failure
   a <|> b =
     a `catchError` handle
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadInput m, MonadError (Severity, Error) m)
-  => MonadPlus (AttemptT m)
+instance (MonadInput m, MonadError Failure m)
+  => MonadPlus (ParserT m)
+
+instance (MonadInput m, MonadError Failure m)
+  => MonadParser (ParserT m)
 
 -- vim: set et sw=2 sts=2 tw=78:

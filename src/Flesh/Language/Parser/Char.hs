@@ -34,8 +34,7 @@ import Flesh.Source.Position
 -- | Parses any single character.
 --
 -- Returns 'UnknownReason' if there is no next character.
-anyChar :: (MonadInput m, MonadError (Severity, Error) m)
-        => m (Positioned Char)
+anyChar :: MonadParser m => m (Positioned Char)
 anyChar = do
   e <- popChar
   case e of
@@ -45,34 +44,30 @@ anyChar = do
 -- | Parses a single character that satisfies the given predicate.
 --
 -- Returns 'UnknownReason' on dissatisfaction.
-satisfy :: (MonadInput m, MonadError (Severity, Error) m)
-        => (Char -> Bool) -> m (Positioned Char)
+satisfy :: MonadParser m => (Char -> Bool) -> m (Positioned Char)
 satisfy p = anyChar `satisfying` (p . snd)
 
 -- | Parses the given single character.
 --
 -- Returns 'UnknownReason' on failure.
-char :: (MonadInput m, MonadError (Severity, Error) m)
-     => Char -> m (Positioned Char)
+char :: MonadParser m => Char -> m (Positioned Char)
 char c = satisfy (c ==)
 
 -- | Parses one of the given characters.
 --
 -- Returns 'UnknownReason' on failure.
-oneOfChars :: (MonadInput m, MonadError (Severity, Error) m)
-           => [Char] -> m (Positioned Char)
+oneOfChars :: MonadParser m => [Char] -> m (Positioned Char)
 oneOfChars cs = satisfy (flip elem cs)
 
 -- | Parses a sequence of characters.
 --
 -- Returns 'UnknownReason' on failure.
-string :: (MonadInput m, MonadError (Severity, Error) m)
-       => String -> m [Positioned Char]
+string :: MonadParser m => String -> m [Positioned Char]
 string [] = return []
 string (c:cs) = (:) <$> char c <*> string cs
 
 -- | Parses the /end-of-file/.
-eof :: (MonadInput m, MonadError (Severity, Error) m) => m Position
+eof :: MonadParser m => m Position
 eof = do
   e <- peekChar
   case e of
