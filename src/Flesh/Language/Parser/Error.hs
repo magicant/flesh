@@ -141,16 +141,13 @@ require m = catchError m (throwError . handle)
 class (MonadPlus m, MonadInput m, MonadError (Severity, Error) m)
     => MonadParser m
 
--- TODO Below functions should depend on MonadParser
-
 -- | Failure of unknown reason at the current position.
-failure :: (MonadInput m, MonadError (Severity, Error) m) => m a
+failure :: MonadParser m => m a
 failure = currentPosition >>= failureOfPosition
 
 -- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
 -- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: (MonadInput m, MonadError (Severity, Error) m)
-           => m a -> (a -> Bool) -> m a
+satisfying :: MonadParser m => m a -> (a -> Bool) -> m a
 satisfying m p = do
   pos <- currentPosition
   r <- m
@@ -158,7 +155,7 @@ satisfying m p = do
 
 -- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
 -- equivalent to 'failure'.
-notFollowedBy :: (MonadInput m, MonadError (Severity, Error) m) => m a -> m ()
+notFollowedBy :: MonadParser m => m a -> m ()
 notFollowedBy m = do
   pos <- currentPosition
   let m' = m >> return (failureOfPosition pos)

@@ -37,45 +37,38 @@ module Flesh.Language.Parser.Syntax (
 import Control.Applicative
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
-import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 
 -- | Parses a line continuation: a backslash followed by a newline.
-lineContinuation :: (MonadInput m, MonadError (Severity, Error) m)
-                 => m Position
+lineContinuation :: MonadParser m => m Position
 lineContinuation = fst . head <$> string "\\\n"
 
 -- | @lc m@ parses @m@ optionally preceded by any number of line
 -- continuations.
-lc :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
-   => m a -> m a
+lc :: MonadParser m => m a -> m a
 lc m = many lineContinuation *> m
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
-backslashed :: (MonadInput m, MonadError (Severity, Error) m)
+backslashed :: MonadParser m
             => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
 backslashed m = char '\\' *> fmap (fmap Backslashed) m
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 --
 -- The argument parser is used to parse a backslashed character.
-doubleQuoteUnit' :: (Alternative m, MonadInput m,
-                     MonadError (Severity, Error) m)
-  => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit' :: MonadParser m
+                 => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
 doubleQuoteUnit' c = lc $ -- TODO parse expansions
   backslashed c <|> fmap (fmap Char) anyChar
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
-doubleQuoteUnit :: (Alternative m, MonadInput m,
-                    MonadError (Severity, Error) m)
-  => m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit :: MonadParser m => m (Positioned DoubleQuoteUnit)
 doubleQuoteUnit = doubleQuoteUnit' (oneOfChars "\\\"$`")
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
-doubleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
-            => m (Positioned WordUnit)
+doubleQuote :: MonadParser m => m (Positioned WordUnit)
 doubleQuote = do
   let dq = lc (char '"')
   (p, _) <- dq
@@ -84,8 +77,7 @@ doubleQuote = do
   require $ f <$> doubleQuoteUnit `manyTill` closeQuote
 
 -- | Parses a pair of single quotes containing any number of characters.
-singleQuote :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
-            => m (Positioned WordUnit)
+singleQuote :: MonadParser m => m (Positioned WordUnit)
 singleQuote = do
   let sq = char '\''
   (p, _) <- lc sq
@@ -94,8 +86,7 @@ singleQuote = do
   require $ f <$> anyChar `manyTill` closeQuote
 
 -- | Parses a word unit.
-wordUnit :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
-         => m (Positioned WordUnit)
+wordUnit :: MonadParser m => m (Positioned WordUnit)
 wordUnit = lc $
   doubleQuote <|> singleQuote <|>
     fmap (fmap Unquoted) (doubleQuoteUnit' anyChar)
@@ -104,8 +95,7 @@ wordUnit = lc $
 --
 -- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
 -- unconsumed.
-tokenTill :: (Alternative m, MonadInput m, MonadError (Severity, Error) m)
-          => m a -> m Token
+tokenTill :: MonadParser m => m a -> m Token
 tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 
 -- vim: set et sw=2 sts=2 tw=78:
