@@ -164,20 +164,13 @@ notFollowedBy m = do
   let m' = m >> return (failureOfPosition pos)
   join $ catchError m' (const $ return $ return ())
 
--- | Modifies the behavior of a monad in the 'Alternative' (and 'MonadPlus')
--- operations so that 'Hard' errors are not recovered by the '<|>' operation.
+-- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
+-- 'MonadError'.
 --
 -- As an instance of 'Functor', 'Foldable', 'Applicative' and 'Monad',
--- @AttemptT m@ behaves the same as the original monad @m@. The difference
--- between them lies in the implementation of 'Alternative'. @'Alternative'
--- ('ExceptT' e m)@ requires the error type @e@ to be a 'Monoid', but
--- 'AttemptT' does not. An error value of 'AttemptT' always denotes a single
--- error. For 'AttemptT', 'empty' is defined as 'failure', whose reason should
--- be set by 'setReason'. Errors in 'AttemptT' are categorized into two levels
--- of severity: 'Hard' and 'Soft'. The 'failure' function returns 'Soft'
--- errors, but they can be converted to 'Hard' errors by 'require'. Only
--- 'Soft' errors are recovered by the '<|>' operator, which helps returning
--- user-friendly error messages.
+-- @AttemptT m@ behaves the same as the original monad @m@. The 'Alternative'
+-- instance for @AttemptT@ is constructed from the 'MonadError' instance to
+-- obey the 'MonadParser' laws.
 newtype AttemptT m a = AttemptT (m a)
   deriving (Eq, Show)
 
@@ -245,5 +238,8 @@ instance (MonadInput m, MonadError (Severity, Error) m)
 
 instance (MonadInput m, MonadError (Severity, Error) m)
   => MonadPlus (AttemptT m)
+
+instance (MonadInput m, MonadError (Severity, Error) m)
+  => MonadParser (AttemptT m)
 
 -- vim: set et sw=2 sts=2 tw=78:
