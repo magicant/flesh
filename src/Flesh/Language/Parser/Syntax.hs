@@ -82,7 +82,7 @@ wordUnit = lc $
 
 -- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
 --
--- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- Note that @end@ consumes the input. Use @'lookahead' end@ to keep @end@
 -- unconsumed.
 tokenTill :: MonadParser m => m a -> m Token
 tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)

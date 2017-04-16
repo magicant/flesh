@@ -65,7 +65,7 @@ blank = lc blank'
 comment :: MonadParser m => m [Positioned Char]
 comment = lc $ do
   _ <- char '#'
-  anyChar `manyTill` (() <$ followedBy (char '\n') <|> () <$ eof)
+  anyChar `manyTill` (() <$ lookahead (char '\n') <|> () <$ eof)
 
 -- | Parses any number of 'blank' characters possibly followed by a 'comment'.
 -- Returns the result of 'comment' or 'Nothing' if no comment.
@@ -84,6 +84,6 @@ operatorChar = lc $ oneOfChars operatorChars
 endOfToken :: MonadParser m => m ()
 endOfToken = lc $ i op <|> i blank' <|> i eof
   where op = oneOfChars ('\n' : operatorChars)
-        i m = () <$ followedBy m
+        i m = () <$ lookahead m
 
 -- vim: set et sw=2 sts=2 tw=78:
