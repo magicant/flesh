@@ -80,7 +80,7 @@ failureOfPosition p = failureOfError (Error UnknownReason p)
 
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 --
--- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- Note that @end@ consumes the input. Use @'lookahead' end@ to keep @end@
 -- unconsumed.
 manyTill :: MonadError Failure m => m a -> m end -> m [a]
 a `manyTill` end = m
@@ -95,7 +95,7 @@ a `manyTill` end = m
 
 -- | @a `someTill` end@ parses one or more @a@ until @end@ occurs.
 --
--- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- Note that @end@ consumes the input. Use @'lookahead' end@ to keep @end@
 -- unconsumed.
 --
 -- Also note that @end@ is not tested before @a@ succeeds first. Use
@@ -217,7 +217,7 @@ instance MonadTrans ParserT where
 
 instance MonadInput m => MonadInput (ParserT m) where
   popChar = lift popChar
-  followedBy = mapParserT followedBy
+  lookahead = mapParserT lookahead
   peekChar = lift peekChar
   pushChars = lift <$> pushChars
 

@@ -29,7 +29,7 @@ This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  MonadInput(..), currentPosition) where
+  MonadInput(..), followedBy, currentPosition) where
 
 import Flesh.Source.Position
 import Control.Monad.Except
@@ -42,7 +42,7 @@ import Control.Monad.State.Strict
 -- determines the next character to be read. The state must be updated as
 -- characters are read and the position is advanced.
 --
--- The 'followedBy' function may be used to rewind the position after some
+-- The 'lookahead' function may be used to rewind the position after some
 -- input is read. In this function, the state must be restored to indicate the
 -- position before the characters were read. Thereafter the same characters
 -- must be returned in subsequent read operations.
@@ -60,16 +60,20 @@ class Monad m => MonadInput m where
   -- | Returns the result of the given monad but cancels any position update
   -- that have occurred in the monad, i.e., the position is rewound to the
   -- original.
-  followedBy :: m a -> m a
+  lookahead :: m a -> m a
   -- | Returns the character at the current position without advancing the
-  -- position. The default implementation is @followedBy popChar@.
+  -- position. The default implementation is @lookahead popChar@.
   peekChar :: m (Either Position (Positioned Char))
-  peekChar = followedBy popChar
+  peekChar = lookahead popChar
   -- | Pushes the given characters into the current position. Subsequent reads
   -- must first return the inserted characters and then return to the original
   -- position, continuing to characters that would have been immediately read
   -- if 'pushChars' was not used.
   pushChars :: [Positioned Char] -> m ()
+
+-- | Like 'lookahead', but ignores the result.
+followedBy :: MonadInput m => m a -> m ()
+followedBy m = () <$ lookahead m
 
 -- | Returns the current position.
 currentPosition :: MonadInput m => m Position
@@ -86,7 +90,7 @@ instance Monad m => MonadInput (StateT PositionedString m) where
         put cs'
         return (Right c)
 
-  followedBy m = do
+  lookahead m = do
     savedstate <- get
     result <- m
     put savedstate
@@ -105,7 +109,7 @@ instance Monad m => MonadInput (StateT PositionedString m) where
 
 instance MonadInput m => MonadInput (ExceptT e m) where
   popChar = lift popChar
-  followedBy = mapExceptT followedBy
+  lookahead = mapExceptT lookahead
   peekChar = lift peekChar
   pushChars = lift . pushChars
 

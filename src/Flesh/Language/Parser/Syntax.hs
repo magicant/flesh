@@ -15,39 +15,31 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : non-portable (flexible contexts)
+Portability : portable
 
 Collection of parser monads that take some input and return abstract syntax
 tree, error, and warnings.
 -}
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
-  -- * Syntactic primitives
-  lineContinuation, lc,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill)
-  where
+  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
+  normalToken,
+  -- * Syntax
+  simpleCommand) where
 
 import Control.Applicative
+import Data.Foldable
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
-
--- | Parses a line continuation: a backslash followed by a newline.
-lineContinuation :: MonadParser m => m Position
-lineContinuation = fst . head <$> string "\\\n"
-
--- | @lc m@ parses @m@ optionally preceded by any number of line
--- continuations.
-lc :: MonadParser m => m a -> m a
-lc m = many lineContinuation *> m
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m
@@ -93,9 +85,22 @@ wordUnit = lc $
 
 -- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
 --
--- Note that @end@ consumes the input. Use @'followedBy' end@ to keep @end@
+-- Note that @end@ consumes the input. Use @'lookahead' end@ to keep @end@
 -- unconsumed.
 tokenTill :: MonadParser m => m a -> m Token
 tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
+
+-- | Parses a normal non-empty token, delimited by 'endOfToken'. Skips
+-- whitespaces after the token.
+normalToken :: MonadParser m => m Token
+normalToken = tokenTill endOfToken <* whites
+
+-- | Parses a simple command. Skips whitespaces after the command.
+simpleCommand :: MonadParser m => m Command
+simpleCommand = f <$> some normalToken
+  where f ts = SimpleCommand (toList ts) [] []
+-- TODO alias substitution
+-- TODO assignments
+-- TODO Redirections
 
 -- vim: set et sw=2 sts=2 tw=78:

@@ -88,14 +88,13 @@ expectPosition input parser expectedPositionIndex =
 
 -- | Like 'expectSuccessEof', but compares string representation of the result
 -- with the given expected string.
-expectShowEof :: (Eq a, Show a) =>
+expectShowEof :: Show a =>
   String -> String -> Tester a -> String -> SpecWith ()
 expectShowEof consumed lookahead parser =
   expectSuccessEof consumed lookahead (show <$> parser)
 
 -- | Like 'expectShowEof', but tries many arbitrary remainders.
-expectShow :: (Eq a, Show a) =>
-  String -> String -> Tester a -> String -> SpecWith ()
+expectShow :: Show a => String -> String -> Tester a -> String -> SpecWith ()
 expectShow consumed lookahead parser =
   expectSuccess consumed lookahead (show <$> parser)
 

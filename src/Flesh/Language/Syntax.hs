@@ -25,9 +25,15 @@ Portability : portable
 This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
+  -- * Tokens
   DoubleQuoteUnit(..),
   WordUnit(..),
-  Token(..), tokenUnits) where
+  Token(..), tokenUnits,
+  Assignment(..),
+  -- * Redirections
+  Redirection(..),
+  -- * Syntax
+  Command(..)) where
 
 import qualified Data.List.NonEmpty as NE
 import qualified Flesh.Source.Position as P
@@ -90,5 +96,27 @@ instance Show Token where
   showList [] s = s
   showList [w] s = showsPrec 0 w s
   showList (w:ws) s = showsPrec 0 w $ ' ' : showList ws s
+
+-- | Assignment.
+data Assignment = Assignment () -- FIXME
+  deriving (Eq)
+
+-- | Redirection.
+data Redirection = Redirection () -- FIXME
+  deriving (Eq)
+
+-- | Element of pipelines.
+data Command =
+  -- | Simple command.
+  SimpleCommand [Token] [P.Positioned Assignment] [P.Positioned Redirection]
+  -- FIXME Compound commands
+  -- | Function definition.
+  | FunctionDefinition -- FIXME
+  deriving (Eq)
+
+instance Show Command where
+  -- FIXME show assignments and redirections
+  showsPrec _ (SimpleCommand ts _ _) s = showList ts s
+  showsPrec _ FunctionDefinition s = s -- FIXME
 
 -- vim: set et sw=2 sts=2 tw=78:
