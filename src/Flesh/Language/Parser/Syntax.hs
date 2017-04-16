@@ -28,8 +28,8 @@ tree, error, and warnings.
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill)
-  where
+  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
+  normalToken) where
 
 import Control.Applicative
 import Flesh.Language.Parser.Char
@@ -86,5 +86,10 @@ wordUnit = lc $
 -- unconsumed.
 tokenTill :: MonadParser m => m a -> m Token
 tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
+
+-- | Parses a normal non-empty token, delimited by 'endOfToken'. Skips
+-- whitespaces after the token.
+normalToken :: MonadParser m => m Token
+normalToken = tokenTill endOfToken <* whites
 
 -- vim: set et sw=2 sts=2 tw=78:
