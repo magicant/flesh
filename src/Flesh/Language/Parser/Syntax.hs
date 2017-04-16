@@ -29,9 +29,12 @@ module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken) where
+  normalToken,
+  -- * Syntax
+  simpleCommand) where
 
 import Control.Applicative
+import Data.Foldable
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
@@ -91,5 +94,13 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 -- whitespaces after the token.
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
+
+-- | Parses a simple command. Skips whitespaces after the command.
+simpleCommand :: MonadParser m => m Command
+simpleCommand = f <$> some normalToken
+  where f ts = SimpleCommand (toList ts) [] []
+-- TODO alias substitution
+-- TODO assignments
+-- TODO Redirections
 
 -- vim: set et sw=2 sts=2 tw=78:

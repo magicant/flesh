@@ -98,4 +98,13 @@ spec = do
       expectFailureEof "\\\n)" (tokenTill (lc (char ')')))
         Soft UnknownReason 0
 
+  describe "simpleCommand" $ do
+    context "is some tokens" $ do
+      expectShowEof "foo" "" simpleCommand "foo"
+      expectShowEof "foo bar" ";" simpleCommand "foo bar"
+      expectShowEof "foo  bar\tbaz #X" "\n" simpleCommand "foo bar baz"
+
+    context "rejects empty command" $ do
+      expectFailureEof "" simpleCommand Soft UnknownReason 0
+
 -- vim: set et sw=2 sts=2 tw=78:

@@ -99,17 +99,24 @@ instance Show Token where
 
 -- | Assignment.
 data Assignment = Assignment () -- FIXME
+  deriving (Eq)
 
 -- | Redirection.
 data Redirection = Redirection () -- FIXME
+  deriving (Eq)
 
 -- | Element of pipelines.
 data Command =
   -- | Simple command.
-  SimpleCommand [P.Positioned Token] [P.Positioned Assignment]
-    [P.Positioned Redirection]
+  SimpleCommand [Token] [P.Positioned Assignment] [P.Positioned Redirection]
   -- FIXME Compound commands
   -- | Function definition.
   | FunctionDefinition -- FIXME
+  deriving (Eq)
+
+instance Show Command where
+  -- FIXME show assignments and redirections
+  showsPrec _ (SimpleCommand ts _ _) s = showList ts s
+  showsPrec _ FunctionDefinition s = s -- FIXME
 
 -- vim: set et sw=2 sts=2 tw=78:
