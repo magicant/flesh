@@ -29,7 +29,7 @@ This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  MonadInput(..), currentPosition) where
+  MonadInput(..), followedBy, currentPosition) where
 
 import Flesh.Source.Position
 import Control.Monad.Except
@@ -70,6 +70,10 @@ class Monad m => MonadInput m where
   -- position, continuing to characters that would have been immediately read
   -- if 'pushChars' was not used.
   pushChars :: [Positioned Char] -> m ()
+
+-- | Like 'lookahead', but ignores the result.
+followedBy :: MonadInput m => m a -> m ()
+followedBy m = () <$ lookahead m
 
 -- | Returns the current position.
 currentPosition :: MonadInput m => m Position
