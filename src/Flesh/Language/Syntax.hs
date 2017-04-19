@@ -28,7 +28,8 @@ module Flesh.Language.Syntax (
   -- * Tokens
   DoubleQuoteUnit(..),
   WordUnit(..),
-  Token(..), tokenUnits,
+  EWord(..), wordUnits, wordText,
+  Token(..), tokenUnits, tokenWord, tokenText,
   Assignment(..),
   -- * Redirections
   Redirection(..),
@@ -36,6 +37,7 @@ module Flesh.Language.Syntax (
   Command(..)) where
 
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Text as T
 import qualified Flesh.Source.Position as P
 
 -- | Element of double quotes.
@@ -82,6 +84,27 @@ instance Show WordUnit where
   showList [] s = s
   showList (u:us) s = showsPrec 0 u $ showList us s
 
+-- | Expandable word, a possibly empty list of word units.
+newtype EWord = EWord [P.Positioned WordUnit]
+  deriving (Eq)
+
+-- | Returns the content of a word.
+wordUnits :: EWord -> [P.Positioned WordUnit]
+wordUnits (EWord us) = us
+
+-- | If the given word consists of constant unquoted characters only, then
+-- returns the content as a text.
+wordText :: EWord -> Maybe (T.Text)
+wordText us = fmap T.pack $ sequenceA $ fmap (constChar . snd) $ wordUnits us
+  where constChar (Unquoted (Char c)) = Just c
+        constChar _ = Nothing
+
+instance Show EWord where
+  showsPrec n (EWord us) s = foldr (showsPrec n . snd) s us
+  showList [] s = s
+  showList [w] s = showsPrec 0 w s
+  showList (w:ws) s = showsPrec 0 w $ ' ' : showList ws s
+
 -- | Non-empty word, defined as a (lexical) token with the token identifier
 -- @TOKEN@ in POSIX.
 newtype Token = Token (NE.NonEmpty (P.Positioned WordUnit))
@@ -91,11 +114,18 @@ newtype Token = Token (NE.NonEmpty (P.Positioned WordUnit))
 tokenUnits :: Token -> NE.NonEmpty (P.Positioned WordUnit)
 tokenUnits (Token us) = us
 
+-- | Converts a token to a word.
+tokenWord :: Token -> EWord
+tokenWord = EWord . NE.toList . tokenUnits
+
+-- | If the given token consists of constant unquoted characters only, then
+-- returns the content as a text.
+tokenText :: Token -> Maybe (T.Text)
+tokenText = wordText . tokenWord
+
 instance Show Token where
-  showsPrec n (Token us) s = foldr (showsPrec n . snd) s us
-  showList [] s = s
-  showList [w] s = showsPrec 0 w s
-  showList (w:ws) s = showsPrec 0 w $ ' ' : showList ws s
+  showsPrec n t = showsPrec n (tokenWord t)
+  showList ts = showList (fmap tokenWord ts)
 
 -- | Assignment.
 data Assignment = Assignment () -- FIXME
