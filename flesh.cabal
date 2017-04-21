@@ -48,15 +48,19 @@ test-suite flesh-hspec
   type:                exitcode-stdio-1.0
   hs-source-dirs:      hspec-src
   main-is:             Main.hs
-  other-modules:       Flesh.Language.Parser.ErrorSpec,
+  other-modules:       Flesh.Language.Parser.AliasSpec,
+                       Flesh.Language.Parser.ErrorSpec,
                        Flesh.Language.Parser.LexSpec,
                        Flesh.Language.Parser.SyntaxSpec,
                        Flesh.Language.Parser.TestUtil
   build-depends:       base,
+                       containers >= 0.5.0.0 && < 1,
                        flesh,
                        hspec >= 2 && < 3,
                        mtl >= 2.2.1 && < 2.3,
-                       QuickCheck >= 2.8.2 && < 3
+                       QuickCheck >= 2.8.2 && < 3,
+                       text >= 1.0.0.0 && < 2,
+                       transformers >= 0.4 && < 0.6
   ghc-options:         -Wall
 -- ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010

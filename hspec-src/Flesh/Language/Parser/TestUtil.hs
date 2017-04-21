@@ -19,9 +19,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.TestUtil where
 
+import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.Identity
+import Control.Monad.Reader
 import Control.Monad.State.Strict
+import qualified Data.Map.Strict as M
+import qualified Flesh.Language.Alias as Alias
+import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 --import Flesh.Language.Parser.Input
 import Flesh.Source.Position
@@ -29,11 +34,22 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
-type Tester = ParserT (StateT PositionedString (ExceptT Failure Identity))
+type Tester = ParserT (ReaderT Alias.DefinitionSet
+  (StateT PositionedString (ExceptT Failure Identity)))
+
+runTesterAlias :: Tester a -> Alias.DefinitionSet -> PositionedString
+               -> Either Failure (a, PositionedString)
+runTesterAlias parser defs ps =
+  runIdentity $ runExceptT $ runStateT p1 ps
+    where p1 = runReaderT p2 defs
+          p2 = runParserT parser
 
 runTester :: Tester a -> PositionedString
           -> Either Failure (a, PositionedString)
-runTester parser = runIdentity . runExceptT . runStateT (runParserT parser)
+runTester parser = runTesterAlias parser M.empty
+
+readAll :: MonadParser m => m String
+readAll = fmap (fmap snd) (many anyChar)
 
 -- | @expectSuccessEof consumed lookahead parser result@ runs the given
 -- @parser@ for the source code @consumed ++ lookahead@ and tests if the
