@@ -34,6 +34,7 @@ module Flesh.Language.Parser.Input (
 import Flesh.Source.Position
 import Control.Monad.Except
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Maybe
 
 -- | Monad for character input operations.
 --
@@ -110,6 +111,12 @@ instance Monad m => MonadInput (StateT PositionedString m) where
 instance MonadInput m => MonadInput (ExceptT e m) where
   popChar = lift popChar
   lookahead = mapExceptT lookahead
+  peekChar = lift peekChar
+  pushChars = lift . pushChars
+
+instance MonadInput m => MonadInput (MaybeT m) where
+  popChar = lift popChar
+  lookahead = mapMaybeT lookahead
   peekChar = lift peekChar
   pushChars = lift . pushChars
 

@@ -25,7 +25,7 @@ Portability : portable
 This module defines aliases.
 -}
 module Flesh.Language.Alias (
-  Definition, DefinitionSet) where
+  Definition, Core.name, Core.value, position, DefinitionSet) where
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
