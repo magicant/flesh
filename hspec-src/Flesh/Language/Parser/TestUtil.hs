@@ -25,6 +25,7 @@ import Control.Monad.Identity
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -37,6 +38,18 @@ import Test.QuickCheck
 type Tester = ParserT (ReaderT Alias.DefinitionSet
   (StateT PositionedString (ExceptT Failure Identity)))
 
+defaultAliasName :: String
+defaultAliasName = "ls"
+
+defaultAliasValue :: String
+defaultAliasValue = defaultAliasName ++ " --color"
+
+defaultAliasDefinitions :: Alias.DefinitionSet
+defaultAliasDefinitions = M.singleton n $ Alias.definition n v p
+  where n = T.pack defaultAliasName
+        v = T.pack defaultAliasValue
+        p = dummyPosition "alias ls='ls --color'"
+
 runTesterAlias :: Tester a -> Alias.DefinitionSet -> PositionedString
                -> Either Failure (a, PositionedString)
 runTesterAlias parser defs ps =
@@ -46,7 +59,7 @@ runTesterAlias parser defs ps =
 
 runTester :: Tester a -> PositionedString
           -> Either Failure (a, PositionedString)
-runTester parser = runTesterAlias parser M.empty
+runTester parser = runTesterAlias parser defaultAliasDefinitions
 
 readAll :: MonadParser m => m String
 readAll = fmap (fmap snd) (many anyChar)

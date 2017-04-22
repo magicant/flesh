@@ -15,6 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE Trustworthy #-}
+
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
 import Flesh.Language.Parser.Char
@@ -22,6 +24,7 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
+import Flesh.Source.Position
 import Test.Hspec
 
 spec :: Spec
@@ -97,6 +100,28 @@ spec = do
     context "rejects empty token" $ do
       expectFailureEof "\\\n)" (tokenTill (lc (char ')')))
         Soft UnknownReason 0
+
+  describe "aliasableToken" $ do
+    context "returns unmatched token" $ do
+      expectShow "foo" ";" aliasableToken "Just foo"
+
+    context "returns quoted token" $ do
+      expectShow "f\\oo" ";" aliasableToken "Just f\\oo"
+      expectShow "f\"o\"o" "&" aliasableToken "Just f\"o\"o"
+      expectShow "f'o'o" ")" aliasableToken "Just f'o'o"
+
+    context "returns non-constant token" $ do
+      expectShow "f${1}o" ";" aliasableToken "Just f${1}o"
+
+    context "modifies pending input" $ do
+      expectSuccessEof defaultAliasName "" (aliasableToken >> readAll) $
+        defaultAliasValue
+
+    it "returns nothing after substitution" $
+      let s = defaultAliasName
+          s' = spread (dummyPosition s) s
+          e = runTester aliasableToken s'
+       in fmap fst e `shouldBe` Right Nothing
 
   describe "simpleCommand" $ do
     context "is some tokens" $ do

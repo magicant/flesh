@@ -42,6 +42,7 @@ module Flesh.Language.Parser.Error (
 
 import Control.Applicative
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Foldable
 import qualified Data.List.NonEmpty as NE
 import Flesh.Language.Parser.Input
@@ -233,10 +234,13 @@ instance (MonadInput m, MonadError Failure m)
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadInput m, MonadError Failure m)
-  => MonadPlus (ParserT m)
+instance (MonadInput m, MonadError Failure m) => MonadPlus (ParserT m)
 
-instance (MonadInput m, MonadError Failure m)
-  => MonadParser (ParserT m)
+instance (MonadInput m, MonadError Failure m) => MonadParser (ParserT m)
+
+instance MonadReader r m => MonadReader r (ParserT m) where
+  ask = lift ask
+  local f = mapParserT $ local f
+  reader = lift . reader
 
 -- vim: set et sw=2 sts=2 tw=78:
