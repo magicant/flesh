@@ -15,12 +15,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : portable
+Portability : non-portable (flexible contexts)
 
 Collection of parser monads that take some input and return abstract syntax
 tree, error, and warnings.
@@ -29,12 +30,16 @@ module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken,
+  normalToken, aliasableToken,
   -- * Syntax
   simpleCommand) where
 
 import Control.Applicative
+import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
 import Data.Foldable
+import qualified Flesh.Language.Alias as Alias
+import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
@@ -94,6 +99,18 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 -- whitespaces after the token.
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
+
+-- | Like 'normalToken', but tries to perform alias substitution on the
+-- result. If alias substitution was successful, this parser returns
+-- 'Nothing'.
+aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+               => m (Maybe Token)
+aliasableToken = do
+  t <- normalToken
+  let inv Nothing = Just t
+      inv (Just ()) = Nothing
+      tt = MaybeT $ return $ tokenText t
+   in fmap inv $ runMaybeT $ tt >>= substituteAlias
 
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: MonadParser m => m Command
