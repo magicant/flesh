@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * Alias substitution results
-  AliasT, reparse,
+  AliasT,
   -- * Alias substitution
   substituteAlias) where
 
@@ -52,14 +52,14 @@ type ContextT = ReaderT DefinitionSet
 -- the parse process to restart from higher syntax level.
 type AliasT = MaybeT
 
--- | Modifies a parser so that it retries parsing while parsing is interrupted
--- by alias substitution.
-reparse :: Monad m => AliasT m a -> m a
-reparse a = do
-  m <- runMaybeT a
-  case m of
-    Nothing -> reparse a
-    Just v -> return v
+-- | Returns 'True' iff the given position is applicable for alias
+-- substitution of the given name. The name is not applicable if the current
+-- position is already a result of alias substitution of the name.
+applicable :: T.Text -> Position -> Bool
+applicable t (Position (Fragment _ (Alias pos def) _) _)
+  | name def == t = False
+  | otherwise     = applicable t pos
+applicable _ _ = True
 
 -- | Performs alias substitution if the text is an alias defined in the
 -- context.
@@ -76,6 +76,7 @@ substituteAlias t = do
   defs <- ask
   def <- MaybeT $ return $ M.lookup t defs
   pos' <- currentPosition
+  guard $ applicable t pos'
   let a = Alias pos' def
       v = T.unpack $ value def
       frag = Fragment v a 0

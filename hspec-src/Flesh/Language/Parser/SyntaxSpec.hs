@@ -123,6 +123,12 @@ spec = do
           e = runTester aliasableToken s'
        in fmap fst e `shouldBe` Right Nothing
 
+    it "stops on recursion" $
+      let s = defaultAliasName
+          s' = spread (dummyPosition s) s
+          e = runTester (reparse aliasableToken >> readAll) s'
+       in fmap fst e `shouldBe` Right "--color"
+
   describe "simpleCommand" $ do
     context "is some tokens" $ do
       expectShowEof "foo" "" simpleCommand "foo"
