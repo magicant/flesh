@@ -131,11 +131,21 @@ spec = do
 
   describe "simpleCommand" $ do
     context "is some tokens" $ do
-      expectShowEof "foo" "" simpleCommand "foo"
-      expectShowEof "foo bar" ";" simpleCommand "foo bar"
-      expectShowEof "foo  bar\tbaz #X" "\n" simpleCommand "foo bar baz"
+      expectShowEof "foo" "" simpleCommand "Just foo"
+      expectShowEof "foo bar" ";" simpleCommand "Just foo bar"
+      expectShowEof "foo  bar\tbaz #X" "\n" simpleCommand "Just foo bar baz"
 
     context "rejects empty command" $ do
       expectFailureEof "" simpleCommand Soft UnknownReason 0
+
+    it "returns nothing after alias substitution" $
+      let s = defaultAliasName
+          s' = spread (dummyPosition s) s
+          e = runTester simpleCommand s'
+       in fmap fst e `shouldBe` Right Nothing
+
+    context "does not alias-substitute second token" $ do
+      expectShowEof ("foo " ++ defaultAliasName) "" simpleCommand $
+        "Just foo " ++ defaultAliasName
 
 -- vim: set et sw=2 sts=2 tw=78:

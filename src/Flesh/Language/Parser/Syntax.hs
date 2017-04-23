@@ -37,7 +37,6 @@ module Flesh.Language.Parser.Syntax (
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Foldable
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
@@ -113,10 +112,15 @@ aliasableToken = do
    in fmap inv $ runMaybeT $ tt >>= substituteAlias
 
 -- | Parses a simple command. Skips whitespaces after the command.
-simpleCommand :: MonadParser m => m Command
-simpleCommand = f <$> some normalToken
-  where f ts = SimpleCommand (toList ts) [] []
--- TODO alias substitution
+--
+-- Returns 'Nothing' if the command was not parsed because of alias
+-- substitution.
+simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+              => m (Maybe Command)
+simpleCommand = runMaybeT $ f <$> h <*> t
+  where f h' t' = SimpleCommand (h':t') [] []
+        h = MaybeT aliasableToken
+        t = lift (many normalToken)
 -- TODO assignments
 -- TODO Redirections
 
