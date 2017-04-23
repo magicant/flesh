@@ -30,7 +30,7 @@ spec :: Spec
 spec = do
   describe "comment" $ do
     prop "fails if input does not start with #" $ \s ->
-      not ("#" `isPrefixOf` s) ==>
+      not ("#" `isPrefixOf` s) && not ("\\\n" `isPrefixOf` s) ==>
         let p = dummyPosition s
             s' = spread p s
          in runTester comment s' === Left (Soft, Error UnknownReason p)
