@@ -15,12 +15,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : portable
+Portability : non-portable (flexible contexts)
 
 This module defines types and functions for handling aliases in the syntax
 parser.
@@ -30,11 +31,17 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * Alias substitution results
-  AliasT, reparse) where
+  AliasT,
+  -- * Alias substitution
+  substituteAlias) where
 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 import Flesh.Language.Alias
+import Flesh.Language.Parser.Input
+import Flesh.Source.Position
 
 -- | Monad transformer that makes parse results depend on alias definitions.
 type ContextT = ReaderT DefinitionSet
@@ -45,13 +52,36 @@ type ContextT = ReaderT DefinitionSet
 -- the parse process to restart from higher syntax level.
 type AliasT = MaybeT
 
--- | Modifies a parser so that it retries parsing while parsing is interrupted
--- by alias substitution.
-reparse :: Monad m => AliasT m a -> m a
-reparse a = do
-  m <- runMaybeT a
-  case m of
-    Nothing -> reparse a
-    Just v -> return v
+-- | Returns 'True' iff the given position is applicable for alias
+-- substitution of the given name. The name is not applicable if the current
+-- position is already a result of alias substitution of the name.
+applicable :: T.Text -> Position -> Bool
+applicable t (Position (Fragment _ (Alias pos def) _) _)
+  | name def == t = False
+  | otherwise     = applicable t pos
+applicable _ _ = True
+
+-- | Performs alias substitution if the text is an alias defined in the
+-- context.
+--
+-- This function substitutes a single alias only. It does not substitute
+-- recursively nor substitute the next token (for an alias value ending with a
+-- blank).
+--
+-- Returns @'return' ()@ if substitution was performed; returns 'Nothing'
+-- otherwise.
+substituteAlias :: (MonadReader DefinitionSet m, MonadInput m)
+                => T.Text -> AliasT m ()
+substituteAlias t = do
+  defs <- ask
+  def <- MaybeT $ return $ M.lookup t defs
+  pos' <- currentPosition
+  guard $ applicable t pos'
+  let a = Alias pos' def
+      v = T.unpack $ value def
+      frag = Fragment v a 0
+      pos = Position frag 0
+      cs = unposition $ spread pos $ v
+  pushChars cs
 
 -- vim: set et sw=2 sts=2 tw=78:

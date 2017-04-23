@@ -27,13 +27,15 @@ This module defines fundamental types to handle aliases.
 module Flesh.Language.Alias.Core (
   Definition(..)) where
 
+import qualified Data.Text as T
+
 -- | Alias definition.
 --
 -- Type parameter @p@ should be assigned the position type. The type is not
 -- directly named here in order to avoid recursive module definition.
 data Definition p = Definition {
-    -- | FIXME
-    x :: (),
+    name :: T.Text,
+    value :: T.Text,
     -- | Position of the alias built-in that defined this alias.
     position :: p}
   deriving (Eq, Show)

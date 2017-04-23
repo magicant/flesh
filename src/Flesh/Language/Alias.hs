@@ -25,15 +25,26 @@ Portability : portable
 This module defines aliases.
 -}
 module Flesh.Language.Alias (
-  Definition, DefinitionSet) where
+  Definition, definition, Core.name, Core.value, Core.position, DefinitionSet)
+    where
 
+import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 import qualified Flesh.Language.Alias.Core as Core
 import Flesh.Source.Position
 
 -- | Alias definition.
 type Definition = Core.Definition Position
 
--- | Abstract type of alias definition collections.
-type DefinitionSet = [Definition] -- FIXME maybe better defined with newtype?
+-- | Constructs an alias definition.
+definition :: T.Text -- ^ name
+           -> T.Text -- ^ value
+           -> Position -- ^ position
+           -> Definition
+definition = Core.Definition
+
+-- | Set of alias definitions. It is a map from alias names to alias
+-- definitions.
+type DefinitionSet = M.Map T.Text Definition
 
 -- vim: set et sw=2 sts=2 tw=78:
