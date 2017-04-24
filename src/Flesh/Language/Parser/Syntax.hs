@@ -110,6 +110,8 @@ aliasableToken = do
       inv (Just ()) = Nothing
       tt = MaybeT $ return $ tokenText t
    in fmap inv $ runMaybeT $ tt >>= substituteAlias
+   -- TODO substitute the next token if the current substitute ends with a
+   -- blank.
 
 -- | Parses a simple command. Skips whitespaces after the command.
 --
@@ -121,6 +123,7 @@ simpleCommand = runMaybeT $ f <$> h <*> t
   where f h' t' = SimpleCommand (h':t') [] []
         h = MaybeT aliasableToken
         t = lift (many normalToken)
+-- TODO global aliases
 -- TODO assignments
 -- TODO Redirections
 

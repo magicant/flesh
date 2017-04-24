@@ -30,8 +30,6 @@ module Flesh.Language.Parser.Alias (
   module Flesh.Language.Alias,
   -- * Context
   ContextT,
-  -- * Alias substitution results
-  AliasT,
   -- * Alias substitution
   substituteAlias) where
 
@@ -45,12 +43,6 @@ import Flesh.Source.Position
 
 -- | Monad transformer that makes parse results depend on alias definitions.
 type ContextT = ReaderT DefinitionSet
-
--- | Monad transformer that makes parse results optional.
---
--- When an alias substitution occurred, the result will be 'Nothing' to force
--- the parse process to restart from higher syntax level.
-type AliasT = MaybeT
 
 -- | Returns 'True' iff the given position is applicable for alias
 -- substitution of the given name. The name is not applicable if the current
@@ -71,7 +63,7 @@ applicable _ _ = True
 -- Returns @'return' ()@ if substitution was performed; returns 'Nothing'
 -- otherwise.
 substituteAlias :: (MonadReader DefinitionSet m, MonadInput m)
-                => T.Text -> AliasT m ()
+                => T.Text -> MaybeT m ()
 substituteAlias t = do
   defs <- ask
   def <- MaybeT $ return $ M.lookup t defs
