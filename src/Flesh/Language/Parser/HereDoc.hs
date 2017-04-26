@@ -38,6 +38,8 @@ document contents after the entire source code was parsed and yields a final
 syntax tree.
 -}
 module Flesh.Language.Parser.HereDoc (
+  -- * Data types
+  Operator(..), Content,
   -- * Accumulator
   AccumT, yieldOperator, drainOperators, yieldContent, contents,
   -- * Filler
@@ -48,12 +50,21 @@ module Flesh.Language.Parser.HereDoc (
 
 import Control.Applicative
 import Control.Monad.State.Strict
+import Flesh.Language.Syntax
 
 -- | Here document redirection operator type.
-type Operator = () -- FIXME
+data Operator = Operator {
+  fd :: Int,
+  isTabbed :: Bool,
+  delimiter :: Token}
+  deriving (Eq)
+
+instance Show Operator where
+  showsPrec n o = showsPrec n (fd o) . (s ++) . showsPrec n (delimiter o)
+    where s = if isTabbed o then "<<-" else "<<"
 
 -- | Here document content type.
-type Content = () -- FIXME
+type Content = EWord
 
 -- | State monad transformer that is intended to be used as part of a parser
 -- monad.
