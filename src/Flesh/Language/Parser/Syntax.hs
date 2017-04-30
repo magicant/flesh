@@ -32,7 +32,7 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
-  simpleCommand, reparse) where
+  simpleCommand) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -126,16 +126,5 @@ simpleCommand = runMaybeT $ f <$> h <*> t
 -- TODO global aliases
 -- TODO assignments
 -- TODO Redirections
-
--- | Modifies a parser so that it retries parsing while it is failing, that
--- is, returning 'Nothing'. This function is mainly meant for retrying after
--- alias substitution.
-reparse :: Monad m => m (Maybe a) -> m a
-reparse a = reparse_a
-  where reparse_a = do
-          m <- a
-          case m of
-            Nothing -> reparse_a
-            Just v -> return v
 
 -- vim: set et sw=2 sts=2 tw=78:
