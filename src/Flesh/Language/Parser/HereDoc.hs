@@ -16,7 +16,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
@@ -41,12 +44,12 @@ module Flesh.Language.Parser.HereDoc (
   -- * Data types
   Operator(..), Content,
   -- * Accumulator
-  AccumT, yieldOperator, drainOperators, yieldContent, contents,
+  AccumState, MonadAccum(..), AccumT, runAccumT, mapAccumT,
   -- * Filler
   Filler, popContent,
   -- * HereDocT
-  HereDocT(..), runHereDocT
-  ) where
+  HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT)
+    where
 
 import Control.Applicative
 import Control.Monad.State.Strict
@@ -66,36 +69,86 @@ instance Show Operator where
 -- | Here document content type.
 type Content = EWord
 
--- | State monad transformer that is intended to be used as part of a parser
--- monad.
+-- | Monad for managing pending here document contents and parsed contents. It
+-- works like a 'StateT' monad where computation interacts with the state of
+-- type @(['Operator'], ['Content'])@.
 --
 -- Parsers accumulate here document operators in this monad, until the newline
 -- parser consumes them to parse corresponding here document contents, which
 -- are again accumulated in the monad.
+class Monad m => MonadAccum m where
+  -- | Adds a here document operator to the accumulation so that the
+  -- corresponding here document content can be parsed later.
+  yieldOperator :: Operator -> m ()
+  -- | Returns accumulated here document operators in order, clearing the
+  -- accumulation.
+  drainOperators :: m [Operator]
+  -- | Adds a here document content to the accumulation so that they can later
+  -- be filled into corresponding operators.
+  yieldContent :: Content -> m ()
+  -- | Returns accumulated here document contents in order, clearing the
+  -- accumulation.
+  drainContents :: m [Content]
+
+-- | Here document operators and contents accumulated in 'AccumT'.
+type AccumState = ([Operator], [Content])
+
+-- | Implementation of 'MonadAccum' which accumulates operators and contents
+-- in lists using 'StateT'.
 --
 -- For performance reasons, operators and contents are accumulated in reverse
 -- order in the lists.
-type AccumT = StateT ([Operator], [Content])
+newtype AccumT m a = AccumT (StateT AccumState m a)
 
--- | Adds a here document operator to the monad state.
-yieldOperator :: MonadState ([Operator], [Content]) m => Operator -> m ()
-yieldOperator o = state $ \s -> let (os, cs) = s in ((), (o:os, cs))
+-- | Returns the value of 'AccumT'.
+runAccumT :: AccumT m a -> StateT AccumState m a
+runAccumT (AccumT m) = m
 
--- | Returns accumulated here document operators, erasing the accumulation.
---
--- The returned list of operators is in /normal/ order.
-drainOperators :: MonadState ([Operator], [Content]) m => m [Operator]
-drainOperators = state $ \s -> let (os, cs) = s in (reverse os, ([], cs))
+-- | Directly modifies the value of 'AccumT'.
+mapAccumT :: (m (a, AccumState) -> n (b, AccumState))
+          -> AccumT m a -> AccumT n b
+mapAccumT f = AccumT . mapStateT f . runAccumT
 
--- | Adds a here document content to the monad state.
-yieldContent :: MonadState ([Operator], [Content]) m => Content -> m ()
-yieldContent c = state $ \s -> let (os, cs) = s in ((), (os, c:cs))
+instance Functor m => Functor (AccumT m) where
+  fmap f = AccumT . fmap f . runAccumT
+  a <$ AccumT b = AccumT (a <$ b)
 
--- | Returns accumulated here document contents.
---
--- The returned list of contents is in /normal/ order.
-contents :: MonadState ([Operator], [Content]) m => m [Content]
-contents = (reverse . snd) <$> get
+instance Monad m => Applicative (AccumT m) where
+  pure = AccumT . pure
+  AccumT a <*> AccumT b = AccumT (a <*> b)
+  AccumT a  *> AccumT b = AccumT (a  *> b)
+  AccumT a <*  AccumT b = AccumT (a <*  b)
+
+instance Monad m => Monad (AccumT m) where
+  return = AccumT . return
+  AccumT a >>= f = AccumT (a >>= runAccumT . f)
+  AccumT a >> AccumT b = AccumT (a >> b)
+
+instance MonadTrans AccumT where
+  lift = AccumT . lift
+
+-- The context (Alternative m, Monad m) is not enough. StateT requires
+-- (MonadPlus m) for it to be Alternative.
+instance MonadPlus m => Alternative (AccumT m) where
+  empty = AccumT empty
+  AccumT a <|> AccumT b = AccumT (a <|> b)
+
+instance MonadPlus m => MonadPlus (AccumT m)
+
+instance Monad m => MonadAccum (AccumT m) where
+  yieldOperator o =
+    AccumT $ state $ \s -> let (os, cs) = s in ((), (o:os, cs))
+  drainOperators =
+    AccumT $ state $ \s -> let (os, cs) = s in (reverse os, ([], cs))
+  yieldContent c =
+    AccumT $ state $ \s -> let (os, cs) = s in ((), (os, c:cs))
+  drainContents =
+    AccumT $ state $ \s -> let (os, cs) = s in (reverse cs, (os, []))
+
+instance MonadState s m => MonadState s (AccumT m) where
+  get = lift get
+  put = lift . put
+  state = lift . state
 
 -- | State monad that composes final parse results by filling an incomplete
 -- syntax tree with here document contents.
@@ -119,15 +172,34 @@ newtype HereDocT m a = HereDocT (AccumT m (Filler a))
 runHereDocT :: HereDocT m a -> AccumT m (Filler a)
 runHereDocT (HereDocT h) = h
 
+-- | Directly modifies the value of 'HereDocT'.
+mapHereDocT :: (m (Filler a, AccumState) -> n (Filler b, AccumState))
+            -> HereDocT m a -> HereDocT n b
+mapHereDocT f = HereDocT . mapAccumT f . runHereDocT
+
+-- | Constructs 'HereDocT'.
+hereDocTAccumT :: StateT AccumState m (Filler a) -> HereDocT m a
+hereDocTAccumT = HereDocT . AccumT
+
+-- | Reveals a 'HereDocT' monad.
+runHereDocTAccumT :: HereDocT m a -> StateT AccumState m (Filler a)
+runHereDocTAccumT = runAccumT . runHereDocT
+
 instance Functor m => Functor (HereDocT m) where
   fmap f = HereDocT . fmap (fmap f) . runHereDocT
+  a <$ HereDocT b = HereDocT (return a <$ b)
 
 instance Monad m => Applicative (HereDocT m) where
   pure = HereDocT . pure . pure
   HereDocT a <*> HereDocT b = HereDocT ((<*>) <$> a <*> b)
 
+-- The context (Alternative m, Monad m) is not enough. AccumT requires
+-- (MonadPlus m) for it to be Alternative.
 instance MonadPlus m => Alternative (HereDocT m) where
   empty = HereDocT empty
   HereDocT a <|> HereDocT b = HereDocT (a <|> b)
+
+instance MonadTrans HereDocT where
+  lift = HereDocT . lift . fmap return
 
 -- vim: set et sw=2 sts=2 tw=78:
