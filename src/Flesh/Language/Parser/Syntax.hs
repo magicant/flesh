@@ -32,7 +32,7 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
-  simpleCommand) where
+  simpleCommand, list) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -126,5 +126,9 @@ simpleCommand = runMaybeT $ f <$> h <*> t
 -- TODO global aliases
 -- TODO assignments
 -- TODO Redirections
+
+-- | FIXME
+list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
+list = reparse simpleCommand
 
 -- vim: set et sw=2 sts=2 tw=78:
