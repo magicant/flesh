@@ -49,6 +49,7 @@ module Flesh.Language.Parser.HereDoc (
   Filler, popContent,
   -- * HereDocT
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
+  fill,
   -- * HereDocAliasT
   HereDocAliasT(..), runHereDocAliasT, mapHereDocAliasT) where
 
@@ -203,6 +204,22 @@ instance MonadPlus m => Alternative (HereDocT m) where
 
 instance MonadTrans HereDocT where
   lift = HereDocT . lift . fmap return
+
+-- | Fills the accumulated contents into the filler monad, producing the final
+-- parse result.
+fill :: Monad m => HereDocT m a -> m a
+fill m = evalStateT (runAccumT fill') ([], [])
+  where fill' = do
+          f <- runHereDocT m
+          os <- drainOperators
+          case os of
+            (_:_) -> error "unconsumed here document operators"
+            [] -> do
+              cs <- drainContents
+              let (a, cs') = runState f cs
+               in case cs' of
+                    (_:_) -> error "unconsumed here document contents"
+                    [] -> return a
 
 -- | Combination of 'HereDocT' and 'MaybeT'.
 --
