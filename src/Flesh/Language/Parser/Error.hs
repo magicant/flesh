@@ -148,11 +148,11 @@ failure = currentPosition >>= failureOfPosition
 
 -- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
 -- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: MonadParser m => m a -> (a -> Bool) -> m a
+satisfying :: MonadParser m
+           => m (P.Positioned a) -> (a -> Bool) -> m (P.Positioned a)
 satisfying m p = do
-  pos <- currentPosition
-  r <- m
-  if p r then return r else failureOfPosition pos
+  posr@(pos, r) <- m
+  if p r then return posr else failureOfPosition pos
 
 -- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
 -- equivalent to 'failure'.
