@@ -19,9 +19,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Control.Monad.Trans.Maybe
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
@@ -131,22 +133,24 @@ spec = do
        in fmap fst e `shouldBe` Right "--color"
 
   describe "simpleCommand" $ do
+    let sc = runMaybeT $ fill $ runHereDocAliasT simpleCommand
+
     context "is some tokens" $ do
-      expectShowEof "foo" "" simpleCommand "Just foo"
-      expectShowEof "foo bar" ";" simpleCommand "Just foo bar"
-      expectShowEof "foo  bar\tbaz #X" "\n" simpleCommand "Just foo bar baz"
+      expectShowEof "foo" "" sc "Just foo"
+      expectShowEof "foo bar" ";" sc "Just foo bar"
+      expectShowEof "foo  bar\tbaz #X" "\n" sc "Just foo bar baz"
 
     context "rejects empty command" $ do
-      expectFailureEof "" simpleCommand Soft UnknownReason 0
+      expectFailureEof "" sc Soft UnknownReason 0
 
     it "returns nothing after alias substitution" $
       let s = defaultAliasName
           s' = spread (dummyPosition s) s
-          e = runTester simpleCommand s'
+          e = runTester sc s'
        in fmap fst e `shouldBe` Right Nothing
 
     context "does not alias-substitute second token" $ do
-      expectShowEof ("foo " ++ defaultAliasName) "" simpleCommand $
+      expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
 
 -- vim: set et sw=2 sts=2 tw=78:

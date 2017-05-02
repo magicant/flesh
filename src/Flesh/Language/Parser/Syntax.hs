@@ -41,6 +41,7 @@ import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
@@ -114,12 +115,9 @@ aliasableToken = do
    -- blank.
 
 -- | Parses a simple command. Skips whitespaces after the command.
---
--- Returns 'Nothing' if the command was not parsed because of alias
--- substitution.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-              => m (Maybe Command)
-simpleCommand = runMaybeT $ f <$> h <*> t
+              => HereDocAliasT m Command
+simpleCommand = HereDocAliasT $ lift $ f <$> h <*> t
   where f h' t' = SimpleCommand (h':t') [] []
         h = MaybeT aliasableToken
         t = lift (many normalToken)
@@ -129,6 +127,6 @@ simpleCommand = runMaybeT $ f <$> h <*> t
 
 -- | FIXME
 list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
-list = reparse simpleCommand
+list = reparse $ runMaybeT $ fill $ runHereDocAliasT simpleCommand
 
 -- vim: set et sw=2 sts=2 tw=78:
