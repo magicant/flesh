@@ -59,4 +59,37 @@ spec = do
     context "ignores line continuations in comment body" $ do
       expectSuccessEof "#\\" "\n" (fmap (fmap snd) comment) "\\"
 
+  describe "anyOperator" $ do
+    context "parses control operator" $ do
+      expectSuccessEof ";"  ""  (snd <$> anyOperator) ";"
+      expectSuccessEof ";"  "&" (snd <$> anyOperator) ";"
+      expectSuccess    ";;" ""  (snd <$> anyOperator) ";;"
+      expectSuccessEof "|"  ""  (snd <$> anyOperator) "|"
+      expectSuccessEof "|"  "&" (snd <$> anyOperator) "|"
+      expectSuccess    "||" ""  (snd <$> anyOperator) "||"
+      expectSuccessEof "&"  ""  (snd <$> anyOperator) "&"
+      expectSuccessEof "&"  "|" (snd <$> anyOperator) "&"
+      expectSuccess    "&&" ""  (snd <$> anyOperator) "&&"
+      expectSuccess    "("  ""  (snd <$> anyOperator) "("
+      expectSuccess    ")"  ""  (snd <$> anyOperator) ")"
+
+    context "parses redirection operator" $ do
+      expectSuccessEof "<"   ""  (snd <$> anyOperator) "<"
+      expectSuccessEof "<"   "-" (snd <$> anyOperator) "<"
+      expectSuccessEof "<"   "|" (snd <$> anyOperator) "<"
+      expectSuccessEof "<<"  ""  (snd <$> anyOperator) "<<"
+      expectSuccessEof "<<"  "|" (snd <$> anyOperator) "<<"
+      expectSuccess    "<<-" ""  (snd <$> anyOperator) "<<-"
+      expectSuccess    "<>"  ""  (snd <$> anyOperator) "<>"
+      expectSuccess    "<&"  ""  (snd <$> anyOperator) "<&"
+      expectSuccessEof ">"   ""  (snd <$> anyOperator) ">"
+      expectSuccessEof ">"   "-" (snd <$> anyOperator) ">"
+      expectSuccess    ">>"  ""  (snd <$> anyOperator) ">>"
+      expectSuccess    ">|"  ""  (snd <$> anyOperator) ">|"
+      expectSuccess    ">&"  ""  (snd <$> anyOperator) ">&"
+
+    context "skips line continuations" $ do
+      expectSuccessEof "\\\n&\\\n\\\n&"  "\\\n" (snd <$> anyOperator) "&&"
+      expectSuccessEof "\\\n<\\\n<\\\n-" "\\\n" (snd <$> anyOperator) "<<-"
+
 -- vim: set et sw=2 sts=2 tw=78:

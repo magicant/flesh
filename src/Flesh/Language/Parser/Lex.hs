@@ -26,8 +26,8 @@ This module defines utilities for lexical parsing that are specific to the
 shell language.
 -}
 module Flesh.Language.Parser.Lex (
-  lineContinuation, lc, blank, comment, whites, operatorStarter, endOfToken)
-    where
+  lineContinuation, lc, blank, comment, whites, operatorStarter, endOfToken,
+  anyOperator) where
 
 import Control.Applicative
 import Data.Char
@@ -85,5 +85,25 @@ operatorStarter = lc $ oneOfChars operatorStarters
 endOfToken :: MonadParser m => m ()
 endOfToken = lc $ followedBy op <|> followedBy blank' <|> followedBy eof
   where op = oneOfChars ('\n' : operatorStarters)
+
+-- | Parses a single operator, possibly including line continuations.
+--
+-- This function does /not/ parse the newline or end-of-input operator.
+anyOperator :: MonadParser m => m (Positioned String)
+anyOperator = do
+  (p, c1) <- lc operatorStarter
+  lc $ case c1 of
+    ';' -> ((p, ";;") <$ char ';') <|> return (p, ";")
+    '|' -> ((p, "||") <$ char '|') <|> return (p, "|")
+    '&' -> ((p, "&&") <$ char '&') <|> return (p, "&")
+    '<' -> do (_, c2) <- oneOfChars "<>&"
+              case c2 of
+                '<' -> lc $ ((p, "<<-") <$ char '-') <|> return (p, "<<")
+                _ -> return (p, [c1, c2]) 
+           <|> return (p, [c1])
+    '>' -> do (_, c2) <- oneOfChars ">|&"
+              return (p, [c1, c2])
+           <|> return (p, ">")
+    _ -> return (p, [c1])
 
 -- vim: set et sw=2 sts=2 tw=78:
