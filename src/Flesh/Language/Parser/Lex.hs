@@ -27,7 +27,7 @@ shell language.
 -}
 module Flesh.Language.Parser.Lex (
   lineContinuation, lc, blank, comment, whites, operatorStarter, endOfToken,
-  anyOperator) where
+  anyOperator, operator) where
 
 import Control.Applicative
 import Data.Char
@@ -105,5 +105,14 @@ anyOperator = do
               return (p, [c1, c2])
            <|> return (p, ">")
     _ -> return (p, [c1])
+
+-- | Parses the given single operator, possibly including line continuations.
+-- The argument operator must be one of the operators parsed by 'anyOperator'.
+operator :: MonadParser m => String -> m (Positioned String)
+operator expected = do
+  actual <- anyOperator
+  if snd actual == expected
+     then return actual
+     else failureOfPosition (fst actual)
 
 -- vim: set et sw=2 sts=2 tw=78:

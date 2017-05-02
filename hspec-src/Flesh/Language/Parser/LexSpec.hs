@@ -92,4 +92,46 @@ spec = do
       expectSuccessEof "\\\n&\\\n\\\n&"  "\\\n" (snd <$> anyOperator) "&&"
       expectSuccessEof "\\\n<\\\n<\\\n-" "\\\n" (snd <$> anyOperator) "<<-"
 
+  describe "operator" $ do
+    context "parses argument control operator" $ do
+      expectSuccessEof ";"  ""  (snd <$> operator ";")  ";"
+      expectSuccessEof ";"  "&" (snd <$> operator ";")  ";"
+      expectSuccess    ";;" ""  (snd <$> operator ";;") ";;"
+      expectSuccessEof "|"  ""  (snd <$> operator "|")  "|"
+      expectSuccessEof "|"  "&" (snd <$> operator "|")  "|"
+      expectSuccess    "||" ""  (snd <$> operator "||") "||"
+      expectSuccessEof "&"  ""  (snd <$> operator "&")  "&"
+      expectSuccessEof "&"  "|" (snd <$> operator "&")  "&"
+      expectSuccess    "&&" ""  (snd <$> operator "&&") "&&"
+      expectSuccess    "("  ""  (snd <$> operator "(")  "("
+      expectSuccess    ")"  ""  (snd <$> operator ")")  ")"
+
+    context "parses argument redirection operator" $ do
+      expectSuccessEof "<"   ""  (snd <$> operator "<")   "<"
+      expectSuccessEof "<"   "-" (snd <$> operator "<")   "<"
+      expectSuccessEof "<"   "|" (snd <$> operator "<")   "<"
+      expectSuccessEof "<<"  ""  (snd <$> operator "<<")  "<<"
+      expectSuccessEof "<<"  "|" (snd <$> operator "<<")  "<<"
+      expectSuccess    "<<-" ""  (snd <$> operator "<<-") "<<-"
+      expectSuccess    "<>"  ""  (snd <$> operator "<>")  "<>"
+      expectSuccess    "<&"  ""  (snd <$> operator "<&")  "<&"
+      expectSuccessEof ">"   ""  (snd <$> operator ">")   ">"
+      expectSuccessEof ">"   "-" (snd <$> operator ">")   ">"
+      expectSuccess    ">>"  ""  (snd <$> operator ">>")  ">>"
+      expectSuccess    ">|"  ""  (snd <$> operator ">|")  ">|"
+      expectSuccess    ">&"  ""  (snd <$> operator ">&")  ">&"
+
+    context "rejects operator other than argument" $ do
+      expectFailureEof ";;"  (operator ";")  Soft UnknownReason 0
+      expectFailureEof "&&"  (operator "&")  Soft UnknownReason 0
+      expectFailureEof "||"  (operator "|")  Soft UnknownReason 0
+      expectFailureEof "<<"  (operator "<")  Soft UnknownReason 0
+      expectFailureEof "<<-" (operator "<")  Soft UnknownReason 0
+      expectFailureEof "<<-" (operator "<<") Soft UnknownReason 0
+      expectFailureEof "<>"  (operator "<<") Soft UnknownReason 0
+      expectFailureEof ">>"  (operator ">")  Soft UnknownReason 0
+      expectFailureEof ">|"  (operator ">")  Soft UnknownReason 0
+      expectFailureEof ">&"  (operator ">")  Soft UnknownReason 0
+      expectFailureEof "\\\n>&"  (operator ">")  Soft UnknownReason 2
+
 -- vim: set et sw=2 sts=2 tw=78:
