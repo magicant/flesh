@@ -109,10 +109,6 @@ anyOperator = do
 -- | Parses the given single operator, possibly including line continuations.
 -- The argument operator must be one of the operators parsed by 'anyOperator'.
 operator :: MonadParser m => String -> m (Positioned String)
-operator expected = do
-  actual <- anyOperator
-  if snd actual == expected
-     then return actual
-     else failureOfPosition (fst actual)
+operator o = anyOperator `satisfying` (o ==)
 
 -- vim: set et sw=2 sts=2 tw=78:
