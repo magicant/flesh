@@ -32,7 +32,7 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
-  simpleCommand, reparse) where
+  simpleCommand, list) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -41,6 +41,7 @@ import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
@@ -114,12 +115,9 @@ aliasableToken = do
    -- blank.
 
 -- | Parses a simple command. Skips whitespaces after the command.
---
--- Returns 'Nothing' if the command was not parsed because of alias
--- substitution.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-              => m (Maybe Command)
-simpleCommand = runMaybeT $ f <$> h <*> t
+              => HereDocAliasT m Command
+simpleCommand = HereDocAliasT $ lift $ f <$> h <*> t
   where f h' t' = SimpleCommand (h':t') [] []
         h = MaybeT aliasableToken
         t = lift (many normalToken)
@@ -127,15 +125,8 @@ simpleCommand = runMaybeT $ f <$> h <*> t
 -- TODO assignments
 -- TODO Redirections
 
--- | Modifies a parser so that it retries parsing while it is failing, that
--- is, returning 'Nothing'. This function is mainly meant for retrying after
--- alias substitution.
-reparse :: Monad m => m (Maybe a) -> m a
-reparse a = reparse_a
-  where reparse_a = do
-          m <- a
-          case m of
-            Nothing -> reparse_a
-            Just v -> return v
+-- | FIXME
+list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
+list = reparse $ runMaybeT $ fill $ runHereDocAliasT simpleCommand
 
 -- vim: set et sw=2 sts=2 tw=78:

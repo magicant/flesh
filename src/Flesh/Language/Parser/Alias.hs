@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * Alias substitution
-  substituteAlias) where
+  substituteAlias, reparse) where
 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
@@ -75,5 +75,16 @@ substituteAlias t = do
       pos = Position frag 0
       cs = unposition $ spread pos $ v
   pushChars cs
+
+-- | Modifies a parser so that it retries parsing while it is failing, that
+-- is, returning 'Nothing'. This function is mainly meant for retrying after
+-- alias substitution.
+reparse :: Monad m => m (Maybe a) -> m a
+reparse a = reparse_a
+  where reparse_a = do
+          m <- a
+          case m of
+            Nothing -> reparse_a
+            Just v -> return v
 
 -- vim: set et sw=2 sts=2 tw=78:
