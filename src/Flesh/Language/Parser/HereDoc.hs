@@ -42,7 +42,7 @@ syntax tree.
 -}
 module Flesh.Language.Parser.HereDoc (
   -- * Data types
-  Operator(..), Content,
+  Operator, Content,
   -- * Accumulator
   AccumState, MonadAccum(..), AccumT, runAccumT, mapAccumT,
   -- * Filler
@@ -56,15 +56,7 @@ import Control.Monad.State.Strict
 import Flesh.Language.Syntax
 
 -- | Here document redirection operator type.
-data Operator = Operator {
-  fd :: Int,
-  isTabbed :: Bool,
-  delimiter :: Token}
-  deriving (Eq)
-
-instance Show Operator where
-  showsPrec n o = showsPrec n (fd o) . (s ++) . showsPrec n (delimiter o)
-    where s = if isTabbed o then "<<-" else "<<"
+type Operator = HereDocOp
 
 -- | Here document content type.
 type Content = EWord

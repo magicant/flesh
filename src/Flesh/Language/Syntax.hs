@@ -32,7 +32,7 @@ module Flesh.Language.Syntax (
   Token(..), tokenUnits, tokenWord, tokenText,
   Assignment(..),
   -- * Redirections
-  Redirection(..),
+  HereDocOp(..), Redirection(..), fd,
   -- * Syntax
   Command(..)) where
 
@@ -131,9 +131,41 @@ instance Show Token where
 data Assignment = Assignment () -- FIXME
   deriving (Eq)
 
--- | Redirection.
-data Redirection = Redirection () -- FIXME
+instance Show Assignment where
+  show _ = "" -- FIXME
+
+-- | Here document redirection operator.
+data HereDocOp = HereDocOp {
+  hereDocFd :: Int,
+  isTabbed :: Bool,
+  delimiter :: Token}
   deriving (Eq)
+
+instance Show HereDocOp where
+  showsPrec n o =
+    showsPrec n (hereDocFd o) . (s ++) . showsPrec n (delimiter o)
+    where s = if isTabbed o then "<<-" else "<<"
+
+-- | Redirection.
+data Redirection =
+  FileRedirection {
+    fileFd :: Int} -- FIXME
+  | HereDoc {
+    hereDocOp :: HereDocOp,
+    content :: EWord}
+  deriving (Eq)
+
+instance Show Redirection where
+  showsPrec n (FileRedirection fd') = showsPrec n fd' -- FIXME
+  showsPrec n (HereDoc o _) = showsPrec n o -- content is ignored
+  showList [] = id
+  showList [r] = showsPrec 0 r
+  showList (r:rs) = showsPrec 0 r . (' ':) . showList rs
+
+-- | Returns the target file descriptor of the given redirection.
+fd :: Redirection -> Int
+fd (FileRedirection fd') = fd'
+fd (HereDoc (HereDocOp fd' _ _) _) = fd'
 
 -- | Element of pipelines.
 data Command =
@@ -145,8 +177,13 @@ data Command =
   deriving (Eq)
 
 instance Show Command where
-  -- FIXME show assignments and redirections
-  showsPrec _ (SimpleCommand ts _ _) s = showList ts s
-  showsPrec _ FunctionDefinition s = s -- FIXME
+  showsPrec _ (SimpleCommand [] [] []) = id
+  showsPrec _ (SimpleCommand ts [] []) = showList ts
+  showsPrec _ (SimpleCommand [] as []) = showList as
+  showsPrec _ (SimpleCommand [] [] rs) = showList rs
+  showsPrec _ (SimpleCommand ts [] rs) = showList ts . (' ':) . showList rs
+  showsPrec n (SimpleCommand ts as rs) =
+    showList as . (' ':) . showsPrec n (SimpleCommand ts [] rs)
+  showsPrec _ FunctionDefinition = id -- FIXME
 
 -- vim: set et sw=2 sts=2 tw=78:
