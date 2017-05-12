@@ -26,11 +26,12 @@ This module defines utilities for lexical parsing that are specific to the
 shell language.
 -}
 module Flesh.Language.Parser.Lex (
-  lineContinuation, lc, blank, comment, whites, operatorStarter, endOfToken,
-  anyOperator, operator) where
+  lineContinuation, lc, blank, digit, comment, whites, operatorStarter,
+  endOfToken, anyOperator, operator, ioNumber) where
 
 import Control.Applicative
 import Data.Char
+import qualified Data.List.NonEmpty as NE
 import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -57,6 +58,13 @@ blank' = satisfy isBlank
 -- characters.
 blank :: MonadParser m => m (Positioned Char)
 blank = lc blank'
+
+digit' :: MonadParser m => m (Positioned Char)
+digit' = satisfy isDigit
+
+-- | Parses a digit character, possibly preceded by line continuations.
+digit :: MonadParser m => m (Positioned Char)
+digit = lc digit'
 
 -- | Parses a comment, possibly preceded by line continuations.
 --
@@ -110,5 +118,18 @@ anyOperator = do
 -- The argument operator must be one of the operators parsed by 'anyOperator'.
 operator :: MonadParser m => String -> m (Positioned String)
 operator o = anyOperator `satisfying` (o ==)
+
+-- | Parses an IO_NUMBER token.
+ioNumber :: MonadParser m => m Int
+ioNumber = do
+  ds <- some' digit
+  case reads $ snd <$> NE.toList ds of
+    [(n, "")] ->
+      if n > toInteger (maxBound :: Int)
+         then return (-1)
+         else do
+           followedBy $ lc $ oneOfChars "<>"
+           return $ fromInteger n
+    _ -> failureOfPosition $ fst (NE.head ds)
 
 -- vim: set et sw=2 sts=2 tw=78:

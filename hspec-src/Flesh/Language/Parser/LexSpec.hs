@@ -134,4 +134,28 @@ spec = do
       expectFailureEof ">&"  (operator ">")  Soft UnknownReason 0
       expectFailureEof "\\\n>&"  (operator ">")  Soft UnknownReason 2
 
+  describe "ioNumber" $ do
+    context "parses digits followed by < or >" $ do
+      expectSuccessEof "1" "<" ioNumber 1
+      expectSuccessEof "20" ">" ioNumber 20
+      expectSuccessEof "123" ">" ioNumber 123
+      expectSuccessEof
+        "12345678901234567890123456789012345678900123456789012345678900"
+        ">" ioNumber (-1)
+
+    context "rejects non-digits" $ do
+      expectFailureEof "<" ioNumber Soft UnknownReason 0
+      expectFailureEof "a" ioNumber Soft UnknownReason 0
+      expectFailureEof " " ioNumber Soft UnknownReason 0
+
+    context "rejects digits not followed by < or >" $ do
+      expectFailureEof "0" ioNumber Soft UnknownReason 1
+      expectFailureEof "1-" ioNumber Soft UnknownReason 1
+      expectFailureEof "23 " ioNumber Soft UnknownReason 2
+
+    context "skips line continuations" $ do
+      expectSuccessEof "\\\n\\\n1" "<" ioNumber 1
+      expectSuccessEof "1" "\\\n\\\n<" ioNumber 1
+      expectFailureEof "1\\\n-" ioNumber Soft UnknownReason 3
+
 -- vim: set et sw=2 sts=2 tw=78:
