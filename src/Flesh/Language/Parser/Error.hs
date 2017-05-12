@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Error (
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
   recover, setReason, try, require,
   -- * The 'MonadParser' class
-  MonadParser, failure, satisfying, notFollowedBy,
+  MonadParser, failure, satisfying, notFollowedBy, some',
   -- * The 'ParserT' monad transformer
   ParserT(..), runParserT, mapParserT) where
 
@@ -161,6 +161,10 @@ notFollowedBy m = do
   pos <- currentPosition
   let m' = m >> return (failureOfPosition pos)
   join $ catchError m' (const $ return $ return ())
+
+-- | @some' a@ is like @some a@, but returns a NonEmpty list.
+some' :: MonadParser m => m a -> m (NE.NonEmpty a)
+some' a = (NE.:|) <$> a <*> many a
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
 -- 'MonadError'.
