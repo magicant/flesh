@@ -45,6 +45,7 @@ import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
+import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
@@ -151,16 +152,27 @@ redirect = HereDocT $ do
     "<<-" -> yieldHereDoc $ HereDocOp fd' True t
     _ -> error $ "unexpected redirection operator " ++ op
 
+positionedRedirect :: MonadParser m => HereDocT m (Positioned Redirection)
+positionedRedirect = (,) <$> lift currentPosition <*> redirect
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
-simpleCommand = HereDocAliasT $ lift $ f <$> h <*> t
-  where f h' t' = SimpleCommand (h':t') [] []
-        h = MaybeT aliasableToken
-        t = lift (many normalToken)
+simpleCommand = f <$> nonEmptyBody
+  where f (ts, as, rs) = SimpleCommand ts as rs
+        nonEmptyBody = fRedir <$> redirect' <*> {- FIXME reparse -} body <|>
+          fToken <$> aliasableToken' <*> arguments
+        body = nonEmptyBody <|> pure ([], [], [])
+        arguments = fRedir <$> redirect' <*> arguments <|>
+          fToken <$> normalToken' <*> arguments <|>
+          pure ([], [], [])
+        redirect' = HereDocAliasT $ mapHereDocT lift positionedRedirect
+        aliasableToken' = HereDocAliasT $ lift $ MaybeT aliasableToken
+        normalToken' = lift normalToken
+        fRedir r (ts, as, rs) = (ts, as, r:rs)
+        fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
 -- TODO assignments
--- TODO Redirections
 
 -- | FIXME
 list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
