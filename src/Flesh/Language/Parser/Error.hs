@@ -53,6 +53,7 @@ data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
+  | MissingRedirectionTarget
   deriving (Eq, Show)
 
 -- | Parse error description.

@@ -33,11 +33,14 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
+  redirect,
   simpleCommand, list) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Data.List
+import Data.Maybe
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
@@ -116,6 +119,40 @@ aliasableToken = AliasT $ do
    in fmap inv $ runMaybeT $ tt >>= substituteAlias
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
+
+-- | Parses a redirection operator (@io_redirect@) and returns the raw result.
+-- Skips trailing whitespaces.
+redirectBody :: MonadParser m
+             => m (Maybe Int, Positioned String, Token)
+redirectBody = liftA3 (,,) (optional ioNumber) redirectOperator
+  (whites *> require (setReason MissingRedirectionTarget normalToken))
+
+yieldHereDoc :: Monad m => HereDocOp -> AccumT m (Filler Redirection)
+yieldHereDoc op = do
+  yieldOperator op
+  return $ do
+    c <- popContent
+    return $ HereDoc op c
+
+-- | Parses a redirection operator (@io_redirect@). Skips trailing
+-- whitespaces.
+redirect :: MonadParser m => HereDocT m Redirection
+redirect = HereDocT $ do
+  (maybeFd, (_opPos, op), t) <- lift redirectBody
+  -- TODO define 0 and 1 as constants elsewhere
+  let defaultFd = if "<" `isPrefixOf` op then 0 else 1
+      fd' = fromMaybe defaultFd maybeFd
+  case op of
+    "<"  -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<>" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<&" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">"  -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">>" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">|" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">&" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<<" -> yieldHereDoc $ HereDocOp fd' False t
+    "<<-" -> yieldHereDoc $ HereDocOp fd' True t
+    _ -> error $ "unexpected redirection operator " ++ op
 
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
