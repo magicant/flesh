@@ -132,6 +132,8 @@ spec = do
           e = runTester (reparse aliasableToken >> readAll) s'
        in fmap fst e `shouldBe` Right "--color"
 
+  describe "redirect" $ return () -- FIXME
+
   describe "simpleCommand" $ do
     let sc = runMaybeT $ fill $ runHereDocAliasT simpleCommand
 

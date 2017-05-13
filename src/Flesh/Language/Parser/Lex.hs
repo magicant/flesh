@@ -27,7 +27,7 @@ shell language.
 -}
 module Flesh.Language.Parser.Lex (
   lineContinuation, lc, blank, digit, comment, whites, operatorStarter,
-  endOfToken, anyOperator, operator, ioNumber) where
+  endOfToken, anyOperator, operator, redirectOperator, ioNumber) where
 
 import Control.Applicative
 import Data.Char
@@ -118,6 +118,14 @@ anyOperator = do
 -- The argument operator must be one of the operators parsed by 'anyOperator'.
 operator :: MonadParser m => String -> m (Positioned String)
 operator o = anyOperator `satisfying` (o ==)
+
+-- | Parses a single direction operator, possibly including line
+-- continuations.
+redirectOperator :: MonadParser m => m (Positioned String)
+redirectOperator = anyOperator `satisfying` isRedirect
+  where isRedirect ('<':_) = True
+        isRedirect ('>':_) = True
+        isRedirect _ = False
 
 -- | Parses an IO_NUMBER token.
 ioNumber :: MonadParser m => m Int
