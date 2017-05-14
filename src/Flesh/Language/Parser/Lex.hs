@@ -26,11 +26,12 @@ This module defines utilities for lexical parsing that are specific to the
 shell language.
 -}
 module Flesh.Language.Parser.Lex (
-  lineContinuation, lc, blank, comment, whites, operatorChar, endOfToken)
-    where
+  lineContinuation, lc, blank, digit, comment, whites, operatorStarter,
+  endOfToken, anyOperator, operator, redirectOperator, ioNumber) where
 
 import Control.Applicative
 import Data.Char
+import qualified Data.List.NonEmpty as NE
 import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -58,6 +59,13 @@ blank' = satisfy isBlank
 blank :: MonadParser m => m (Positioned Char)
 blank = lc blank'
 
+digit' :: MonadParser m => m (Positioned Char)
+digit' = satisfy isDigit
+
+-- | Parses a digit character, possibly preceded by line continuations.
+digit :: MonadParser m => m (Positioned Char)
+digit = lc digit'
+
 -- | Parses a comment, possibly preceded by line continuations.
 --
 -- A comment starts with a @#@ sign and continues up to (but not including) a
@@ -72,17 +80,65 @@ comment = lc $ do
 whites :: MonadParser m => m (Maybe [Positioned Char])
 whites = many blank *> (Just <$> comment <|> return Nothing)
 
-operatorChars :: [Char]
-operatorChars = ";|&<>()"
+operatorStarters :: [Char]
+operatorStarters = ";|&<>()"
 
--- | Parses a single operator char, possibly preceded by line continuations.
-operatorChar :: MonadParser m => m (Positioned Char)
-operatorChar = lc $ oneOfChars operatorChars
+-- | Parses a single-character operator, possibly preceded by line
+-- continuations.
+operatorStarter :: MonadParser m => m (Positioned Char)
+operatorStarter = lc $ oneOfChars operatorStarters
 
 -- | Succeeds before an end-of-token character. Consumes line continuations
 -- but nothing else.
 endOfToken :: MonadParser m => m ()
 endOfToken = lc $ followedBy op <|> followedBy blank' <|> followedBy eof
-  where op = oneOfChars ('\n' : operatorChars)
+  where op = oneOfChars ('\n' : operatorStarters)
+
+-- | Parses a single operator, possibly including line continuations.
+--
+-- This function does /not/ parse the newline or end-of-input operator.
+anyOperator :: MonadParser m => m (Positioned String)
+anyOperator = do
+  (p, c1) <- lc operatorStarter
+  lc $ case c1 of
+    ';' -> ((p, ";;") <$ char ';') <|> return (p, ";")
+    '|' -> ((p, "||") <$ char '|') <|> return (p, "|")
+    '&' -> ((p, "&&") <$ char '&') <|> return (p, "&")
+    '<' -> do (_, c2) <- oneOfChars "<>&"
+              case c2 of
+                '<' -> lc $ ((p, "<<-") <$ char '-') <|> return (p, "<<")
+                _ -> return (p, [c1, c2]) 
+           <|> return (p, [c1])
+    '>' -> do (_, c2) <- oneOfChars ">|&"
+              return (p, [c1, c2])
+           <|> return (p, ">")
+    _ -> return (p, [c1])
+
+-- | Parses the given single operator, possibly including line continuations.
+-- The argument operator must be one of the operators parsed by 'anyOperator'.
+operator :: MonadParser m => String -> m (Positioned String)
+operator o = anyOperator `satisfying` (o ==)
+
+-- | Parses a single direction operator, possibly including line
+-- continuations.
+redirectOperator :: MonadParser m => m (Positioned String)
+redirectOperator = anyOperator `satisfying` isRedirect
+  where isRedirect ('<':_) = True
+        isRedirect ('>':_) = True
+        isRedirect _ = False
+
+-- | Parses an IO_NUMBER token.
+ioNumber :: MonadParser m => m Int
+ioNumber = do
+  ds <- some' digit
+  let p = fst (NE.head ds)
+  case reads $ snd <$> NE.toList ds of
+    [(n, "")] ->
+      if n > toInteger (maxBound :: Int)
+         then return (-1)
+         else do
+           followedBy $ lc $ oneOfChars "<>"
+           return $ fromInteger n
+    _ -> failureOfPosition p
 
 -- vim: set et sw=2 sts=2 tw=78:

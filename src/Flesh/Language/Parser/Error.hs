@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Error (
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
   recover, setReason, try, require,
   -- * The 'MonadParser' class
-  MonadParser, failure, satisfying, notFollowedBy,
+  MonadParser, failure, satisfying, notFollowedBy, some',
   -- * The 'ParserT' monad transformer
   ParserT(..), runParserT, mapParserT) where
 
@@ -53,6 +53,7 @@ data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
+  | MissingRedirectionTarget
   deriving (Eq, Show)
 
 -- | Parse error description.
@@ -148,11 +149,11 @@ failure = currentPosition >>= failureOfPosition
 
 -- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
 -- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: MonadParser m => m a -> (a -> Bool) -> m a
+satisfying :: MonadParser m
+           => m (P.Positioned a) -> (a -> Bool) -> m (P.Positioned a)
 satisfying m p = do
-  pos <- currentPosition
-  r <- m
-  if p r then return r else failureOfPosition pos
+  posr@(pos, r) <- m
+  if p r then return posr else failureOfPosition pos
 
 -- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
 -- equivalent to 'failure'.
@@ -161,6 +162,10 @@ notFollowedBy m = do
   pos <- currentPosition
   let m' = m >> return (failureOfPosition pos)
   join $ catchError m' (const $ return $ return ())
+
+-- | @some' a@ is like @some a@, but returns a NonEmpty list.
+some' :: MonadParser m => m a -> m (NE.NonEmpty a)
+some' a = (NE.:|) <$> a <*> many a
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
 -- 'MonadError'.
