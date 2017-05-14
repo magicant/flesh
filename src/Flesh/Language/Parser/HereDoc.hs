@@ -241,11 +241,12 @@ instance Monad m => Applicative (HereDocAliasT m) where
   HereDocAliasT a  *> HereDocAliasT b = HereDocAliasT (a  *> b)
   HereDocAliasT a <*  HereDocAliasT b = HereDocAliasT (a <*  b)
 
--- The context (Alternative m, Monad m) is not enough. HereDocT requires
--- (MonadPlus m) for it to be Alternative.
-instance MonadPlus m => Alternative (HereDocAliasT m) where
-  empty = HereDocAliasT empty
-  HereDocAliasT a <|> HereDocAliasT b = HereDocAliasT (a <|> b)
+instance (Alternative m, Monad m) => Alternative (HereDocAliasT m) where
+  empty = HereDocAliasT $ HereDocT $ lift $ lift empty
+  a <|> b = conceal $ liftA2 (<||>) (reveal a) (reveal b)
+    where reveal = runStateT . runAccumT . runHereDocT . runHereDocAliasT
+          conceal = HereDocAliasT . HereDocT . AccumT . StateT
+          MaybeT a' <||> MaybeT b' = MaybeT $ a' <|> b'
 
 instance MonadTrans HereDocAliasT where
   lift = HereDocAliasT . lift . lift
