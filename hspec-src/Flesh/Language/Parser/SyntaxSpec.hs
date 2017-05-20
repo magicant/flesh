@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
-import Control.Monad.Trans.Maybe
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -133,7 +132,7 @@ spec = do
        in fmap fst e `shouldBe` Right "--color"
 
   describe "simpleCommand" $ do
-    let sc = runMaybeT $ fill $ runHereDocAliasT simpleCommand
+    let sc = runAliasT $ fill simpleCommand
 
     context "is some tokens" $ do
       expectShowEof "foo" "" sc "Just foo"
