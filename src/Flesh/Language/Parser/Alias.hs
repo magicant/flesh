@@ -153,6 +153,9 @@ substituteAlias t = do
   defs <- ask
   def <- MaybeT $ return $ M.lookup t defs
   pos' <- currentPosition
+  -- FIXME @applicable t pos'@ is not the correct test for recursive
+  -- substitution. The position of the substituted text should be tested but
+  -- @pos'@ is /after/ the text.
   guard $ applicable t pos'
   let a = Alias pos' def
       v = T.unpack $ value def
