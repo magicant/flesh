@@ -179,6 +179,6 @@ simpleCommand = f <$> nonEmptyBody
 
 -- | FIXME
 list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
-list = reparse $ runAliasT $ fill simpleCommand
+list = reparse $ fill simpleCommand
 
 -- vim: set et sw=2 sts=2 tw=78:

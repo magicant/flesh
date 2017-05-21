@@ -130,7 +130,7 @@ spec = do
     it "stops on recursion" $
       let s = defaultAliasName
           s' = spread (dummyPosition s) s
-          e = runTester (reparse at >> readAll) s'
+          e = runTester (reparse aliasableToken >> readAll) s'
        in fmap fst e `shouldBe` Right "--color"
 
   describe "redirect" $ return () -- FIXME
