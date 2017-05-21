@@ -49,13 +49,10 @@ module Flesh.Language.Parser.HereDoc (
   Filler, popContent,
   -- * HereDocT
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
-  fill,
-  -- * HereDocAliasT
-  HereDocAliasT(..), runHereDocAliasT, mapHereDocAliasT) where
+  fill) where
 
 import Control.Applicative
 import Control.Monad.State.Strict
-import Control.Monad.Trans.Maybe
 import Flesh.Language.Syntax
 
 -- | Here document redirection operator type.
@@ -220,42 +217,5 @@ fill m = evalStateT (runAccumT fill') ([], [])
                in case cs' of
                     (_:_) -> error "unconsumed here document contents"
                     [] -> return a
-
--- | Combination of 'HereDocT' and 'MaybeT'.
---
--- The maybe monad is intended to represent a parse that may result in alias
--- substitution. If alias substitution occurs on the first token in the
--- parser, the result will be 'Nothing' and the parser must be applied again.
-newtype HereDocAliasT m a = HereDocAliasT (HereDocT (MaybeT m) a)
-
--- | Reveals a 'HereDocAliasT' monad.
-runHereDocAliasT :: HereDocAliasT m a -> HereDocT (MaybeT m) a
-runHereDocAliasT (HereDocAliasT m) = m
-
--- | Directly modifies the value of 'HereDocAliasT'.
-mapHereDocAliasT :: (m (Maybe (Filler a, AccumState))
-                  -> n (Maybe (Filler b, AccumState)))
-                 -> HereDocAliasT m a -> HereDocAliasT n b
-mapHereDocAliasT f = HereDocAliasT . mapHereDocT g . runHereDocAliasT
-  where g = mapMaybeT f
-
-instance Functor m => Functor (HereDocAliasT m) where
-  fmap f = HereDocAliasT . fmap f . runHereDocAliasT
-  a <$ HereDocAliasT b = HereDocAliasT (a <$ b)
-
-instance Monad m => Applicative (HereDocAliasT m) where
-  pure = HereDocAliasT . pure
-  HereDocAliasT a <*> HereDocAliasT b = HereDocAliasT (a <*> b)
-  HereDocAliasT a  *> HereDocAliasT b = HereDocAliasT (a  *> b)
-  HereDocAliasT a <*  HereDocAliasT b = HereDocAliasT (a <*  b)
-
--- The context (Alternative m, Monad m) is not enough. HereDocT requires
--- (MonadPlus m) for it to be Alternative.
-instance MonadPlus m => Alternative (HereDocAliasT m) where
-  empty = HereDocAliasT empty
-  HereDocAliasT a <|> HereDocAliasT b = HereDocAliasT (a <|> b)
-
-instance MonadTrans HereDocAliasT where
-  lift = HereDocAliasT . lift . lift
 
 -- vim: set et sw=2 sts=2 tw=78:

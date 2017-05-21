@@ -28,6 +28,7 @@ tree, error, and warnings.
 -}
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
+  HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
@@ -45,6 +46,9 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
+
+-- | Combination of 'HereDocT' and 'AliasT'.
+type HereDocAliasT m a = HereDocT (AliasT m) a
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m
@@ -101,11 +105,10 @@ normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
 
 -- | Like 'normalToken', but tries to perform alias substitution on the
--- result. If alias substitution was successful, this parser returns
--- 'Nothing'.
+-- result.
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => m (Maybe Token)
-aliasableToken = do
+               => AliasT m Token
+aliasableToken = AliasT $ do
   t <- normalToken
   let inv Nothing = Just t
       inv (Just ()) = Nothing
@@ -117,9 +120,9 @@ aliasableToken = do
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
-simpleCommand = HereDocAliasT $ lift $ f <$> h <*> t
+simpleCommand = lift $ f <$> h <*> t
   where f h' t' = SimpleCommand (h':t') [] []
-        h = MaybeT aliasableToken
+        h = aliasableToken
         t = lift (many normalToken)
 -- TODO global aliases
 -- TODO assignments
@@ -127,6 +130,6 @@ simpleCommand = HereDocAliasT $ lift $ f <$> h <*> t
 
 -- | FIXME
 list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
-list = reparse $ runMaybeT $ fill $ runHereDocAliasT simpleCommand
+list = reparse $ runAliasT $ fill simpleCommand
 
 -- vim: set et sw=2 sts=2 tw=78:
