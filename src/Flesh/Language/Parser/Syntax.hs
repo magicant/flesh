@@ -105,11 +105,10 @@ normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
 
 -- | Like 'normalToken', but tries to perform alias substitution on the
--- result. If alias substitution was successful, this parser returns
--- 'Nothing'.
+-- result.
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => m (Maybe Token)
-aliasableToken = do
+               => AliasT m Token
+aliasableToken = AliasT $ do
   t <- normalToken
   let inv Nothing = Just t
       inv (Just ()) = Nothing
@@ -123,7 +122,7 @@ simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
 simpleCommand = lift $ f <$> h <*> t
   where f h' t' = SimpleCommand (h':t') [] []
-        h = AliasT aliasableToken
+        h = aliasableToken
         t = lift (many normalToken)
 -- TODO global aliases
 -- TODO assignments

@@ -104,31 +104,33 @@ spec = do
         Soft UnknownReason 0
 
   describe "aliasableToken" $ do
+    let at = runAliasT aliasableToken
+
     context "returns unmatched token" $ do
-      expectShow "foo" ";" aliasableToken "Just foo"
+      expectShow "foo" ";" at "Just foo"
 
     context "returns quoted token" $ do
-      expectShow "f\\oo" ";" aliasableToken "Just f\\oo"
-      expectShow "f\"o\"o" "&" aliasableToken "Just f\"o\"o"
-      expectShow "f'o'o" ")" aliasableToken "Just f'o'o"
+      expectShow "f\\oo" ";" at "Just f\\oo"
+      expectShow "f\"o\"o" "&" at "Just f\"o\"o"
+      expectShow "f'o'o" ")" at "Just f'o'o"
 
     context "returns non-constant token" $ do
-      expectShow "f${1}o" ";" aliasableToken "Just f${1}o"
+      expectShow "f${1}o" ";" at "Just f${1}o"
 
     context "modifies pending input" $ do
-      expectSuccessEof defaultAliasName "" (aliasableToken >> readAll) $
+      expectSuccessEof defaultAliasName "" (at >> readAll) $
         defaultAliasValue
 
     it "returns nothing after substitution" $
       let s = defaultAliasName
           s' = spread (dummyPosition s) s
-          e = runTester aliasableToken s'
+          e = runTester at s'
        in fmap fst e `shouldBe` Right Nothing
 
     it "stops on recursion" $
       let s = defaultAliasName
           s' = spread (dummyPosition s) s
-          e = runTester (reparse aliasableToken >> readAll) s'
+          e = runTester (reparse at >> readAll) s'
        in fmap fst e `shouldBe` Right "--color"
 
   describe "simpleCommand" $ do
