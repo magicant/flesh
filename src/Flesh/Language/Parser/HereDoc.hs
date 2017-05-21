@@ -49,10 +49,11 @@ module Flesh.Language.Parser.HereDoc (
   Filler, popContent,
   -- * HereDocT
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
-  fill) where
+  fill, requireHD) where
 
 import Control.Applicative
 import Control.Monad.State.Strict
+import Flesh.Language.Parser.Error
 import Flesh.Language.Syntax
 
 -- | Here document redirection operator type.
@@ -137,6 +138,10 @@ instance Monad m => MonadAccum (AccumT m) where
   drainContents =
     AccumT $ state $ \s -> let (os, cs) = s in (reverse cs, (os, []))
 
+instance MonadError e m => MonadError e (AccumT m) where
+  throwError = lift . throwError
+  catchError m f = AccumT $ catchError (runAccumT m) (runAccumT . f)
+
 instance MonadState s m => MonadState s (AccumT m) where
   get = lift get
   put = lift . put
@@ -209,5 +214,9 @@ fill m = evalStateT (runAccumT fill') ([], [])
                in case cs' of
                     (_:_) -> error "unconsumed here document contents"
                     [] -> return a
+
+-- | HereDocT version of 'require'.
+requireHD :: MonadError Failure m => HereDocT m a -> HereDocT m a
+requireHD = HereDocT . require . runHereDocT
 
 -- vim: set et sw=2 sts=2 tw=78:
