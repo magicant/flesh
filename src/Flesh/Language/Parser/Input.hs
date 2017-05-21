@@ -75,7 +75,7 @@ class Monad m => MonadInput m where
 
 -- | Like 'lookahead', but ignores the result.
 followedBy :: MonadInput m => m a -> m ()
-followedBy m = () <$ lookahead m
+followedBy = void . lookahead
 
 -- | Returns the current position.
 currentPosition :: MonadInput m => m Position
