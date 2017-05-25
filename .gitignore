@@ -8,6 +8,9 @@
 *.hp
 *.o
 *.prof
+TAGS
+tags
+
 /.HTF/
 /.cabal-sandbox/
 /.hpc
