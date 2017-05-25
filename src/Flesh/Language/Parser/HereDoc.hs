@@ -54,6 +54,7 @@ module Flesh.Language.Parser.HereDoc (
 import Control.Applicative
 import Control.Monad.State.Strict
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
 
 -- | Here document redirection operator type.
@@ -146,6 +147,14 @@ instance MonadState s m => MonadState s (AccumT m) where
   get = lift get
   put = lift . put
   state = lift . state
+
+instance MonadParser m => MonadInput (AccumT m) where
+  popChar = lift popChar
+  lookahead = mapAccumT lookahead
+  peekChar = lift peekChar
+  pushChars = lift . pushChars
+
+instance MonadParser m => MonadParser (AccumT m)
 
 -- | State monad that composes final parse results by filling an incomplete
 -- syntax tree with here document contents.

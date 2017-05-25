@@ -33,12 +33,13 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
-  redirect,
-  simpleCommand, list) where
+  redirect, newlineHD,
+  simpleCommand, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Data.Foldable
 import Data.List
 import Data.Maybe
 import qualified Flesh.Language.Alias as Alias
@@ -158,6 +159,30 @@ redirect = HereDocT $ do
 positionedRedirect :: MonadParser m => HereDocT m (Positioned Redirection)
 positionedRedirect = (,) <$> lift currentPosition <*> redirect
 
+hereDocDelimiter :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
+hereDocDelimiter op = do
+  _ <- if isTabbed op then many (char '\t') else return []
+  _ <- string (show (delimiter op)) -- TODO unquote delimiter
+  _ <- char '\n'
+  return ()
+
+hereDocContent :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
+hereDocContent op = do
+  c <- return (EWord []) -- TODO parse content body
+  hereDocDelimiter op
+  yieldContent c
+
+pendingHereDocContents :: (MonadParser m, MonadAccum m) => m ()
+pendingHereDocContents = do
+  os <- drainOperators
+  sequenceA_ $ hereDocContent <$> os
+
+-- | Parses a newline character. Pending here document contents, if any, are
+-- also parsed.
+newlineHD :: MonadParser m => HereDocT m (Positioned Char)
+newlineHD = lift (lc (char '\n')) <*
+  HereDocT (return () <$ require pendingHereDocContents)
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
@@ -177,8 +202,22 @@ simpleCommand = f <$> nonEmptyBody
 -- TODO global aliases
 -- TODO assignments
 
--- | FIXME
-list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
-list = reparse $ fill simpleCommand
+completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                 => HereDocAliasT m [Command] -- TODO m [AndOr]
+completeLineBody =
+  (: []) <$> simpleCommand <* (void newlineHD <|> lift (void eof))
+  -- TODO parse many and-or lists
+
+-- | Parses a line.
+--
+-- 1. A line starts with 'optional' 'whites'.
+-- 1. A line may contain any number of and-or lists. The lists must be
+--    delimited by @;@ or @&@ except the last @;@ may be omitted.
+-- 1. A line must be delimited by a 'newlineHD' or 'eof'.
+completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => m [Command] -- TODO m [AndOr]
+completeLine = do
+  _ <- whites
+  reparse $ fill completeLineBody
 
 -- vim: set et sw=2 sts=2 tw=78:

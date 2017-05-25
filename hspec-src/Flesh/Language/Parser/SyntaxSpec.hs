@@ -135,6 +135,30 @@ spec = do
 
   describe "redirect" $ return () -- FIXME
 
+  describe "hereDocDelimiter" $ do
+    it "is a token followed by a newline" pending -- FIXME
+
+    it "matches an unquoted token" pending -- FIXME
+
+    it "can be indented for <<-" pending -- FIXME
+
+  describe "hereDocContent" $ do
+    it "ends with delimiter" pending -- FIXME
+
+    it "accumulates result" pending -- FIXME
+
+  describe "pendingHereDocContents" $ do
+    it "parses 1 pending content" pending -- FIXME
+
+    it "parses 2 pending contents" pending -- FIXME
+
+    it "leaves no pending contents" pending -- FIXME
+
+  describe "newlineHD" $ do
+    it "parses newline" pending -- FIXME
+
+    it "parses pending here doc contents after newline" pending -- FIXME
+
   describe "simpleCommand" $ do
     let sc = runAliasT $ fill simpleCommand
 
@@ -155,5 +179,10 @@ spec = do
     context "does not alias-substitute second token" $ do
       expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
+
+  describe "completeLine" $ do
+    it "reparses alias" pending -- FIXME
+
+    it "fills here document content" pending -- FIXME
 
 -- vim: set et sw=2 sts=2 tw=78:
