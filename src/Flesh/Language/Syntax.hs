@@ -189,5 +189,8 @@ instance Show Command where
     showList as' . (' ':) . showsPrec n (SimpleCommand ts [] rs)
     where as' = snd <$> as
   showsPrec _ FunctionDefinition = id -- FIXME
+  showList [] = id
+  showList [c] = showsPrec 0 c
+  showList (c:cs) = showsPrec 0 c . ("; " ++) . showList cs
 
 -- vim: set et sw=2 sts=2 tw=78:
