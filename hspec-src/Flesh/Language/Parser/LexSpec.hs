@@ -28,6 +28,10 @@ import Test.QuickCheck
 
 spec :: Spec
 spec = do
+  describe "blank" $ do
+    context "does not accept newline" $ do
+      expectFailureEof "\n" blank Soft UnknownReason 0
+
   describe "comment" $ do
     prop "fails if input does not start with #" $ \s ->
       not ("#" `isPrefixOf` s) && not ("\\\n" `isPrefixOf` s) ==>
@@ -58,6 +62,10 @@ spec = do
 
     context "ignores line continuations in comment body" $ do
       expectSuccessEof "#\\" "\n" (fmap (fmap snd) comment) "\\"
+
+  describe "whites" $ do
+    context "does not skip newline" $ do
+      expectSuccessEof "" "\n" ("" <$ whites) ""
 
   describe "anyOperator" $ do
     context "parses control operator" $ do

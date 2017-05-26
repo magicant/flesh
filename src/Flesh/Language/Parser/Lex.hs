@@ -48,14 +48,15 @@ lc m = many lineContinuation *> m
 
 blank' :: MonadParser m => m (Positioned Char)
 blank' = satisfy isBlank
-  where isBlank = (||) <$> isTab <*> isSpace
-        isTab = ('\t' ==)
+  where isBlank c | ord c <= 0x7F = c == '\t' || c == ' '
+                  | otherwise     = isSpace c
 
 -- | Parses a blank character, possibly preceded by line continuations.
 --
 -- In this implementation, the definition of blank characters is
--- locale-independent: it is solely based on the Unicode general category of
--- characters.
+-- locale-independent: For ASCII characters, only the tab and space characters
+-- are blank. For other characters, the categorization is solely based on the
+-- Unicode general category of characters.
 blank :: MonadParser m => m (Positioned Char)
 blank = lc blank'
 
