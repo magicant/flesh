@@ -179,11 +179,15 @@ data Command =
 instance Show Command where
   showsPrec _ (SimpleCommand [] [] []) = id
   showsPrec _ (SimpleCommand ts [] []) = showList ts
-  showsPrec _ (SimpleCommand [] as []) = showList as
-  showsPrec _ (SimpleCommand [] [] rs) = showList rs
-  showsPrec _ (SimpleCommand ts [] rs) = showList ts . (' ':) . showList rs
+  showsPrec _ (SimpleCommand [] as []) = showList as'
+    where as' = snd <$> as
+  showsPrec _ (SimpleCommand [] [] rs) = showList rs'
+    where rs' = snd <$> rs
+  showsPrec _ (SimpleCommand ts [] rs) = showList ts . (' ':) . showList rs'
+    where rs' = snd <$> rs
   showsPrec n (SimpleCommand ts as rs) =
-    showList as . (' ':) . showsPrec n (SimpleCommand ts [] rs)
+    showList as' . (' ':) . showsPrec n (SimpleCommand ts [] rs)
+    where as' = snd <$> as
   showsPrec _ FunctionDefinition = id -- FIXME
 
 -- vim: set et sw=2 sts=2 tw=78:
