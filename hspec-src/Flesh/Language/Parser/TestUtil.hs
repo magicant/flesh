@@ -143,4 +143,22 @@ expectFailureEof input parser s r expectedPositionIndex =
      it "fails" $
        e `shouldBe` Left (s, Error r expectedPosition)
 
+-- | @expectFailureEof'@ is like 'expectFailureEof', but tests the reason by
+-- predicate rather than direct comparison. This is useful when the reason
+-- cannot be easily constructed.
+expectFailureEof' :: Show a =>
+  String -> Tester a -> Severity -> (Reason -> Bool) -> Int -> SpecWith ()
+expectFailureEof' input parser s r expectedPositionIndex =
+  let s' = spread (dummyPosition input) input
+      e = runTester parser s'
+      expectedPosition = headPosition (dropP expectedPositionIndex s')
+   in context input $
+       case e of
+         Right e' ->
+           it "fails" $ expectationFailure $ show e'
+         Left (as, Error ar apos) -> do
+           it "fails with expected severity" $ as `shouldBe` s
+           it "fails with expected reason" $ ar `shouldSatisfy` r
+           it "fails at expected position" $ apos `shouldBe` expectedPosition
+
 -- vim: set et sw=2 sts=2 tw=78:

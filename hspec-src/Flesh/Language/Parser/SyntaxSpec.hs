@@ -149,8 +149,11 @@ spec = do
   describe "hereDocContent" $ do
     context "ends with delimiter" $ do
       expectShow "<<-X\nX\n" "" completeLine "0<<-X"
-      expectFailureEof "<<-X\nfoo\n" completeLine
-        Hard UnclosedHereDocContent 5
+
+      let isExpectedReason (UnclosedHereDocContent (HereDocOp 0 True d))
+            | show d == "X" = True
+          isExpectedReason _ = False
+       in expectFailureEof' "<<-X\nfoo\n" completeLine Hard isExpectedReason 5
 
     -- TODO it "accumulates result" pending
 

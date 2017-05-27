@@ -46,6 +46,7 @@ import Control.Monad.Reader
 import Data.Foldable
 import qualified Data.List.NonEmpty as NE
 import Flesh.Language.Parser.Input
+import Flesh.Language.Syntax
 import qualified Flesh.Source.Position as P
 
 -- | Reason of a parse error.
@@ -54,7 +55,7 @@ data Reason =
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   | MissingRedirectionTarget
-  | UnclosedHereDocContent -- TODO HereDocOp
+  | UnclosedHereDocContent HereDocOp
   deriving (Eq, Show)
 
 -- | Parse error description.
