@@ -61,6 +61,11 @@ runTester :: Tester a -> PositionedString
           -> Either Failure (a, PositionedString)
 runTester parser = runTesterAlias parser defaultAliasDefinitions
 
+runTesterWithDummyPositions :: Tester a -> String
+                            -> Either Failure (a, PositionedString)
+runTesterWithDummyPositions parser s = runTester parser s'
+  where s' = spread (dummyPosition s) s
+
 readAll :: MonadParser m => m String
 readAll = fmap (fmap snd) (many anyChar)
 

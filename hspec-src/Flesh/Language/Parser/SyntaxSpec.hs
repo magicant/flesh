@@ -27,7 +27,6 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import Flesh.Source.Position
 import Test.Hspec
 
 spec :: Spec
@@ -123,15 +122,12 @@ spec = do
         defaultAliasValue
 
     it "returns nothing after substitution" $
-      let s = defaultAliasName
-          s' = spread (dummyPosition s) s
-          e = runTester at s'
+      let e = runTesterWithDummyPositions at defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     it "stops on recursion" $
-      let s = defaultAliasName
-          s' = spread (dummyPosition s) s
-          e = runTester (reparse aliasableToken >> readAll) s'
+      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
+                defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
   describe "redirect" $ return () -- FIXME
@@ -189,9 +185,7 @@ spec = do
       expectFailureEof "" sc Soft UnknownReason 0
 
     it "returns nothing after alias substitution" $
-      let s = defaultAliasName
-          s' = spread (dummyPosition s) s
-          e = runTester sc s'
+      let e = runTesterWithDummyPositions sc defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     context "does not alias-substitute second token" $ do
@@ -207,11 +201,9 @@ spec = do
         defaultAliasValue
 
     it "fills empty here document content" $
-      let s = "<<X\nX\n"
-          s' = spread (dummyPosition s) s
-          f [SimpleCommand [] [] [(_, HereDoc _ c)]] = Just c
+      let f [SimpleCommand [] [] [(_, HereDoc _ c)]] = Just c
           f _ = Nothing
-          e = runTester (f <$> completeLine) s'
+          e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
        in fmap fst e `shouldBe` Right (Just (EWord []))
 
     -- TODO it "fills non-empty here document content" pending
