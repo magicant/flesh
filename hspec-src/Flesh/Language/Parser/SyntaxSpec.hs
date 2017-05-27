@@ -158,11 +158,15 @@ spec = do
     -- TODO it "accumulates result" pending
 
   describe "pendingHereDocContents" $ do
-    it "parses 1 pending content" pending -- FIXME
+    context "parses 1 pending content" $ do
+      expectShow "<<A\nA\n" "" completeLine "0<<A"
 
-    it "parses 2 pending contents" pending -- FIXME
+    context "parses 2 pending contents" $ do
+      expectShow "<<A 1<<B\nA\nB\n" "" completeLine "0<<A 1<<B"
 
-    it "leaves no pending contents" pending -- FIXME
+    context "leaves no pending contents" $ return ()
+    -- Nothing to test here because 'completeLine' would fail if any contents
+    -- are left pending.
 
   describe "newlineHD" $ do
     it "parses newline" pending -- FIXME
