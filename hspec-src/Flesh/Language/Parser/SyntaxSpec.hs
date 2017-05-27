@@ -198,11 +198,26 @@ spec = do
         "Just foo " ++ defaultAliasName
 
   describe "completeLine" $ do
-    xcontext "can be empty" $ do -- TODO
-      expectShow "\n" "" completeLine ""
+    {- TODO context "can be empty" $ do
+      expectShow "\n" "" completeLine "" -}
 
-    it "reparses alias" pending -- FIXME
+    context "reparses alias" $ do
+      expectShowEof (defaultAliasName ++ "\n") "" completeLine
+        defaultAliasValue
 
-    it "fills here document content" pending -- FIXME
+    it "fills empty here document content" $
+      let s = "<<X\nX\n"
+          s' = spread (dummyPosition s) s
+          f [SimpleCommand [] [] [(_, HereDoc _ c)]] = Just c
+          f _ = Nothing
+          e = runTester (f <$> completeLine) s'
+       in fmap fst e `shouldBe` Right (Just (EWord []))
+
+    -- TODO it "fills non-empty here document content" pending
+
+    it "fails with missing here doc contents" pending
+
+    context "may end with EOF with no here doc contents pending" $ do
+      expectShowEof "foo bar" "" completeLine "foo bar"
 
 -- vim: set et sw=2 sts=2 tw=78:
