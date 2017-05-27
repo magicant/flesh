@@ -136,11 +136,15 @@ spec = do
   describe "redirect" $ return () -- FIXME
 
   describe "hereDocDelimiter" $ do
-    it "is a token followed by a newline" pending -- FIXME
+    context "is a token followed by a newline" $ do
+      expectShow "<<X\nX\n" "" completeLine "0<<X"
 
-    it "matches an unquoted token" pending -- FIXME
+    -- TODO it "matches an unquoted token" pending
 
-    it "can be indented for <<-" pending -- FIXME
+    context "can be indented for <<-" $ do
+      expectShow "<<-X\nX\n"       "" completeLine "0<<-X"
+      expectShow "<<-X\n\tX\n"     "" completeLine "0<<-X"
+      expectShow "<<-X\n\t\t\tX\n" "" completeLine "0<<-X"
 
   describe "hereDocContent" $ do
     it "ends with delimiter" pending -- FIXME
@@ -181,6 +185,9 @@ spec = do
         "Just foo " ++ defaultAliasName
 
   describe "completeLine" $ do
+    xcontext "can be empty" $ do -- TODO
+      expectShow "\n" "" completeLine ""
+
     it "reparses alias" pending -- FIXME
 
     it "fills here document content" pending -- FIXME
