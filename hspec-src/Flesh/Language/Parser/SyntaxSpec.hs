@@ -147,7 +147,7 @@ spec = do
     context "ends with delimiter" $ do
       expectShow "<<-X\nX\n" "" completeLine "0<<-X"
 
-      let isExpectedReason (UnclosedHereDocContent (HereDocOp 0 True d))
+      let isExpectedReason (UnclosedHereDocContent (HereDocOp _ 0 True d))
             | show d == "X" = True
           isExpectedReason _ = False
        in expectFailureEof' "<<-X\nfoo\n" completeLine Hard isExpectedReason 5
@@ -210,7 +210,7 @@ spec = do
 
     context "fails with missing here doc contents" $ do
       let isExpectedReason (MissingHereDocContents
-            (HereDocOp 0 False d :| [])) | show d == "X" = True
+            (HereDocOp _ 0 False d :| [])) | show d == "X" = True
           isExpectedReason _ = False
        in expectFailureEof' "<<X" completeLine Hard isExpectedReason 3
 

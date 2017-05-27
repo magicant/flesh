@@ -140,6 +140,7 @@ yieldHereDoc op = do
 -- whitespaces.
 redirect :: MonadParser m => HereDocT m Redirection
 redirect = HereDocT $ do
+  pos <- currentPosition
   (maybeFd, (_opPos, op), t) <- lift redirectBody
   -- TODO define 0 and 1 as constants elsewhere
   let defaultFd = if "<" `isPrefixOf` op then 0 else 1
@@ -152,8 +153,8 @@ redirect = HereDocT $ do
     ">>" -> return $ return $ FileRedirection fd' -- TODO redirection type
     ">|" -> return $ return $ FileRedirection fd' -- TODO redirection type
     ">&" -> return $ return $ FileRedirection fd' -- TODO redirection type
-    "<<" -> yieldHereDoc $ HereDocOp fd' False t
-    "<<-" -> yieldHereDoc $ HereDocOp fd' True t
+    "<<" -> yieldHereDoc $ HereDocOp pos fd' False t
+    "<<-" -> yieldHereDoc $ HereDocOp pos fd' True t
     _ -> error $ "unexpected redirection operator " ++ op
 
 positionedRedirect :: MonadParser m => HereDocT m (Positioned Redirection)

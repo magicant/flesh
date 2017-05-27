@@ -136,6 +136,7 @@ instance Show Assignment where
 
 -- | Here document redirection operator.
 data HereDocOp = HereDocOp {
+  hereDocOpPos :: P.Position,
   hereDocFd :: Int,
   isTabbed :: Bool,
   delimiter :: Token}
@@ -165,7 +166,7 @@ instance Show Redirection where
 -- | Returns the target file descriptor of the given redirection.
 fd :: Redirection -> Int
 fd (FileRedirection fd') = fd'
-fd (HereDoc (HereDocOp fd' _ _) _) = fd'
+fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 
 -- | Element of pipelines.
 data Command =
