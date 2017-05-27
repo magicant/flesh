@@ -169,9 +169,12 @@ spec = do
     -- are left pending.
 
   describe "newlineHD" $ do
-    it "parses newline" pending -- FIXME
+    context "parses newline" $ do
+      expectSuccess "\n" "" (snd <$> fill newlineHD) '\n'
+      expectPosition "\n" (fst <$> fill newlineHD) 0
 
-    it "parses pending here doc contents after newline" pending -- FIXME
+    context "parses pending here doc contents after newline" $ return ()
+    -- This property is tested in test cases for other properties.
 
   describe "simpleCommand" $ do
     let sc = runAliasT $ fill simpleCommand
