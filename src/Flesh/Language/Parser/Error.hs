@@ -54,6 +54,7 @@ data Reason =
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   | MissingRedirectionTarget
+  | UnclosedHereDocContent -- TODO HereDocOp
   deriving (Eq, Show)
 
 -- | Parse error description.

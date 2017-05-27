@@ -147,9 +147,12 @@ spec = do
       expectShow "<<-X\n\t\t\tX\n" "" completeLine "0<<-X"
 
   describe "hereDocContent" $ do
-    it "ends with delimiter" pending -- FIXME
+    context "ends with delimiter" $ do
+      expectShow "<<-X\nX\n" "" completeLine "0<<-X"
+      expectFailureEof "<<-X\nfoo\n" completeLine
+        Hard UnclosedHereDocContent 5
 
-    it "accumulates result" pending -- FIXME
+    -- TODO it "accumulates result" pending
 
   describe "pendingHereDocContents" $ do
     it "parses 1 pending content" pending -- FIXME
