@@ -53,6 +53,7 @@ module Flesh.Language.Parser.HereDoc (
 
 import Control.Applicative
 import Control.Monad.State.Strict
+import Data.List.NonEmpty (NonEmpty(..))
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
@@ -210,13 +211,14 @@ instance MonadTrans HereDocT where
 
 -- | Fills the accumulated contents into the filler monad, producing the final
 -- parse result.
-fill :: Monad m => HereDocT m a -> m a
+fill :: MonadParser m => HereDocT m a -> m a
 fill m = evalStateT (runAccumT fill') ([], [])
   where fill' = do
           f <- runHereDocT m
           os <- drainOperators
           case os of
-            (_:_) -> error "unconsumed here document operators"
+            (h:t) ->
+              require $ failureOfReason $ MissingHereDocContents $ h :| t
             [] -> do
               cs <- drainContents
               let (a, cs') = runState f cs

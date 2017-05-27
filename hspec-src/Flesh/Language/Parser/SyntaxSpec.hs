@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Data.List.NonEmpty (NonEmpty(..))
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -215,7 +216,11 @@ spec = do
 
     -- TODO it "fills non-empty here document content" pending
 
-    it "fails with missing here doc contents" pending
+    context "fails with missing here doc contents" $ do
+      let isExpectedReason (MissingHereDocContents
+            (HereDocOp 0 False d :| [])) | show d == "X" = True
+          isExpectedReason _ = False
+       in expectFailureEof' "<<X" completeLine Hard isExpectedReason 3
 
     context "may end with EOF with no here doc contents pending" $ do
       expectShowEof "foo bar" "" completeLine "foo bar"

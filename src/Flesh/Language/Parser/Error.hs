@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Error (
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
   recover, setReason, try, require,
   -- * The 'MonadParser' class
-  MonadParser, failure, satisfying, notFollowedBy, some',
+  MonadParser, failure, failureOfReason, satisfying, notFollowedBy, some',
   -- * The 'ParserT' monad transformer
   ParserT(..), runParserT, mapParserT) where
 
@@ -56,6 +56,7 @@ data Reason =
   | UnclosedSingleQuote
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
+  | MissingHereDocContents (NE.NonEmpty HereDocOp)
   deriving (Eq, Show)
 
 -- | Parse error description.
@@ -148,6 +149,12 @@ class (MonadPlus m, MonadInput m, MonadError Failure m) => MonadParser m
 -- | Failure of unknown reason at the current position.
 failure :: MonadParser m => m a
 failure = currentPosition >>= failureOfPosition
+
+-- | Failure of the given reason at the current position.
+failureOfReason :: MonadParser m => Reason -> m a
+failureOfReason r = do
+  p <- currentPosition
+  failureOfError (Error r p)
 
 -- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
 -- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
