@@ -130,7 +130,16 @@ spec = do
                 defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
-  describe "redirect" $ return () -- FIXME
+  describe "redirect" $ do
+    let yieldDummyContent = HereDocT $
+          return () <$ (drainOperators >> yieldContent (EWord []))
+        rTester = hereDocOp <$> (fill (redirect <* yieldDummyContent))
+
+    context "parses << operator" $ do
+      expectPositionEof "12<< END"    (hereDocOpPos <$> rTester) 0
+      expectSuccessEof  "12<< END" "" (hereDocFd    <$> rTester) 12
+      expectSuccessEof  "12<< END" "" (isTabbed     <$> rTester) False
+      expectShowEof     "12<< END" "" (delimiter    <$> rTester) "END"
 
   describe "hereDocDelimiter" $ do
     context "is a token followed by a newline" $ do
