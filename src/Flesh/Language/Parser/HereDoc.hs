@@ -42,29 +42,24 @@ syntax tree.
 -}
 module Flesh.Language.Parser.HereDoc (
   -- * Data types
-  Operator(..), Content,
+  Operator, Content,
   -- * Accumulator
   AccumState, MonadAccum(..), AccumT, runAccumT, mapAccumT,
   -- * Filler
   Filler, popContent,
   -- * HereDocT
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
-  fill) where
+  fill, requireHD) where
 
 import Control.Applicative
 import Control.Monad.State.Strict
+import Data.List.NonEmpty (NonEmpty(..))
+import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
 
 -- | Here document redirection operator type.
-data Operator = Operator {
-  fd :: Int,
-  isTabbed :: Bool,
-  delimiter :: Token}
-  deriving (Eq)
-
-instance Show Operator where
-  showsPrec n o = showsPrec n (fd o) . (s ++) . showsPrec n (delimiter o)
-    where s = if isTabbed o then "<<-" else "<<"
+type Operator = HereDocOp
 
 -- | Here document content type.
 type Content = EWord
@@ -145,10 +140,22 @@ instance Monad m => MonadAccum (AccumT m) where
   drainContents =
     AccumT $ state $ \s -> let (os, cs) = s in (reverse cs, (os, []))
 
+instance MonadError e m => MonadError e (AccumT m) where
+  throwError = lift . throwError
+  catchError m f = AccumT $ catchError (runAccumT m) (runAccumT . f)
+
 instance MonadState s m => MonadState s (AccumT m) where
   get = lift get
   put = lift . put
   state = lift . state
+
+instance MonadParser m => MonadInput (AccumT m) where
+  popChar = lift popChar
+  lookahead = mapAccumT lookahead
+  peekChar = lift peekChar
+  pushChars = lift . pushChars
+
+instance MonadParser m => MonadParser (AccumT m)
 
 -- | State monad that composes final parse results by filling an incomplete
 -- syntax tree with here document contents.
@@ -204,18 +211,23 @@ instance MonadTrans HereDocT where
 
 -- | Fills the accumulated contents into the filler monad, producing the final
 -- parse result.
-fill :: Monad m => HereDocT m a -> m a
+fill :: MonadParser m => HereDocT m a -> m a
 fill m = evalStateT (runAccumT fill') ([], [])
   where fill' = do
           f <- runHereDocT m
           os <- drainOperators
           case os of
-            (_:_) -> error "unconsumed here document operators"
+            (h:t) ->
+              require $ failureOfReason $ MissingHereDocContents $ h :| t
             [] -> do
               cs <- drainContents
               let (a, cs') = runState f cs
                in case cs' of
                     (_:_) -> error "unconsumed here document contents"
                     [] -> return a
+
+-- | HereDocT version of 'require'.
+requireHD :: MonadError Failure m => HereDocT m a -> HereDocT m a
+requireHD = HereDocT . require . runHereDocT
 
 -- vim: set et sw=2 sts=2 tw=78:

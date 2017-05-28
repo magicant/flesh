@@ -33,19 +33,25 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
-  simpleCommand, list) where
+  redirect, newlineHD,
+  simpleCommand, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Data.Foldable
+import Data.List
+import Data.Maybe
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
+import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
+import Numeric.Natural
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
@@ -117,19 +123,100 @@ aliasableToken = AliasT $ do
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
 
+-- | Parses a redirection operator (@io_redirect@) and returns the raw result.
+-- Skips trailing whitespaces.
+redirectBody :: MonadParser m
+             => m (Maybe Natural, Positioned String, Token)
+redirectBody = liftA3 (,,) (optional ioNumber) redirectOperator
+  (whites *> require (setReason MissingRedirectionTarget normalToken))
+
+yieldHereDoc :: Monad m => HereDocOp -> AccumT m (Filler Redirection)
+yieldHereDoc op = do
+  yieldOperator op
+  return $ do
+    c <- popContent
+    return $ HereDoc op c
+
+-- | Parses a redirection operator (@io_redirect@). Skips trailing
+-- whitespaces.
+redirect :: MonadParser m => HereDocT m Redirection
+redirect = HereDocT $ do
+  pos <- currentPosition
+  (maybeFd, (_opPos, op), t) <- lift redirectBody
+  -- TODO define 0 and 1 as constants elsewhere
+  let defaultFd = if "<" `isPrefixOf` op then 0 else 1
+      fd' = fromMaybe defaultFd maybeFd
+  case op of
+    "<"  -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<>" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<&" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">"  -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">>" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">|" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    ">&" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<<" -> yieldHereDoc $ HereDocOp pos fd' False t
+    "<<-" -> yieldHereDoc $ HereDocOp pos fd' True t
+    _ -> error $ "unexpected redirection operator " ++ op
+
+hereDocDelimiter :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
+hereDocDelimiter op = do
+  _ <- if isTabbed op then many (char '\t') else return []
+  _ <- string (show (delimiter op)) -- TODO unquote delimiter
+  _ <- char '\n'
+  return ()
+
+hereDocContent :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
+hereDocContent op = do
+  c <- return (EWord []) -- TODO parse content body
+  setReason (UnclosedHereDocContent op) $ hereDocDelimiter op
+  yieldContent c
+
+pendingHereDocContents :: (MonadParser m, MonadAccum m) => m ()
+pendingHereDocContents = do
+  os <- drainOperators
+  sequenceA_ $ hereDocContent <$> os
+
+-- | Parses a newline character. Pending here document contents, if any, are
+-- also parsed.
+newlineHD :: MonadParser m => HereDocT m (Positioned Char)
+newlineHD = lift (lc (char '\n')) <*
+  HereDocT (return () <$ require pendingHereDocContents)
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
-simpleCommand = lift $ f <$> h <*> t
-  where f h' t' = SimpleCommand (h':t') [] []
-        h = aliasableToken
-        t = lift (many normalToken)
+simpleCommand = f <$> nonEmptyBody
+  where f (ts, as, rs) = SimpleCommand ts as rs
+        nonEmptyBody = fRedir <$> redirect' <*> requireHD body <|>
+          fToken <$> aliasableToken' <*> requireHD arguments
+        body = nonEmptyBody <|> pure ([], [], [])
+        arguments = fRedir <$> redirect' <*> requireHD arguments <|>
+          fToken <$> normalToken' <*> requireHD arguments <|>
+          pure ([], [], [])
+        redirect' = mapHereDocT lift redirect
+        aliasableToken' = lift aliasableToken
+        normalToken' = lift normalToken
+        fRedir r (ts, as, rs) = (ts, as, r:rs)
+        fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
 -- TODO assignments
--- TODO Redirections
 
--- | FIXME
-list :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m Command
-list = reparse $ runAliasT $ fill simpleCommand
+completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                 => HereDocAliasT m [Command] -- TODO m [AndOr]
+completeLineBody =
+  (: []) <$> simpleCommand <* (void newlineHD <|> lift (void eof))
+  -- TODO parse many and-or lists
+
+-- | Parses a line.
+--
+-- 1. A line starts with 'optional' 'whites'.
+-- 1. A line may contain any number of and-or lists. The lists must be
+--    delimited by @;@ or @&@ except the last @;@ may be omitted.
+-- 1. A line must be delimited by a 'newlineHD' or 'eof'.
+completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => m [Command] -- TODO m [AndOr]
+completeLine = do
+  _ <- whites
+  reparse $ fill completeLineBody
 
 -- vim: set et sw=2 sts=2 tw=78:

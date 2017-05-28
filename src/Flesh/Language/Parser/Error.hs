@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Error (
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
   recover, setReason, try, require,
   -- * The 'MonadParser' class
-  MonadParser, failure, satisfying, notFollowedBy,
+  MonadParser, failure, failureOfReason, satisfying, notFollowedBy, some',
   -- * The 'ParserT' monad transformer
   ParserT(..), runParserT, mapParserT) where
 
@@ -46,6 +46,7 @@ import Control.Monad.Reader
 import Data.Foldable
 import qualified Data.List.NonEmpty as NE
 import Flesh.Language.Parser.Input
+import Flesh.Language.Syntax
 import qualified Flesh.Source.Position as P
 
 -- | Reason of a parse error.
@@ -53,6 +54,9 @@ data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
+  | MissingRedirectionTarget
+  | UnclosedHereDocContent HereDocOp
+  | MissingHereDocContents (NE.NonEmpty HereDocOp)
   deriving (Eq, Show)
 
 -- | Parse error description.
@@ -146,13 +150,19 @@ class (MonadPlus m, MonadInput m, MonadError Failure m) => MonadParser m
 failure :: MonadParser m => m a
 failure = currentPosition >>= failureOfPosition
 
+-- | Failure of the given reason at the current position.
+failureOfReason :: MonadParser m => Reason -> m a
+failureOfReason r = do
+  p <- currentPosition
+  failureOfError (Error r p)
+
 -- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
 -- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: MonadParser m => m a -> (a -> Bool) -> m a
+satisfying :: MonadParser m
+           => m (P.Positioned a) -> (a -> Bool) -> m (P.Positioned a)
 satisfying m p = do
-  pos <- currentPosition
-  r <- m
-  if p r then return r else failureOfPosition pos
+  posr@(pos, r) <- m
+  if p r then return posr else failureOfPosition pos
 
 -- | @notFollowedBy m@ succeeds if @m@ fails. If @m@ succeeds, it is
 -- equivalent to 'failure'.
@@ -161,6 +171,10 @@ notFollowedBy m = do
   pos <- currentPosition
   let m' = m >> return (failureOfPosition pos)
   join $ catchError m' (const $ return $ return ())
+
+-- | @some' a@ is like @some a@, but returns a NonEmpty list.
+some' :: MonadParser m => m a -> m (NE.NonEmpty a)
+some' a = (NE.:|) <$> a <*> many a
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
 -- 'MonadError'.

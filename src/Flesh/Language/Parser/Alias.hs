@@ -164,13 +164,12 @@ substituteAlias t = do
       cs = unposition $ spread pos $ v
   pushChars cs
 
--- | Modifies a parser so that it retries parsing while it is failing, that
--- is, returning 'Nothing'. This function is mainly meant for retrying after
+-- | Modifies a parser so that it retries parsing while it is failing due to
 -- alias substitution.
-reparse :: Monad m => m (Maybe a) -> m a
+reparse :: Monad m => AliasT m a -> m a
 reparse a = reparse_a
   where reparse_a = do
-          m <- a
+          m <- runAliasT a
           case m of
             Nothing -> reparse_a
             Just v -> return v

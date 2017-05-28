@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Data.List.NonEmpty (NonEmpty(..))
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -26,7 +27,6 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import Flesh.Source.Position
 import Test.Hspec
 
 spec :: Spec
@@ -122,16 +122,65 @@ spec = do
         defaultAliasValue
 
     it "returns nothing after substitution" $
-      let s = defaultAliasName
-          s' = spread (dummyPosition s) s
-          e = runTester at s'
+      let e = runTesterWithDummyPositions at defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     it "stops on recursion" $
-      let s = defaultAliasName
-          s' = spread (dummyPosition s) s
-          e = runTester (reparse at >> readAll) s'
+      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
+                defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
+
+  describe "redirect" $ do
+    let yieldDummyContent = HereDocT $
+          return () <$ (drainOperators >> yieldContent (EWord []))
+        rTester = hereDocOp <$> (fill (redirect <* yieldDummyContent))
+
+    context "parses << operator" $ do
+      expectPositionEof "12<< END"    (hereDocOpPos <$> rTester) 0
+      expectSuccessEof  "12<< END" "" (hereDocFd    <$> rTester) 12
+      expectSuccessEof  "12<< END" "" (isTabbed     <$> rTester) False
+      expectShowEof     "12<< END" "" (delimiter    <$> rTester) "END"
+
+  describe "hereDocDelimiter" $ do
+    context "is a token followed by a newline" $ do
+      expectShow "<<X\nX\n" "" completeLine "0<<X"
+
+    -- TODO it "matches an unquoted token" pending
+
+    context "can be indented for <<-" $ do
+      expectShow "<<-X\nX\n"       "" completeLine "0<<-X"
+      expectShow "<<-X\n\tX\n"     "" completeLine "0<<-X"
+      expectShow "<<-X\n\t\t\tX\n" "" completeLine "0<<-X"
+
+  describe "hereDocContent" $ do
+    context "ends with delimiter" $ do
+      expectShow "<<-X\nX\n" "" completeLine "0<<-X"
+
+      let isExpectedReason (UnclosedHereDocContent (HereDocOp _ 0 True d))
+            | show d == "X" = True
+          isExpectedReason _ = False
+       in expectFailureEof' "<<-X\nfoo\n" completeLine Hard isExpectedReason 5
+
+    -- TODO it "accumulates result" pending
+
+  describe "pendingHereDocContents" $ do
+    context "parses 1 pending content" $ do
+      expectShow "<<A\nA\n" "" completeLine "0<<A"
+
+    context "parses 2 pending contents" $ do
+      expectShow "<<A 1<<B\nA\nB\n" "" completeLine "0<<A 1<<B"
+
+    context "leaves no pending contents" $ return ()
+    -- Nothing to test here because 'completeLine' would fail if any contents
+    -- are left pending.
+
+  describe "newlineHD" $ do
+    context "parses newline" $ do
+      expectSuccess "\n" "" (snd <$> fill newlineHD) '\n'
+      expectPosition "\n" (fst <$> fill newlineHD) 0
+
+    context "parses pending here doc contents after newline" $ return ()
+    -- This property is tested in test cases for other properties.
 
   describe "simpleCommand" $ do
     let sc = runAliasT $ fill simpleCommand
@@ -145,13 +194,36 @@ spec = do
       expectFailureEof "" sc Soft UnknownReason 0
 
     it "returns nothing after alias substitution" $
-      let s = defaultAliasName
-          s' = spread (dummyPosition s) s
-          e = runTester sc s'
+      let e = runTesterWithDummyPositions sc defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     context "does not alias-substitute second token" $ do
       expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
+
+  describe "completeLine" $ do
+    {- TODO context "can be empty" $ do
+      expectShow "\n" "" completeLine "" -}
+
+    context "reparses alias" $ do
+      expectShowEof (defaultAliasName ++ "\n") "" completeLine
+        defaultAliasValue
+
+    it "fills empty here document content" $
+      let f [SimpleCommand [] [] [HereDoc _ c]] = Just c
+          f _ = Nothing
+          e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
+       in fmap fst e `shouldBe` Right (Just (EWord []))
+
+    -- TODO it "fills non-empty here document content" pending
+
+    context "fails with missing here doc contents" $ do
+      let isExpectedReason (MissingHereDocContents
+            (HereDocOp _ 0 False d :| [])) | show d == "X" = True
+          isExpectedReason _ = False
+       in expectFailureEof' "<<X" completeLine Hard isExpectedReason 3
+
+    context "may end with EOF with no here doc contents pending" $ do
+      expectShowEof "foo bar" "" completeLine "foo bar"
 
 -- vim: set et sw=2 sts=2 tw=78:
