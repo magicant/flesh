@@ -201,7 +201,7 @@ spec = do
         defaultAliasValue
 
     it "fills empty here document content" $
-      let f [SimpleCommand [] [] [(_, HereDoc _ c)]] = Just c
+      let f [SimpleCommand [] [] [HereDoc _ c]] = Just c
           f _ = Nothing
           e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
        in fmap fst e `shouldBe` Right (Just (EWord []))

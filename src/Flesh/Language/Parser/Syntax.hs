@@ -157,9 +157,6 @@ redirect = HereDocT $ do
     "<<-" -> yieldHereDoc $ HereDocOp pos fd' True t
     _ -> error $ "unexpected redirection operator " ++ op
 
-positionedRedirect :: MonadParser m => HereDocT m (Positioned Redirection)
-positionedRedirect = (,) <$> lift currentPosition <*> redirect
-
 hereDocDelimiter :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
 hereDocDelimiter op = do
   _ <- if isTabbed op then many (char '\t') else return []
@@ -195,7 +192,7 @@ simpleCommand = f <$> nonEmptyBody
         arguments = fRedir <$> redirect' <*> requireHD arguments <|>
           fToken <$> normalToken' <*> requireHD arguments <|>
           pure ([], [], [])
-        redirect' = mapHereDocT lift positionedRedirect
+        redirect' = mapHereDocT lift redirect
         aliasableToken' = lift aliasableToken
         normalToken' = lift normalToken
         fRedir r (ts, as, rs) = (ts, as, r:rs)

@@ -171,7 +171,7 @@ fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 -- | Element of pipelines.
 data Command =
   -- | Simple command.
-  SimpleCommand [Token] [P.Positioned Assignment] [P.Positioned Redirection]
+  SimpleCommand [Token] [P.Positioned Assignment] [Redirection]
   -- FIXME Compound commands
   -- | Function definition.
   | FunctionDefinition -- FIXME
@@ -182,10 +182,8 @@ instance Show Command where
   showsPrec _ (SimpleCommand ts [] []) = showList ts
   showsPrec _ (SimpleCommand [] as []) = showList as'
     where as' = snd <$> as
-  showsPrec _ (SimpleCommand [] [] rs) = showList rs'
-    where rs' = snd <$> rs
-  showsPrec _ (SimpleCommand ts [] rs) = showList ts . (' ':) . showList rs'
-    where rs' = snd <$> rs
+  showsPrec _ (SimpleCommand [] [] rs) = showList rs
+  showsPrec _ (SimpleCommand ts [] rs) = showList ts . (' ':) . showList rs
   showsPrec n (SimpleCommand ts as rs) =
     showList as' . (' ':) . showsPrec n (SimpleCommand ts [] rs)
     where as' = snd <$> as
