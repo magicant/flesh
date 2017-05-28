@@ -147,9 +147,6 @@ spec = do
       expectSuccessEof "1" "<" ioNumber 1
       expectSuccessEof "20" ">" ioNumber 20
       expectSuccessEof "123" ">" ioNumber 123
-      expectSuccessEof
-        "12345678901234567890123456789012345678900123456789012345678900"
-        ">" ioNumber (-1)
 
     context "rejects non-digits" $ do
       expectFailureEof "<" ioNumber Soft UnknownReason 0

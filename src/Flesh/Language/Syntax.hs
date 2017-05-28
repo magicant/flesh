@@ -39,6 +39,7 @@ module Flesh.Language.Syntax (
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import qualified Flesh.Source.Position as P
+import Numeric.Natural
 
 -- | Element of double quotes.
 data DoubleQuoteUnit =
@@ -137,7 +138,7 @@ instance Show Assignment where
 -- | Here document redirection operator.
 data HereDocOp = HereDocOp {
   hereDocOpPos :: P.Position,
-  hereDocFd :: Int,
+  hereDocFd :: Natural,
   isTabbed :: Bool,
   delimiter :: Token}
   deriving (Eq)
@@ -150,7 +151,7 @@ instance Show HereDocOp where
 -- | Redirection.
 data Redirection =
   FileRedirection {
-    fileFd :: Int} -- FIXME
+    fileFd :: Natural} -- FIXME
   | HereDoc {
     hereDocOp :: HereDocOp,
     content :: EWord}
@@ -164,7 +165,7 @@ instance Show Redirection where
   showList (r:rs) = showsPrec 0 r . (' ':) . showList rs
 
 -- | Returns the target file descriptor of the given redirection.
-fd :: Redirection -> Int
+fd :: Redirection -> Natural
 fd (FileRedirection fd') = fd'
 fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 

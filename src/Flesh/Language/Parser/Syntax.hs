@@ -51,6 +51,7 @@ import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
+import Numeric.Natural
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
@@ -125,7 +126,7 @@ aliasableToken = AliasT $ do
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
 redirectBody :: MonadParser m
-             => m (Maybe Int, Positioned String, Token)
+             => m (Maybe Natural, Positioned String, Token)
 redirectBody = liftA3 (,,) (optional ioNumber) redirectOperator
   (whites *> require (setReason MissingRedirectionTarget normalToken))
 

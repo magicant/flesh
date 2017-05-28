@@ -36,6 +36,7 @@ import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
+import Numeric.Natural
 
 -- | Parses a line continuation: a backslash followed by a newline.
 lineContinuation :: MonadParser m => m Position
@@ -129,16 +130,13 @@ redirectOperator = anyOperator `satisfying` isRedirect
         isRedirect _ = False
 
 -- | Parses an IO_NUMBER token.
-ioNumber :: MonadParser m => m Int
+ioNumber :: MonadParser m => m Natural
 ioNumber = do
   ds <- some' digit
   case reads $ snd <$> NE.toList ds of
-    [(n, "")] ->
-      if n > toInteger (maxBound :: Int)
-         then return (-1)
-         else do
-           followedBy $ lc $ oneOfChars "<>"
-           return $ fromInteger n
+    [(n, "")] -> do
+      followedBy $ lc $ oneOfChars "<>"
+      return n
     _ -> failureOfPosition $ fst (NE.head ds)
 
 -- vim: set et sw=2 sts=2 tw=78:
