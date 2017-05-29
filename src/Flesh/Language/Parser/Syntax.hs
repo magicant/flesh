@@ -127,8 +127,8 @@ aliasableToken = AliasT $ do
 -- Skips trailing whitespaces.
 redirectBody :: MonadParser m
              => m (Maybe Natural, Positioned String, Token)
-redirectBody = liftA3 (,,) (optional ioNumber) redirectOperator
-  (whites *> require (setReason MissingRedirectionTarget normalToken))
+redirectBody = liftA3 (,,) (optional ioNumber) redirectOperatorToken
+  (require (setReason MissingRedirectionTarget normalToken))
 
 yieldHereDoc :: Monad m => HereDocOp -> AccumT m (Filler Redirection)
 yieldHereDoc op = do
