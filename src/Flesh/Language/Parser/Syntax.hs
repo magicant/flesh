@@ -33,14 +33,15 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken,
   -- * Syntax
-  redirect, newlineHD,
-  simpleCommand, completeLine) where
+  redirect, newlineHD, whitesHD, linebreak,
+  simpleCommand, command, pipeSequence, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Foldable
 import Data.List
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
@@ -182,6 +183,14 @@ newlineHD :: MonadParser m => HereDocT m (Positioned Char)
 newlineHD = lift (lc (char '\n')) <*
   HereDocT (return () <$ require pendingHereDocContents)
 
+-- | 'whites' wrapped in 'HereDocT'.
+whitesHD :: MonadParser m => HereDocT m (Maybe [Positioned Char])
+whitesHD = lift whites
+
+-- | Parses any number of 'newlineHD' optionally followed by 'whites'.
+linebreak :: MonadParser m => HereDocT m ()
+linebreak = void (many (newlineHD *> whitesHD))
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
@@ -200,6 +209,17 @@ simpleCommand = f <$> nonEmptyBody
         fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
 -- TODO assignments
+
+-- | Parses a command.
+command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+        => HereDocAliasT m Command
+command = simpleCommand -- FIXME support other types of commands
+
+-- | Parses a @pipe_sequence@, a sequence of one or more commands.
+pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => HereDocAliasT m (NonEmpty Command)
+pipeSequence = (:|) <$> command <*> many trailer
+  where trailer = lift (operatorToken "|") *> linebreak *> requireHD command
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [Command] -- TODO m [AndOr]

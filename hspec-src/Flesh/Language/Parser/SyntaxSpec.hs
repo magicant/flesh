@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -200,6 +201,24 @@ spec = do
     context "does not alias-substitute second token" $ do
       expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
+
+  describe "pipeSequence" $ do
+    let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
+
+    context "can be one simple command" $ do
+      expectShowEof "foo bar" "" ps "Just foo bar"
+
+    context "can be two simple commands" $ do
+      expectShowEof "foo  |  bar" "" ps "Just foo; bar"
+
+    context "can be four simple commands" $ do
+      expectShowEof "foo|bar|baz|qux" "" ps "Just foo; bar; baz; qux"
+
+    context "can have newlines after |" $ do
+      expectShowEof "a| \n\\\n \n b" "" ps "Just a; b"
+
+    context "cannot have newlines before |" $ do
+      expectShowEof "a " "\n|b" ps "Just a"
 
   describe "completeLine" $ do
     {- TODO context "can be empty" $ do

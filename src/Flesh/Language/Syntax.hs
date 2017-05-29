@@ -193,6 +193,7 @@ instance Show Command where
   showList [] = id
   showList [c] = showsPrec 0 c
   showList (c:cs) = showsPrec 0 c . ("; " ++) . showList cs
+  -- TOOD remove showList definition when no longer needed
 
 -- | Element of and-or lists. Optionally negated sequence of one or more
 -- commands.
