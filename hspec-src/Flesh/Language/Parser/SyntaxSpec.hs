@@ -20,6 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
+import qualified Data.Text as T
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -130,6 +132,21 @@ spec = do
                 defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
+  describe "reserved" $ do
+    context "returns matching unquoted token" $ do
+      expectShowEof "! " "" (reserved (T.pack "!")) "!"
+      expectShowEof "i\\\nf" "\n" (reserved (T.pack "if")) "if"
+      expectShowEof "foo" "" (reserved (T.pack "foo")) "foo"
+
+    context "fails on unmatching unquoted token" $ do
+      expectFailureEof "a" (reserved (T.pack "!")) Soft UnknownReason 0
+      expectFailureEof "a" (reserved (T.pack "aa")) Soft UnknownReason 0
+      expectFailureEof "aa" (reserved (T.pack "a")) Soft UnknownReason 0
+
+    context "fails on quoted token" $ do
+      expectFailureEof "\\if" (reserved (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "i\\f" (reserved (T.pack "if")) Soft UnknownReason 0
+
   describe "redirect" $ do
     let yieldDummyContent = HereDocT $
           return () <$ (drainOperators >> yieldContent (EWord []))
@@ -200,6 +217,39 @@ spec = do
     context "does not alias-substitute second token" $ do
       expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
+
+  describe "pipeSequence" $ do
+    let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
+
+    context "can be one simple command" $ do
+      expectShowEof "foo bar" "" ps "Just foo bar"
+
+    context "can be two simple commands" $ do
+      expectShowEof "foo  |  bar" "" ps "Just foo; bar"
+
+    context "can be four simple commands" $ do
+      expectShowEof "foo|bar|baz|qux" "" ps "Just foo; bar; baz; qux"
+
+    context "can have newlines after |" $ do
+      expectShowEof "a| \n\\\n \n b" "" ps "Just a; b"
+
+    context "cannot have newlines before |" $ do
+      expectShowEof "a " "\n|b" ps "Just a"
+
+  describe "pipeline" $ do
+    let p = runAliasT $ fill pipeline
+
+    context "can start with !" $ do
+      expectShowEof "! foo bar " "\n" p "Just ! foo bar"
+      expectShowEof "!\t\\\nnew" "" p "Just ! new"
+
+    context "can start without !" $ do
+      expectShowEof "foo bar " "\n" p "Just foo bar"
+      expectShowEof "\\\nnew" "" p "Just new"
+
+    context "requires command after !" $ do
+      expectFailureEof "!" p Hard (MissingCommandAfter "!") 1
+      expectFailureEof "! ;" p Hard (MissingCommandAfter "!") 2
 
   describe "completeLine" $ do
     {- TODO context "can be empty" $ do

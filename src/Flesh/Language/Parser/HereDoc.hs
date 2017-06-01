@@ -49,7 +49,7 @@ module Flesh.Language.Parser.HereDoc (
   Filler, popContent,
   -- * HereDocT
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
-  fill, requireHD) where
+  fill, setReasonHD, requireHD) where
 
 import Control.Applicative
 import Control.Monad.State.Strict
@@ -225,6 +225,10 @@ fill m = evalStateT (runAccumT fill') ([], [])
                in case cs' of
                     (_:_) -> error "unconsumed here document contents"
                     [] -> return a
+
+-- | HereDocT version of 'setReason'.
+setReasonHD :: MonadError Failure m => Reason -> HereDocT m a -> HereDocT m a
+setReasonHD r = HereDocT . setReason r . runHereDocT
 
 -- | HereDocT version of 'require'.
 requireHD :: MonadError Failure m => HereDocT m a -> HereDocT m a

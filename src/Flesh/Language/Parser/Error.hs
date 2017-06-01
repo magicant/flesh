@@ -36,7 +36,8 @@ module Flesh.Language.Parser.Error (
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
   recover, setReason, try, require,
   -- * The 'MonadParser' class
-  MonadParser, failure, failureOfReason, satisfying, notFollowedBy, some',
+  MonadParser, failure, failureOfReason, satisfying, satisfyingP,
+  notFollowedBy, some',
   -- * The 'ParserT' monad transformer
   ParserT(..), runParserT, mapParserT) where
 
@@ -57,6 +58,7 @@ data Reason =
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NE.NonEmpty HereDocOp)
+  | MissingCommandAfter String
   deriving (Eq, Show)
 
 -- | Parse error description.
@@ -158,9 +160,19 @@ failureOfReason r = do
 
 -- | @satisfying m p@ behaves like @m@ but fails if the result of @m@ does not
 -- satisfy predicate @p@. This is analogous to @'flip' 'mfilter'@.
-satisfying :: MonadParser m
-           => m (P.Positioned a) -> (a -> Bool) -> m (P.Positioned a)
+satisfying :: MonadParser m => m a -> (a -> Bool) -> m a
 satisfying m p = do
+  pos <- currentPosition
+  r <- m
+  if p r then return r else failureOfPosition pos
+
+-- | 'satisfyingP' is like 'satisfying' but applies the predicate to the
+-- second item of the pair.
+satisfyingP :: MonadParser m
+            => m (P.Positioned a) -> (a -> Bool) -> m (P.Positioned a)
+-- satisfyingP m p = satisfying m (p . snd)
+-- This would return a better error position:
+satisfyingP m p = do
   posr@(pos, r) <- m
   if p r then return posr else failureOfPosition pos
 

@@ -34,8 +34,9 @@ module Flesh.Language.Syntax (
   -- * Redirections
   HereDocOp(..), Redirection(..), fd,
   -- * Syntax
-  Command(..)) where
+  Command(..), Pipeline(..)) where
 
+import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import qualified Flesh.Source.Position as P
@@ -108,11 +109,11 @@ instance Show EWord where
 
 -- | Non-empty word, defined as a (lexical) token with the token identifier
 -- @TOKEN@ in POSIX.
-newtype Token = Token (NE.NonEmpty (P.Positioned WordUnit))
+newtype Token = Token (NonEmpty (P.Positioned WordUnit))
   deriving (Eq)
 
 -- | Returns the content of a token.
-tokenUnits :: Token -> NE.NonEmpty (P.Positioned WordUnit)
+tokenUnits :: Token -> NonEmpty (P.Positioned WordUnit)
 tokenUnits (Token us) = us
 
 -- | Converts a token to a word.
@@ -192,5 +193,22 @@ instance Show Command where
   showList [] = id
   showList [c] = showsPrec 0 c
   showList (c:cs) = showsPrec 0 c . ("; " ++) . showList cs
+  -- TOOD remove showList definition when no longer needed
+
+-- | Element of and-or lists. Optionally negated sequence of one or more
+-- commands.
+data Pipeline = Pipeline {
+  pipeCommands :: NonEmpty Command,
+  isNegated :: Bool}
+  deriving (Eq)
+
+instance Show Pipeline where
+  showsPrec n (Pipeline cs True) = ("! " ++) . showsPrec n (Pipeline cs False)
+  showsPrec n (Pipeline (h :| []) False) = showsPrec n h
+  showsPrec n (Pipeline (h :| (c:cs)) False) = showsPrec n h . (" | " ++) . t
+    where t = showsPrec n (Pipeline (c :| cs) False)
+  showList [] = id
+  showList [p] = showsPrec 0 p
+  showList (p:ps) = showsPrec 0 p . ("; " ++) . showList ps
 
 -- vim: set et sw=2 sts=2 tw=78:

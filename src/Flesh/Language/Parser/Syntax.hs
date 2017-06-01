@@ -31,17 +31,19 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, aliasableToken,
+  normalToken, aliasableToken, reserved,
   -- * Syntax
-  redirect, newlineHD,
-  simpleCommand, completeLine) where
+  redirect, newlineHD, whitesHD, linebreak,
+  simpleCommand, command, pipeSequence, pipeline, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Foldable
 import Data.List
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
+import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
@@ -123,12 +125,16 @@ aliasableToken = AliasT $ do
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
 
+-- | Parses an unquoted token as the given reserved word.
+reserved :: MonadParser m => T.Text -> m Token
+reserved w = normalToken `satisfying` (\t -> tokenText t == Just w)
+
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
 redirectBody :: MonadParser m
              => m (Maybe Natural, Positioned String, Token)
-redirectBody = liftA3 (,,) (optional ioNumber) redirectOperator
-  (whites *> require (setReason MissingRedirectionTarget normalToken))
+redirectBody = liftA3 (,,) (optional ioNumber) redirectOperatorToken
+  (require (setReason MissingRedirectionTarget normalToken))
 
 yieldHereDoc :: Monad m => HereDocOp -> AccumT m (Filler Redirection)
 yieldHereDoc op = do
@@ -182,6 +188,14 @@ newlineHD :: MonadParser m => HereDocT m (Positioned Char)
 newlineHD = lift (lc (char '\n')) <*
   HereDocT (return () <$ require pendingHereDocContents)
 
+-- | 'whites' wrapped in 'HereDocT'.
+whitesHD :: MonadParser m => HereDocT m (Maybe [Positioned Char])
+whitesHD = lift whites
+
+-- | Parses any number of 'newlineHD' optionally followed by 'whites'.
+linebreak :: MonadParser m => HereDocT m ()
+linebreak = void (many (newlineHD *> whitesHD))
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
@@ -200,6 +214,27 @@ simpleCommand = f <$> nonEmptyBody
         fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
 -- TODO assignments
+
+-- | Parses a command.
+command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+        => HereDocAliasT m Command
+command = simpleCommand -- FIXME support other types of commands
+
+-- | Parses a @pipe_sequence@, a sequence of one or more commands.
+pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => HereDocAliasT m (NonEmpty Command)
+pipeSequence = (:|) <$> command <*> many trailer
+  where trailer = lift (operatorToken "|") *> linebreak *> requireHD command
+
+-- | Parses a @pipeline@, that is, a 'pipeSequence' optionally preceded by the
+-- @!@ reserved word.
+pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+         => HereDocAliasT m Pipeline
+pipeline =
+  lift (reserved (T.pack "!")) *> req (make True <$> pipeSequence) <|>
+  make False <$> pipeSequence
+    where req = setReasonHD (MissingCommandAfter "!") . requireHD
+          make = flip Pipeline
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [Command] -- TODO m [AndOr]
