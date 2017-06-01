@@ -21,6 +21,7 @@ module Flesh.Language.Parser.SyntaxSpec (spec) where
 
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Text as T
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -131,6 +132,21 @@ spec = do
                 defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
+  describe "reserved" $ do
+    context "returns matching unquoted token" $ do
+      expectShowEof "! " "" (reserved (T.pack "!")) "!"
+      expectShowEof "i\\\nf" "\n" (reserved (T.pack "if")) "if"
+      expectShowEof "foo" "" (reserved (T.pack "foo")) "foo"
+
+    context "fails on unmatching unquoted token" $ do
+      expectFailureEof "a" (reserved (T.pack "!")) Soft UnknownReason 0
+      expectFailureEof "a" (reserved (T.pack "aa")) Soft UnknownReason 0
+      expectFailureEof "aa" (reserved (T.pack "a")) Soft UnknownReason 0
+
+    context "fails on quoted token" $ do
+      expectFailureEof "\\if" (reserved (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "i\\f" (reserved (T.pack "if")) Soft UnknownReason 0
+
   describe "redirect" $ do
     let yieldDummyContent = HereDocT $
           return () <$ (drainOperators >> yieldContent (EWord []))
@@ -219,6 +235,21 @@ spec = do
 
     context "cannot have newlines before |" $ do
       expectShowEof "a " "\n|b" ps "Just a"
+
+  describe "pipeline" $ do
+    let p = runAliasT $ fill pipeline
+
+    context "can start with !" $ do
+      expectShowEof "! foo bar " "\n" p "Just ! foo bar"
+      expectShowEof "!\t\\\nnew" "" p "Just ! new"
+
+    context "can start without !" $ do
+      expectShowEof "foo bar " "\n" p "Just foo bar"
+      expectShowEof "\\\nnew" "" p "Just new"
+
+    context "requires command after !" $ do
+      expectFailureEof "!" p Hard (MissingCommandAfter "!") 1
+      expectFailureEof "! ;" p Hard (MissingCommandAfter "!") 2
 
   describe "completeLine" $ do
     {- TODO context "can be empty" $ do

@@ -31,10 +31,10 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, aliasableToken,
+  normalToken, aliasableToken, reserved,
   -- * Syntax
   redirect, newlineHD, whitesHD, linebreak,
-  simpleCommand, command, pipeSequence, completeLine) where
+  simpleCommand, command, pipeSequence, pipeline, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -43,6 +43,7 @@ import Data.Foldable
 import Data.List
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
+import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
@@ -123,6 +124,15 @@ aliasableToken = AliasT $ do
    in fmap inv $ runMaybeT $ tt >>= substituteAlias
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
+
+-- | Parses an unquoted token as the given reserved word.
+reserved :: MonadParser m => T.Text -> m Token
+reserved w = do
+  pos <- currentPosition
+  t <- normalToken
+  case tokenText t of
+    Just t' | t' == w -> return t
+    _ -> failureOfPosition pos
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
@@ -220,6 +230,16 @@ pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => HereDocAliasT m (NonEmpty Command)
 pipeSequence = (:|) <$> command <*> many trailer
   where trailer = lift (operatorToken "|") *> linebreak *> requireHD command
+
+-- | Parses a @pipeline@, that is, a 'pipeSequence' optionally preceded by the
+-- @!@ reserved word.
+pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+         => HereDocAliasT m Pipeline
+pipeline =
+  lift (reserved (T.pack "!")) *> req (make True <$> pipeSequence) <|>
+  make False <$> pipeSequence
+    where req = setReasonHD (MissingCommandAfter "!") . requireHD
+          make = flip Pipeline
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [Command] -- TODO m [AndOr]

@@ -57,6 +57,7 @@ data Reason =
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NE.NonEmpty HereDocOp)
+  | MissingCommandAfter String
   deriving (Eq, Show)
 
 -- | Parse error description.
