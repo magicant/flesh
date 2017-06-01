@@ -127,12 +127,7 @@ aliasableToken = AliasT $ do
 
 -- | Parses an unquoted token as the given reserved word.
 reserved :: MonadParser m => T.Text -> m Token
-reserved w = do
-  pos <- currentPosition
-  t <- normalToken
-  case tokenText t of
-    Just t' | t' == w -> return t
-    _ -> failureOfPosition pos
+reserved w = normalToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.

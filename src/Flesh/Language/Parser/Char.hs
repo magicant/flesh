@@ -44,7 +44,7 @@ anyChar = do
 --
 -- Returns 'UnknownReason' on dissatisfaction.
 satisfy :: MonadParser m => (Char -> Bool) -> m (Positioned Char)
-satisfy = satisfying anyChar
+satisfy = satisfyingP anyChar
 
 -- | Parses the given single character.
 --

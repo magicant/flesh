@@ -120,7 +120,7 @@ anyOperator = do
 -- | Parses the given single operator, possibly including line continuations.
 -- The argument operator must be one of the operators parsed by 'anyOperator'.
 operator :: MonadParser m => String -> m (Positioned String)
-operator o = anyOperator `satisfying` (o ==)
+operator o = anyOperator `satisfyingP` (o ==)
 
 -- | Parses the given single 'operator' and optional trailing 'whites'.
 -- The argument operator must be one of the operators parsed by 'anyOperator'.
@@ -130,7 +130,7 @@ operatorToken o = operator o <* whites
 -- | Parses a single direction 'operator', possibly including line
 -- continuations, and optional trailing 'whites'.
 redirectOperatorToken :: MonadParser m => m (Positioned String)
-redirectOperatorToken = anyOperator `satisfying` isRedirect <* whites
+redirectOperatorToken = anyOperator `satisfyingP` isRedirect <* whites
   where isRedirect ('<':_) = True
         isRedirect ('>':_) = True
         isRedirect _ = False
