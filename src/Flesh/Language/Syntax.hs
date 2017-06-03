@@ -34,7 +34,8 @@ module Flesh.Language.Syntax (
   -- * Redirections
   HereDocOp(..), Redirection(..), fd,
   -- * Syntax
-  Command(..), Pipeline(..)) where
+  Command(..), Pipeline(..), AndOrCondition(..), ConditionalPipeline(..),
+  AndOrList(..)) where
 
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
@@ -210,5 +211,42 @@ instance Show Pipeline where
   showList [] = id
   showList [p] = showsPrec 0 p
   showList (p:ps) = showsPrec 0 p . ("; " ++) . showList ps
+
+-- | Condition that determines if a pipeline should be executed in an and-or
+-- list.
+data AndOrCondition = AndThen | OrElse
+  deriving (Eq)
+
+instance Show AndOrCondition where
+  show AndThen = "&&"
+  show OrElse = "||"
+
+-- | Pipeline executed conditionally in an and-or list.
+newtype ConditionalPipeline = ConditionalPipeline (AndOrCondition, Pipeline)
+  deriving (Eq)
+
+instance Show ConditionalPipeline where
+  showsPrec n (ConditionalPipeline (c, p)) =
+    showsPrec n c . (' ':) . showsPrec n p
+  showList [] = id
+  showList [p] = showsPrec 0 p
+  showList (p:ps) = showsPrec 0 p . (' ':) . showList ps
+
+-- | One or more pipelines executed conditionally in sequence. The entire
+-- sequence can be executed either synchronously or asynchronously.
+data AndOrList = AndOrList {
+  andOrHead :: Pipeline,
+  andOrTail :: [ConditionalPipeline],
+  isAsynchronous :: Bool}
+  deriving (Eq)
+
+showAndOrHeadTail :: Pipeline -> [ConditionalPipeline] -> ShowS
+showAndOrHeadTail h [] = showsPrec 0 h
+showAndOrHeadTail h t = showsPrec 0 h . (' ':) . showList t
+
+instance Show AndOrList where
+  showsPrec n (AndOrList h t False) | n <= 0 = showAndOrHeadTail h t
+  showsPrec _ (AndOrList h t isAsync) = showAndOrHeadTail h t . (c:)
+    where c = if isAsync then '&' else ';'
 
 -- vim: set et sw=2 sts=2 tw=78:
