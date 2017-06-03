@@ -251,6 +251,56 @@ spec = do
       expectFailureEof "!" p Hard (MissingCommandAfter "!") 1
       expectFailureEof "! ;" p Hard (MissingCommandAfter "!") 2
 
+  describe "conditionalPipeline" $ do
+    let cp = runAliasT $ fill conditionalPipeline
+
+    context "can start with && followed by pipeline" $ do
+      expectShowEof "&&foo" "" cp "Just && foo"
+      expectShowEof "&\\\n& ! foo bar |\nbaz" "" cp "Just && ! foo bar | baz"
+
+    context "can start with || followed by pipeline" $ do
+      expectShowEof "||foo" "" cp "Just || foo"
+      expectShowEof "|\\\n| ! foo bar |\nbaz" "" cp "Just || ! foo bar | baz"
+
+    context "allows linebreak after operator" $ do
+      expectShowEof "&& \n\n ! foo" "\n" cp "Just && ! foo"
+      expectShowEof "|| \n \n foo" ";" cp "Just || foo"
+
+    context "requires pipeline after operator" $ do
+      expectFailureEof "&&"    cp Hard (MissingCommandAfter "&&") 2
+      expectFailureEof "||\n;" cp Hard (MissingCommandAfter "||") 3
+
+    context "must start with operator" $ do
+      expectFailureEof "foo" cp Soft UnknownReason 0
+      expectFailureEof "! bar" cp Soft UnknownReason 0
+      expectFailureEof ";" cp Soft UnknownReason 0
+
+  describe "andOrList" $ do
+    let aol = runAliasT $ fill andOrList
+
+    context "consists of pipelines" $ do
+      expectShowEof "foo;" "" aol "Just foo;"
+      expectShowEof "foo&&bar||baz;" "" aol "Just foo && bar || baz;"
+      expectShowEof "foo \\\n&&! bar ||\nbaz; \t " "" aol
+        "Just foo && ! bar || baz;"
+
+    context "can end with &" $ do
+      expectShowEof "foo&" "" aol "Just foo&"
+      expectShowEof "foo&&bar||baz&" "" aol "Just foo && bar || baz&"
+      expectShowEof "foo \\\n&&! bar ||\nbaz& \t " "" aol
+        "Just foo && ! bar || baz&"
+
+    context "can end with unparsed newline" $ do
+      expectShow "foo" "\n" aol "Just foo;"
+      expectShow "foo && bar" "\n" aol "Just foo && bar;"
+      context "cannot have newlines before && or ||" $ do
+        expectShowEof "foo" "\n&&bar" aol "Just foo;"
+        expectShowEof "foo" "\n||bar" aol "Just foo;"
+
+    context "can end at end of input" $ do
+      expectShowEof "foo" "" aol "Just foo;"
+      expectShowEof "foo && bar" "" aol "Just foo && bar;"
+
   describe "completeLine" $ do
     {- TODO context "can be empty" $ do
       expectShow "\n" "" completeLine "" -}

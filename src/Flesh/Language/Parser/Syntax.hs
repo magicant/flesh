@@ -34,7 +34,8 @@ module Flesh.Language.Parser.Syntax (
   normalToken, aliasableToken, reserved,
   -- * Syntax
   redirect, newlineHD, whitesHD, linebreak,
-  simpleCommand, command, pipeSequence, pipeline, completeLine) where
+  simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
+  andOrList, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -235,6 +236,52 @@ pipeline =
   make False <$> pipeSequence
     where req = setReasonHD (MissingCommandAfter "!") . requireHD
           make = flip Pipeline
+
+-- | Parses an and-or condition token (@&&@ or @||@).
+andOrCondition :: MonadParser m => m AndOrCondition
+andOrCondition = do
+  (p, o) <- anyOperator <* whites
+  case o of
+    "&&" -> return AndThen
+    "||" -> return OrElse
+    _ -> failureOfPosition p
+
+-- | Parses a conditional pipeline.
+conditionalPipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                    => HereDocAliasT m ConditionalPipeline
+conditionalPipeline =
+{-
+  make <$> lift andOrCondition <* linebreak <*> req pipeline
+    where make c p = ConditionalPipeline (c, p)
+          req = setReasonHD (MissingCommandAfter undefined) . requireHD
+-}
+  HereDocT $ do
+    c <- andOrCondition
+    let req = setReasonHD (MissingCommandAfter (show c)) . requireHD
+        make p = ConditionalPipeline (c, p)
+    runHereDocT $ linebreak *> (make <$> req pipeline)
+
+-- | Parses a separator operator (@;@ or @&@). Returns True and False if the
+-- separator is @&@ and @;@, respectively.
+separatorOp :: MonadParser m => m Bool
+separatorOp = do
+  (p, o) <- anyOperator <* whites
+  case o of
+    ";" -> return False
+    "&" -> return True
+    _ -> failureOfPosition p
+
+-- | Parses an optional 'separatorOp'. This parser also succeeds at an end of
+-- line or file, returning False.
+separator :: MonadParser m => m Bool
+separator = lc $ False <$ nullSeparator <|> separatorOp
+  where nullSeparator = followedBy (char '\n') <|> void eof
+
+-- | Parses an and-or list (@and_or@) and 'separator'.
+andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+          => HereDocAliasT m AndOrList
+andOrList =
+  AndOrList <$> pipeline <*> many conditionalPipeline <*> lift separator
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [Command] -- TODO m [AndOr]
