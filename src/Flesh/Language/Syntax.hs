@@ -43,6 +43,10 @@ import qualified Data.Text as T
 import qualified Flesh.Source.Position as P
 import Numeric.Natural
 
+-- Utility for Show instances
+showSpace :: ShowS
+showSpace = showChar ' '
+
 -- | Element of double quotes.
 data DoubleQuoteUnit =
     -- | Single bear character.
@@ -57,15 +61,15 @@ data DoubleQuoteUnit =
   deriving (Eq)
 
 instance Show DoubleQuoteUnit where
-  showsPrec _ (Char c) = (c:)
+  showsPrec _ (Char c) = showChar c
   showsPrec _ (Backslashed c) = \s -> '\\':c:s
   showsPrec _ Parameter = id
   showsPrec _ CommandSubstitution = id
   showsPrec _ Backquoted = id
   showsPrec _ Arithmetic = id
   -- | Just joins the given units, without enclosing double quotes.
-  showList [] s = s
-  showList (u:us) s = showsPrec 0 u $ showList us s
+  showList [] = id
+  showList (u:us) = shows u . showList us
 
 -- | Element of words.
 data WordUnit =
@@ -78,14 +82,13 @@ data WordUnit =
   deriving (Eq)
 
 instance Show WordUnit where
-  showsPrec n (Unquoted unit) s = showsPrec n unit s
-  showsPrec n (DoubleQuote units) s =
-    '"' : (showsPrec n (snd (unzip units)) ('"' : s))
-  showsPrec _ (SingleQuote chars) s =
-    '\'' : (foldr f ('\'' : s) chars)
-      where f (_, c) s' = c : s'
-  showList [] s = s
-  showList (u:us) s = showsPrec 0 u $ showList us s
+  showsPrec n (Unquoted unit) = showsPrec n unit
+  showsPrec n (DoubleQuote units) =
+    showChar '"' . showsPrec n (snd (unzip units)) . showChar '"'
+  showsPrec _ (SingleQuote chars) =
+    showChar '\'' . (\s -> foldr (showChar . snd) s chars) . showChar '\''
+  showList [] = id
+  showList (u:us) = shows u . showList us
 
 -- | Expandable word, a possibly empty list of word units.
 newtype EWord = EWord [P.Positioned WordUnit]
@@ -104,9 +107,9 @@ wordText us = fmap T.pack $ sequenceA $ fmap (constChar . snd) $ wordUnits us
 
 instance Show EWord where
   showsPrec n (EWord us) s = foldr (showsPrec n . snd) s us
-  showList [] s = s
-  showList [w] s = showsPrec 0 w s
-  showList (w:ws) s = showsPrec 0 w $ ' ' : showList ws s
+  showList [] = id
+  showList [w] = shows w
+  showList (w:ws) = shows w . showSpace . showList ws
 
 -- | Non-empty word, defined as a (lexical) token with the token identifier
 -- @TOKEN@ in POSIX.
@@ -147,7 +150,7 @@ data HereDocOp = HereDocOp {
 
 instance Show HereDocOp where
   showsPrec n o =
-    showsPrec n (hereDocFd o) . (s ++) . showsPrec n (delimiter o)
+    showsPrec n (hereDocFd o) . showString s . showsPrec n (delimiter o)
     where s = if isTabbed o then "<<-" else "<<"
 
 -- | Redirection.
@@ -163,8 +166,8 @@ instance Show Redirection where
   showsPrec n (FileRedirection fd') = showsPrec n fd' -- FIXME
   showsPrec n (HereDoc o _) = showsPrec n o -- content is ignored
   showList [] = id
-  showList [r] = showsPrec 0 r
-  showList (r:rs) = showsPrec 0 r . (' ':) . showList rs
+  showList [r] = shows r
+  showList (r:rs) = shows r . showSpace . showList rs
 
 -- | Returns the target file descriptor of the given redirection.
 fd :: Redirection -> Natural
@@ -186,14 +189,14 @@ instance Show Command where
   showsPrec _ (SimpleCommand [] as []) = showList as'
     where as' = snd <$> as
   showsPrec _ (SimpleCommand [] [] rs) = showList rs
-  showsPrec _ (SimpleCommand ts [] rs) = showList ts . (' ':) . showList rs
+  showsPrec _ (SimpleCommand ts [] rs) = showList ts . showSpace . showList rs
   showsPrec n (SimpleCommand ts as rs) =
-    showList as' . (' ':) . showsPrec n (SimpleCommand ts [] rs)
+    showList as' . showSpace . showsPrec n (SimpleCommand ts [] rs)
     where as' = snd <$> as
   showsPrec _ FunctionDefinition = id -- FIXME
   showList [] = id
-  showList [c] = showsPrec 0 c
-  showList (c:cs) = showsPrec 0 c . ("; " ++) . showList cs
+  showList [c] = shows c
+  showList (c:cs) = shows c . showString "; " . showList cs
   -- TOOD remove showList definition when no longer needed
 
 -- | Element of and-or lists. Optionally negated sequence of one or more
@@ -204,13 +207,14 @@ data Pipeline = Pipeline {
   deriving (Eq)
 
 instance Show Pipeline where
-  showsPrec n (Pipeline cs True) = ("! " ++) . showsPrec n (Pipeline cs False)
-  showsPrec n (Pipeline (h :| []) False) = showsPrec n h
-  showsPrec n (Pipeline (h :| (c:cs)) False) = showsPrec n h . (" | " ++) . t
-    where t = showsPrec n (Pipeline (c :| cs) False)
+  showsPrec n (Pipeline cs True) =
+    showString "! " . showsPrec n (Pipeline cs False)
+  showsPrec n (Pipeline (h :| t) False) = showsPrec n h . ft
+      where ft s = foldr step s t
+            step c = showString " | " . shows c
   showList [] = id
-  showList [p] = showsPrec 0 p
-  showList (p:ps) = showsPrec 0 p . ("; " ++) . showList ps
+  showList [p] = shows p
+  showList (p:ps) = shows p . showString "; " . showList ps
 
 -- | Condition that determines if a pipeline should be executed in an and-or
 -- list.
@@ -227,10 +231,10 @@ newtype ConditionalPipeline = ConditionalPipeline (AndOrCondition, Pipeline)
 
 instance Show ConditionalPipeline where
   showsPrec n (ConditionalPipeline (c, p)) =
-    showsPrec n c . (' ':) . showsPrec n p
+    showsPrec n c . showSpace . showsPrec n p
   showList [] = id
-  showList [p] = showsPrec 0 p
-  showList (p:ps) = showsPrec 0 p . (' ':) . showList ps
+  showList [p] = shows p
+  showList (p:ps) = shows p . showSpace . showList ps
 
 -- | One or more pipelines executed conditionally in sequence. The entire
 -- sequence can be executed either synchronously or asynchronously.
@@ -241,12 +245,12 @@ data AndOrList = AndOrList {
   deriving (Eq)
 
 showAndOrHeadTail :: Pipeline -> [ConditionalPipeline] -> ShowS
-showAndOrHeadTail h [] = showsPrec 0 h
-showAndOrHeadTail h t = showsPrec 0 h . (' ':) . showList t
+showAndOrHeadTail h [] = shows h
+showAndOrHeadTail h t = shows h . showSpace . showList t
 
 instance Show AndOrList where
   showsPrec n (AndOrList h t False) | n <= 0 = showAndOrHeadTail h t
-  showsPrec _ (AndOrList h t isAsync) = showAndOrHeadTail h t . (c:)
+  showsPrec _ (AndOrList h t isAsync) = showAndOrHeadTail h t . showChar c
     where c = if isAsync then '&' else ';'
 
 -- vim: set et sw=2 sts=2 tw=78:
