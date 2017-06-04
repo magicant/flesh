@@ -284,10 +284,9 @@ andOrList =
   AndOrList <$> pipeline <*> many conditionalPipeline <*> lift separator
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                 => HereDocAliasT m [Command] -- TODO m [AndOr]
+                 => HereDocAliasT m [AndOrList]
 completeLineBody =
-  (: []) <$> simpleCommand <* (void newlineHD <|> lift (void eof))
-  -- TODO parse many and-or lists
+  many andOrList <* requireHD (void newlineHD <|> lift (void eof))
 
 -- | Parses a line.
 --
@@ -296,7 +295,7 @@ completeLineBody =
 --    delimited by @;@ or @&@ except the last @;@ may be omitted.
 -- 1. A line must be delimited by a 'newlineHD' or 'eof'.
 completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => m [Command] -- TODO m [AndOr]
+             => m [AndOrList]
 completeLine = do
   _ <- whites
   reparse $ fill completeLineBody

@@ -252,5 +252,8 @@ instance Show AndOrList where
   showsPrec n (AndOrList h t False) | n <= 0 = showAndOrHeadTail h t
   showsPrec _ (AndOrList h t isAsync) = showAndOrHeadTail h t . showChar c
     where c = if isAsync then '&' else ';'
+  showList [] = id
+  showList [l] = shows l
+  showList (l:ls) = showsPrec 1 l . showSpace . showList ls
 
 -- vim: set et sw=2 sts=2 tw=78:

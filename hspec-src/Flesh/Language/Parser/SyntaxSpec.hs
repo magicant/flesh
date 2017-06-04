@@ -302,15 +302,40 @@ spec = do
       expectShowEof "foo && bar" "" aol "Just foo && bar;"
 
   describe "completeLine" $ do
-    {- TODO context "can be empty" $ do
-      expectShow "\n" "" completeLine "" -}
+    context "can be empty" $ do
+      expectShow "\n" "" completeLine ""
+      expectShowEof "" "" completeLine ""
+
+    context "can have some and-or lists" $ do
+      expectShow "foo\n" "" completeLine "foo"
+      expectShow "foo; bar \n" "" completeLine "foo; bar"
+      expectShow "foo& bar ;\n" "" completeLine "foo& bar"
+      expectShow "foo&bar;baz \n" "" completeLine "foo& bar; baz"
+      expectShow "foo&bar;baz & \n" "" completeLine "foo& bar; baz&"
+
+    context "can have preceding whites" $ do
+      expectShow " \t\\\n\n" "" completeLine ""
+      expectShow " \\\n \t foo\n" "" completeLine "foo"
+
+    context "can end at end-of-file" $ do
+      expectShowEof "foo" "" completeLine "foo"
+      expectShowEof "foo; bar" "" completeLine "foo; bar"
+      expectShowEof "foo; bar&" "" completeLine "foo; bar&"
+
+    context "fails with missing and-or list" $ do
+      expectFailureEof ";"      completeLine Hard UnknownReason 0
+      expectFailureEof "&"      completeLine Hard UnknownReason 0
+      expectFailureEof "foo;&"  completeLine Hard UnknownReason 4
+      expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
 
     context "reparses alias" $ do
       expectShowEof (defaultAliasName ++ "\n") "" completeLine
         defaultAliasValue
 
     it "fills empty here document content" $
-      let f [SimpleCommand [] [] [HereDoc _ c]] = Just c
+      let f [AndOrList
+            (Pipeline (SimpleCommand [] [] [HereDoc _ c] :| _) _) _ _] =
+              Just c
           f _ = Nothing
           e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
        in fmap fst e `shouldBe` Right (Just (EWord []))
