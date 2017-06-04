@@ -271,23 +271,16 @@ separatorOp = do
     "&" -> return True
     _ -> failureOfPosition p
 
--- | Parses an optional 'separatorOp'. This parser also succeeds at an end of
--- line or file, returning False.
-separator :: MonadParser m => m Bool
-separator = lc $ False <$ nullSeparator <|> separatorOp
-  where nullSeparator = followedBy (char '\n') <|> void eof
-
 -- | Parses an and-or list (@and_or@) and 'separator'.
 andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
           => HereDocAliasT m AndOrList
-andOrList =
-  AndOrList <$> pipeline <*> many conditionalPipeline <*> lift separator
+andOrList = AndOrList <$> pipeline <*> many conditionalPipeline <*> sep
+  where sep = lift $ separatorOp <|> return False
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                 => HereDocAliasT m [Command] -- TODO m [AndOr]
+                 => HereDocAliasT m [AndOrList]
 completeLineBody =
-  (: []) <$> simpleCommand <* (void newlineHD <|> lift (void eof))
-  -- TODO parse many and-or lists
+  many andOrList <* requireHD (void newlineHD <|> lift (void eof))
 
 -- | Parses a line.
 --
@@ -296,7 +289,7 @@ completeLineBody =
 --    delimited by @;@ or @&@ except the last @;@ may be omitted.
 -- 1. A line must be delimited by a 'newlineHD' or 'eof'.
 completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => m [Command] -- TODO m [AndOr]
+             => m [AndOrList]
 completeLine = do
   _ <- whites
   reparse $ fill completeLineBody

@@ -222,19 +222,19 @@ spec = do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
 
     context "can be one simple command" $ do
-      expectShowEof "foo bar" "" ps "Just foo bar"
+      expectShowEof "foo bar" "" ps "Just [foo bar]"
 
     context "can be two simple commands" $ do
-      expectShowEof "foo  |  bar" "" ps "Just foo; bar"
+      expectShowEof "foo  |  bar" "" ps "Just [foo,bar]"
 
     context "can be four simple commands" $ do
-      expectShowEof "foo|bar|baz|qux" "" ps "Just foo; bar; baz; qux"
+      expectShowEof "foo|bar|baz|qux" "" ps "Just [foo,bar,baz,qux]"
 
     context "can have newlines after |" $ do
-      expectShowEof "a| \n\\\n \n b" "" ps "Just a; b"
+      expectShowEof "a| \n\\\n \n b" "" ps "Just [a,b]"
 
     context "cannot have newlines before |" $ do
-      expectShowEof "a " "\n|b" ps "Just a"
+      expectShowEof "a " "\n|b" ps "Just [a]"
 
   describe "pipeline" $ do
     let p = runAliasT $ fill pipeline
@@ -290,27 +290,59 @@ spec = do
       expectShowEof "foo \\\n&&! bar ||\nbaz& \t " "" aol
         "Just foo && ! bar || baz&"
 
-    context "can end with unparsed newline" $ do
+    context "can end before newline" $ do
       expectShow "foo" "\n" aol "Just foo;"
       expectShow "foo && bar" "\n" aol "Just foo && bar;"
       context "cannot have newlines before && or ||" $ do
         expectShowEof "foo" "\n&&bar" aol "Just foo;"
         expectShowEof "foo" "\n||bar" aol "Just foo;"
 
+    context "can end before operators" $ do
+      expectShow "foo" ";;" aol "Just foo;"
+      expectShow "foo" "("  aol "Just foo;"
+      expectShow "foo" ")"  aol "Just foo;"
+
     context "can end at end of input" $ do
       expectShowEof "foo" "" aol "Just foo;"
       expectShowEof "foo && bar" "" aol "Just foo && bar;"
 
   describe "completeLine" $ do
-    {- TODO context "can be empty" $ do
-      expectShow "\n" "" completeLine "" -}
+    context "can be empty" $ do
+      expectShow "\n" "" completeLine ""
+      expectShowEof "" "" completeLine ""
+
+    context "can have some and-or lists" $ do
+      expectShow "foo\n" "" completeLine "foo"
+      expectShow "foo; bar \n" "" completeLine "foo; bar"
+      expectShow "foo& bar ;\n" "" completeLine "foo& bar"
+      expectShow "foo&bar;baz \n" "" completeLine "foo& bar; baz"
+      expectShow "foo&bar;baz & \n" "" completeLine "foo& bar; baz&"
+
+    context "can have preceding whites" $ do
+      expectShow " \t\\\n\n" "" completeLine ""
+      expectShow " \\\n \t foo\n" "" completeLine "foo"
+
+    context "can end at end-of-file" $ do
+      expectShowEof "foo" "" completeLine "foo"
+      expectShowEof "foo; bar" "" completeLine "foo; bar"
+      expectShowEof "foo; bar&" "" completeLine "foo; bar&"
+
+    context "fails with incomplete line" $ do
+      expectFailureEof ";"      completeLine Hard UnknownReason 0
+      expectFailureEof "&"      completeLine Hard UnknownReason 0
+      expectFailureEof "foo;&"  completeLine Hard UnknownReason 4
+      expectFailureEof "foo("   completeLine Hard UnknownReason 3
+      expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
+      expectFailureEof "foo;;"  completeLine Hard UnknownReason 3
 
     context "reparses alias" $ do
       expectShowEof (defaultAliasName ++ "\n") "" completeLine
         defaultAliasValue
 
     it "fills empty here document content" $
-      let f [SimpleCommand [] [] [HereDoc _ c]] = Just c
+      let f [AndOrList
+            (Pipeline (SimpleCommand [] [] [HereDoc _ c] :| _) _) _ _] =
+              Just c
           f _ = Nothing
           e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
        in fmap fst e `shouldBe` Right (Just (EWord []))
