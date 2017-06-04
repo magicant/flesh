@@ -290,12 +290,17 @@ spec = do
       expectShowEof "foo \\\n&&! bar ||\nbaz& \t " "" aol
         "Just foo && ! bar || baz&"
 
-    context "can end with unparsed newline" $ do
+    context "can end before newline" $ do
       expectShow "foo" "\n" aol "Just foo;"
       expectShow "foo && bar" "\n" aol "Just foo && bar;"
       context "cannot have newlines before && or ||" $ do
         expectShowEof "foo" "\n&&bar" aol "Just foo;"
         expectShowEof "foo" "\n||bar" aol "Just foo;"
+
+    context "can end before operators" $ do
+      expectShow "foo" ";;" aol "Just foo;"
+      expectShow "foo" "("  aol "Just foo;"
+      expectShow "foo" ")"  aol "Just foo;"
 
     context "can end at end of input" $ do
       expectShowEof "foo" "" aol "Just foo;"
@@ -322,11 +327,13 @@ spec = do
       expectShowEof "foo; bar" "" completeLine "foo; bar"
       expectShowEof "foo; bar&" "" completeLine "foo; bar&"
 
-    context "fails with missing and-or list" $ do
+    context "fails with incomplete line" $ do
       expectFailureEof ";"      completeLine Hard UnknownReason 0
       expectFailureEof "&"      completeLine Hard UnknownReason 0
       expectFailureEof "foo;&"  completeLine Hard UnknownReason 4
+      expectFailureEof "foo("   completeLine Hard UnknownReason 3
       expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
+      expectFailureEof "foo;;"  completeLine Hard UnknownReason 3
 
     context "reparses alias" $ do
       expectShowEof (defaultAliasName ++ "\n") "" completeLine
