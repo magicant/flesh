@@ -50,9 +50,9 @@ showSpace = showChar ' '
 -- | Element of double quotes.
 data DoubleQuoteUnit =
     -- | Single bear character.
-    Char Char
+    Char !Char
     -- | Character escaped by a backslash.
-    | Backslashed Char
+    | Backslashed !Char
     -- | Parameter expansion.
     | Parameter -- FIXME
     | CommandSubstitution -- FIXME of the $(...) form
@@ -74,7 +74,7 @@ instance Show DoubleQuoteUnit where
 -- | Element of words.
 data WordUnit =
     -- | Unquoted double-quote unit as a word unit.
-    Unquoted DoubleQuoteUnit
+    Unquoted !DoubleQuoteUnit
     -- | Double-quote.
     | DoubleQuote [P.Positioned DoubleQuoteUnit]
     -- | Single-quote.
@@ -143,8 +143,8 @@ instance Show Assignment where
 -- | Here document redirection operator.
 data HereDocOp = HereDocOp {
   hereDocOpPos :: P.Position,
-  hereDocFd :: Natural,
-  isTabbed :: Bool,
+  hereDocFd :: !Natural,
+  isTabbed :: !Bool,
   delimiter :: Token}
   deriving (Eq)
 
@@ -156,9 +156,9 @@ instance Show HereDocOp where
 -- | Redirection.
 data Redirection =
   FileRedirection {
-    fileFd :: Natural} -- FIXME
+    fileFd :: !Natural} -- FIXME
   | HereDoc {
-    hereDocOp :: HereDocOp,
+    hereDocOp :: !HereDocOp,
     content :: EWord}
   deriving (Eq)
 
@@ -203,7 +203,7 @@ instance Show Command where
 -- commands.
 data Pipeline = Pipeline {
   pipeCommands :: NonEmpty Command,
-  isNegated :: Bool}
+  isNegated :: !Bool}
   deriving (Eq)
 
 instance Show Pipeline where
@@ -241,7 +241,7 @@ instance Show ConditionalPipeline where
 data AndOrList = AndOrList {
   andOrHead :: Pipeline,
   andOrTail :: [ConditionalPipeline],
-  isAsynchronous :: Bool}
+  isAsynchronous :: !Bool}
   deriving (Eq)
 
 showAndOrHeadTail :: Pipeline -> [ConditionalPipeline] -> ShowS
