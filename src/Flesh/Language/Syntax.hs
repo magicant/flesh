@@ -194,10 +194,6 @@ instance Show Command where
     showList as' . showSpace . showsPrec n (SimpleCommand ts [] rs)
     where as' = snd <$> as
   showsPrec _ FunctionDefinition = id -- FIXME
-  showList [] = id
-  showList [c] = shows c
-  showList (c:cs) = shows c . showString "; " . showList cs
-  -- TOOD remove showList definition when no longer needed
 
 -- | Element of and-or lists. Optionally negated sequence of one or more
 -- commands.
@@ -212,9 +208,6 @@ instance Show Pipeline where
   showsPrec n (Pipeline (h :| t) False) = showsPrec n h . ft
       where ft s = foldr step s t
             step c = showString " | " . shows c
-  showList [] = id
-  showList [p] = shows p
-  showList (p:ps) = shows p . showString "; " . showList ps
 
 -- | Condition that determines if a pipeline should be executed in an and-or
 -- list.

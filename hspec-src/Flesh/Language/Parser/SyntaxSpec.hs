@@ -222,19 +222,19 @@ spec = do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
 
     context "can be one simple command" $ do
-      expectShowEof "foo bar" "" ps "Just foo bar"
+      expectShowEof "foo bar" "" ps "Just [foo bar]"
 
     context "can be two simple commands" $ do
-      expectShowEof "foo  |  bar" "" ps "Just foo; bar"
+      expectShowEof "foo  |  bar" "" ps "Just [foo,bar]"
 
     context "can be four simple commands" $ do
-      expectShowEof "foo|bar|baz|qux" "" ps "Just foo; bar; baz; qux"
+      expectShowEof "foo|bar|baz|qux" "" ps "Just [foo,bar,baz,qux]"
 
     context "can have newlines after |" $ do
-      expectShowEof "a| \n\\\n \n b" "" ps "Just a; b"
+      expectShowEof "a| \n\\\n \n b" "" ps "Just [a,b]"
 
     context "cannot have newlines before |" $ do
-      expectShowEof "a " "\n|b" ps "Just a"
+      expectShowEof "a " "\n|b" ps "Just [a]"
 
   describe "pipeline" $ do
     let p = runAliasT $ fill pipeline
