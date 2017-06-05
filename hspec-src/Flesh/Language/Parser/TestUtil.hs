@@ -44,11 +44,18 @@ defaultAliasName = "ls"
 defaultAliasValue :: String
 defaultAliasValue = defaultAliasName ++ " --color"
 
+recursiveAlias :: String
+recursiveAlias = "rec"
+
 defaultAliasDefinitions :: Alias.DefinitionSet
-defaultAliasDefinitions = M.singleton n $ Alias.definition n v p
-  where n = T.pack defaultAliasName
-        v = T.pack defaultAliasValue
-        p = dummyPosition "alias ls='ls --color'"
+defaultAliasDefinitions =
+  M.insert n (Alias.definition n v p) $
+    M.singleton r (Alias.definition r r pr)
+      where n = T.pack defaultAliasName
+            v = T.pack defaultAliasValue
+            p = dummyPosition "alias ls='ls --color'"
+            r = T.pack recursiveAlias
+            pr = dummyPosition "alias rec=rec"
 
 runTesterAlias :: Tester a -> Alias.DefinitionSet -> PositionedString
                -> Either Failure (a, PositionedString)

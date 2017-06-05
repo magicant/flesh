@@ -46,7 +46,7 @@ testSubstituteAlias result remainder l s t v =
       def = definition s' v' pos'
       defs = M.singleton s' def
       run m = fmap fst (runTesterAlias m defs l')
-      subst = ParserT $ runMaybeT $ substituteAlias t'
+      subst = ParserT $ runMaybeT $ substituteAlias pos' t'
    in run subst === Right result .&&.
         run (subst >> readAll) === Right remainder
 
@@ -58,5 +58,19 @@ spec = do
 
     prop "fails for unmatching alias" $ \l s t ->
       s /= t ==> testSubstituteAlias Nothing l l s t
+
+    prop "prevents recursion" $ \l n v ->
+      let lPos = dummyPosition l
+          pl = spread lPos l
+          [n', v'] = T.pack <$> [n, v]
+          dPos = dummyPosition ""
+          def = definition n' v' dPos
+          defs = M.singleton n' def
+          sSit = Alias lPos def
+          sFrag = Fragment "" sSit 0
+          sPos = Position sFrag 0
+          run m = fmap fst (runTesterAlias m defs pl)
+          subst = ParserT $ runMaybeT $ substituteAlias sPos n'
+       in run subst === Right Nothing .&&. run (subst >> readAll) === Right l
 
 -- vim: set et sw=2 sts=2 tw=78:

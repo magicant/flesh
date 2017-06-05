@@ -120,8 +120,7 @@ spec = do
       expectShow "f${1}o" ";" at "Just f${1}o"
 
     context "modifies pending input" $ do
-      expectSuccessEof defaultAliasName "" (at >> readAll) $
-        defaultAliasValue
+      expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
 
     it "returns nothing after substitution" $
       let e = runTesterWithDummyPositions at defaultAliasName
@@ -131,6 +130,11 @@ spec = do
       let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
                 defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
+
+    it "stops on exact recursion" $
+      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
+                recursiveAlias
+       in fmap fst e `shouldBe` Right ""
 
   describe "reserved" $ do
     context "returns matching unquoted token" $ do

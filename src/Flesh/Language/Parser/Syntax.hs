@@ -43,6 +43,7 @@ import Control.Monad.Trans.Maybe
 import Data.Foldable
 import Data.List
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
@@ -122,7 +123,8 @@ aliasableToken = AliasT $ do
   let inv Nothing = Just t
       inv (Just ()) = Nothing
       tt = MaybeT $ return $ tokenText t
-   in fmap inv $ runMaybeT $ tt >>= substituteAlias
+      pos = fst $ NE.head $ tokenUnits t
+   in fmap inv $ runMaybeT $ tt >>= substituteAlias pos
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
 
