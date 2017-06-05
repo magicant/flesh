@@ -120,8 +120,7 @@ spec = do
       expectShow "f${1}o" ";" at "Just f${1}o"
 
     context "modifies pending input" $ do
-      expectSuccessEof defaultAliasName "" (at >> readAll) $
-        defaultAliasValue
+      expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
 
     it "returns nothing after substitution" $
       let e = runTesterWithDummyPositions at defaultAliasName
