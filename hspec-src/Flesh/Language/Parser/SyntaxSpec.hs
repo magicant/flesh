@@ -132,6 +132,11 @@ spec = do
                 defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
+    it "stops on exact recursion" $
+      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
+                recursiveAlias
+       in fmap fst e `shouldBe` Right ""
+
   describe "reserved" $ do
     context "returns matching unquoted token" $ do
       expectShowEof "! " "" (reserved (T.pack "!")) "!"
