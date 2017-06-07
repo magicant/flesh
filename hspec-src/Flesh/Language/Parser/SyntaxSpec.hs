@@ -153,7 +153,7 @@ spec = do
 
   describe "redirect" $ do
     let yieldDummyContent = HereDocT $
-          return () <$ (drainOperators >> yieldContent (EWord []))
+          return () <$ (drainOperators >> yieldContent [])
         rTester = hereDocOp <$> (fill (redirect <* yieldDummyContent))
 
     context "parses << operator" $ do
@@ -349,7 +349,7 @@ spec = do
               Just c
           f _ = Nothing
           e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
-       in fmap fst e `shouldBe` Right (Just (EWord []))
+       in fmap fst e `shouldBe` Right (Just [])
 
     -- TODO it "fills non-empty here document content" pending
 

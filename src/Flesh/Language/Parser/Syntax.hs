@@ -176,7 +176,7 @@ hereDocDelimiter op = do
 
 hereDocContent :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
 hereDocContent op = do
-  c <- return (EWord []) -- TODO parse content body
+  c <- return [] -- TODO parse content body
   setReason (UnclosedHereDocContent op) $ hereDocDelimiter op
   yieldContent c
 
