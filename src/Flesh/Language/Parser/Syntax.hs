@@ -167,18 +167,32 @@ redirect = HereDocT $ do
     "<<-" -> yieldHereDoc $ HereDocOp pos fd' True t
     _ -> error $ "unexpected redirection operator " ++ op
 
-hereDocDelimiter :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
+hereDocTab :: MonadParser m => Bool -> m ()
+hereDocTab tabbed = when tabbed $ void $ many $ char '\t'
+
+hereDocLine :: MonadParser m => HereDocOp -> m [Positioned DoubleQuoteUnit]
+hereDocLine op = do
+  hereDocTab $ isTabbed op
+  -- TODO parse literally if op delimiter is quoted
+  -- TODO backslash should escape only \, $, and `.
+  us <- doubleQuoteUnit `manyTill` followedBy nl
+  posNl <- fmap (fmap Char) nl
+  return $ us ++ [posNl]
+    where nl = lc (char '\n')
+
+hereDocDelimiter :: MonadParser m => HereDocOp -> m ()
 hereDocDelimiter op = do
-  _ <- if isTabbed op then many (char '\t') else return []
+  hereDocTab $ isTabbed op
   _ <- string (show (delimiter op)) -- TODO unquote delimiter
   _ <- char '\n'
   return ()
 
 hereDocContent :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
 hereDocContent op = do
-  c <- return [] -- TODO parse content body
-  setReason (UnclosedHereDocContent op) $ hereDocDelimiter op
-  yieldContent c
+  ls <- line `manyTill` del
+  yieldContent $ concat ls
+    where line = hereDocLine op
+          del = setReason (UnclosedHereDocContent op) $ hereDocDelimiter op
 
 pendingHereDocContents :: (MonadParser m, MonadAccum m) => m ()
 pendingHereDocContents = do

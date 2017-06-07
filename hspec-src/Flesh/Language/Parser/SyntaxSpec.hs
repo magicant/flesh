@@ -180,7 +180,7 @@ spec = do
       let isExpectedReason (UnclosedHereDocContent (HereDocOp _ 0 True d))
             | show d == "X" = True
           isExpectedReason _ = False
-       in expectFailureEof' "<<-X\nfoo\n" completeLine Hard isExpectedReason 5
+       in expectFailureEof' "<<-X\nfoo\n" completeLine Hard isExpectedReason 9
 
     -- TODO it "accumulates result" pending
 
