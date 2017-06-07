@@ -33,7 +33,7 @@ module Flesh.Language.Parser.Syntax (
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken, reserved,
   -- * Syntax
-  redirect, newlineHD, whitesHD, linebreak,
+  redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
   andOrList, completeLine) where
 

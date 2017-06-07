@@ -182,7 +182,14 @@ spec = do
           isExpectedReason _ = False
        in expectFailureEof' "<<-X\nfoo\n" completeLine Hard isExpectedReason 9
 
-    -- TODO it "accumulates result" pending
+    context "accumulates results" $ do
+      let t = Token $ (undefined, Unquoted (Char 'E')) :| []
+          op = HereDocOp undefined 0 False t
+          p = fill $ HereDocT $ fmap return $
+            hereDocContent op >> fmap (fmap (snd . unzip)) drainContents
+      expectShow           "E\n" "" p "[]"
+      expectShow       "EE\nE\n" "" p "[EE\n]"
+      expectShow "foo\nbar\nE\n" "" p "[foo\nbar\n]"
 
   describe "pendingHereDocContents" $ do
     context "parses 1 pending content" $ do
@@ -343,15 +350,19 @@ spec = do
       expectShowEof (defaultAliasName ++ "\n") "" completeLine
         defaultAliasValue
 
-    it "fills empty here document content" $
+    context "fills here document content" $ do
       let f [AndOrList
             (Pipeline (SimpleCommand [] [] [HereDoc _ c] :| _) _) _ _] =
               Just c
           f _ = Nothing
-          e = runTesterWithDummyPositions (f <$> completeLine) "<<X\nX\n"
-       in fmap fst e `shouldBe` Right (Just [])
+          p = runTesterWithDummyPositions (f <$> completeLine)
 
-    -- TODO it "fills non-empty here document content" pending
+      it "fills empty here document content" $
+        fmap fst (p "<<X\nX\n") `shouldBe` Right (Just [])
+
+      it "fills non-empty here document content" $
+        fmap (fmap (snd . unzip) . fst) (p "<<X\n\nX\n") `shouldBe`
+          Right (Just [Char '\n'])
 
     context "fails with missing here doc contents" $ do
       let isExpectedReason (MissingHereDocContents
