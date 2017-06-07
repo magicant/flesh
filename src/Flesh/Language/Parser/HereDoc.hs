@@ -44,7 +44,7 @@ module Flesh.Language.Parser.HereDoc (
   -- * Data types
   Operator, Content,
   -- * Accumulator
-  AccumState, MonadAccum(..), AccumT, runAccumT, mapAccumT,
+  AccumState, MonadAccum(..), AccumT(..), runAccumT, mapAccumT,
   -- * Filler
   Filler, popContent,
   -- * HereDocT
