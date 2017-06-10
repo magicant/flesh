@@ -174,8 +174,7 @@ hereDocLine :: MonadParser m => HereDocOp -> m [Positioned DoubleQuoteUnit]
 hereDocLine op = do
   hereDocTab $ isTabbed op
   -- TODO parse literally if op delimiter is quoted
-  -- TODO backslash should escape only \, $, and `.
-  us <- doubleQuoteUnit `manyTill` followedBy nl
+  us <- doubleQuoteUnit' (oneOfChars "\\$`") `manyTill` followedBy nl
   posNl <- fmap (fmap Char) nl
   return $ us ++ [posNl]
     where nl = lc (char '\n')
