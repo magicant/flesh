@@ -159,7 +159,7 @@ data Redirection =
     fileFd :: !Natural} -- FIXME
   | HereDoc {
     hereDocOp :: !HereDocOp,
-    content :: EWord}
+    content :: [P.Positioned DoubleQuoteUnit]}
   deriving (Eq)
 
 instance Show Redirection where

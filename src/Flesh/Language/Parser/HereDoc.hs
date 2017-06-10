@@ -57,12 +57,13 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
+import Flesh.Source.Position
 
 -- | Here document redirection operator type.
 type Operator = HereDocOp
 
 -- | Here document content type.
-type Content = EWord
+type Content = [Positioned DoubleQuoteUnit]
 
 -- | Monad for managing pending here document contents and parsed contents. It
 -- works like a 'StateT' monad where computation interacts with the state of
