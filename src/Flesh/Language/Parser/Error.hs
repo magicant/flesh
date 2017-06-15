@@ -45,7 +45,7 @@ import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Foldable
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty (NonEmpty(..))
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
 import qualified Flesh.Source.Position as P
@@ -57,7 +57,7 @@ data Reason =
   | UnclosedSingleQuote
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
-  | MissingHereDocContents (NE.NonEmpty HereDocOp)
+  | MissingHereDocContents (NonEmpty HereDocOp)
   | MissingCommandAfter String
   deriving (Eq, Show)
 
@@ -110,13 +110,13 @@ a `manyTill` end = m
 --
 -- Also note that @end@ is not tested before @a@ succeeds first. Use
 -- @'notFollowedBy' end@ to test @end@ first.
-someTill :: MonadError Failure m => m a -> m end -> m (NE.NonEmpty a)
-a `someTill` end = (NE.:|) <$> a <*> (a `manyTill` end)
+someTill :: MonadError Failure m => m a -> m end -> m (NonEmpty a)
+a `someTill` end = (:|) <$> a <*> (a `manyTill` end)
 
 -- | @a manyTo end@ is the same as @a 'manyTill' end@ but the result of
 -- @end@ is included in the final result as the last element of the list.
-manyTo :: MonadError Failure m => m a -> m a -> m (NE.NonEmpty a)
-a `manyTo` end = errorSelecting (NE.:|) a ((NE.:| []) <$> end) m
+manyTo :: MonadError Failure m => m a -> m a -> m (NonEmpty a)
+a `manyTo` end = errorSelecting (:|) a ((:| []) <$> end) m
   where m = errorSelecting (:) a ((:[]) <$> end) m
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
@@ -194,8 +194,8 @@ notFollowedBy m = do
   join $ catchError m' (const $ return $ return ())
 
 -- | @some' a@ is like @some a@, but returns a NonEmpty list.
-some' :: MonadParser m => m a -> m (NE.NonEmpty a)
-some' a = (NE.:|) <$> a <*> many a
+some' :: MonadParser m => m a -> m (NonEmpty a)
+some' a = (:|) <$> a <*> many a
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
 -- 'MonadError'.
