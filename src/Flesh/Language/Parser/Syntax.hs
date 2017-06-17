@@ -170,12 +170,13 @@ redirect = HereDocT $ do
 hereDocTab :: MonadParser m => Bool -> m ()
 hereDocTab tabbed = when tabbed $ void $ many $ char '\t'
 
-hereDocLine :: MonadParser m => Bool -> m [Positioned DoubleQuoteUnit]
-hereDocLine tabbed = do
+hereDocLine :: MonadParser m => Bool -> Bool -> m [Positioned DoubleQuoteUnit]
+hereDocLine tabbed literal = do
   hereDocTab tabbed
-  -- TODO parse literally if op delimiter is quoted
-  NE.toList <$> doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` nl
-    where nl = fmap (fmap Char) $ lc $ char '\n'
+  fmap NE.toList $ if literal
+     then fmap (fmap Char) anyChar `manyTo` nl
+     else doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` lc nl
+       where nl = fmap (fmap Char) (char '\n')
 
 hereDocDelimiter :: MonadParser m => Bool -> [DoubleQuoteUnit] -> m ()
 hereDocDelimiter tabbed delim = do
@@ -188,11 +189,11 @@ hereDocContent :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
 hereDocContent op = do
   ls <- line `manyTill` del
   yieldContent $ concat ls
-    where line = hereDocLine tabbed
+    where line = hereDocLine tabbed quoted
           del = setReason (UnclosedHereDocContent op) $
             hereDocDelimiter tabbed delim
           tabbed = isTabbed op
-          ~(_, delim) = unquoteToken (delimiter op)
+          ~(quoted, delim) = unquoteToken (delimiter op)
 
 pendingHereDocContents :: (MonadParser m, MonadAccum m) => m ()
 pendingHereDocContents = do

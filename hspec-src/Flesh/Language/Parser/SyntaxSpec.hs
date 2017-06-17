@@ -162,6 +162,16 @@ spec = do
       expectSuccessEof  "12<< END" "" (isTabbed     <$> rTester) False
       expectShowEof     "12<< END" "" (delimiter    <$> rTester) "END"
 
+  describe "hereDocLine" $ do
+    context "contains expansions for unquoted delimiter" $ do
+      expectShow "<<X\n$foo\\\nX\nX\n" "" completeLine "0<<X"
+
+    context "does not contain expansions for quoted delimiter" $ do
+      expectShow "<<\\X\n$foo\\\nX\n"   "" completeLine "0<<\\X"
+      expectShow "<<\"X\"\n$foo\\\nX\n" "" completeLine "0<<\"X\""
+      expectShow "<<'X'\n$foo\\\nX\n"   "" completeLine "0<<'X'"
+      expectShow "<<''\n$foo\\\n\n"     "" completeLine "0<<''"
+
   describe "hereDocDelimiter" $ do
     context "is a token followed by a newline" $ do
       expectShow "<<X\nX\n" "" completeLine "0<<X"
