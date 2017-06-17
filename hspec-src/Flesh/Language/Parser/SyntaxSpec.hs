@@ -166,7 +166,11 @@ spec = do
     context "is a token followed by a newline" $ do
       expectShow "<<X\nX\n" "" completeLine "0<<X"
 
-    -- TODO it "matches an unquoted token" pending
+    context "matches an unquoted token" $ do
+      expectShow "<<\\X\nX\n"   "" completeLine "0<<\\X"
+      expectShow "<<\"X\"\nX\n" "" completeLine "0<<\"X\""
+      expectShow "<<'X'\nX\n"   "" completeLine "0<<'X'"
+      expectShow "<<''\n\n"     "" completeLine "0<<''"
 
     context "can be indented for <<-" $ do
       expectShow "<<-X\nX\n"       "" completeLine "0<<-X"
