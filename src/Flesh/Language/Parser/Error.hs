@@ -34,7 +34,7 @@ module Flesh.Language.Parser.Error (
   Reason(..), Error(..), Severity(..), Failure,
   -- * Utilities for 'MonadError'
   MonadError(..), failureOfError, failureOfPosition, manyTill, someTill,
-  recover, setReason, try, require,
+  manyTo, recover, setReason, try, require,
   -- * The 'MonadParser' class
   MonadParser, failure, failureOfReason, satisfying, satisfyingP,
   notFollowedBy, some',
@@ -85,20 +85,23 @@ failureOfError e = throwError (Soft, e)
 failureOfPosition :: MonadError Failure m => P.Position -> m a
 failureOfPosition p = failureOfError (Error UnknownReason p)
 
+-- | Helper function for 'manyTill'. Re-throws the better error.
+errorSelecting :: MonadError Failure m
+               => (a -> b -> c) -> m a -> m c -> m b -> m c
+errorSelecting f a b x = catchError b cont
+  where cont e@(Hard, _) = throwError e
+        cont e@(Soft, _) = f <$> a' <*> x
+          where a' = catchError a reerror
+                reerror e'@(Hard, _) = throwError e'
+                reerror _            = throwError e
+
 -- | @a `manyTill` end@ parses any number of @a@ until @end@ occurs.
 --
 -- Note that @end@ consumes the input. Use @'lookahead' end@ to keep @end@
 -- unconsumed.
 manyTill :: MonadError Failure m => m a -> m end -> m [a]
 a `manyTill` end = m
-  where m = catchError ([] <$ end) loop
-        loop e@(Hard, _) = throwError e
-        loop e@(Soft, _) = (:) <$> a' <*> m
-          where a' = catchError a reerror
-                reerror e'@(Hard, _) = throwError e'
-                reerror _            = throwError e
--- If @a@ fails, re-throw the original error from @end@ for a better error
--- message (unless the error severity of @a@ wins).
+  where m = errorSelecting (:) a ([] <$ end) m
 
 -- | @a `someTill` end@ parses one or more @a@ until @end@ occurs.
 --
@@ -109,6 +112,12 @@ a `manyTill` end = m
 -- @'notFollowedBy' end@ to test @end@ first.
 someTill :: MonadError Failure m => m a -> m end -> m (NE.NonEmpty a)
 a `someTill` end = (NE.:|) <$> a <*> (a `manyTill` end)
+
+-- | @a manyTo end@ is the same as @a 'manyTill' end@ but the result of
+-- @end@ is included in the final result as the last element of the list.
+manyTo :: MonadError Failure m => m a -> m a -> m (NE.NonEmpty a)
+a `manyTo` end = errorSelecting (NE.:|) a ((NE.:| []) <$> end) m
+  where m = errorSelecting (:) a ((:[]) <$> end) m
 
 -- | Recovers from an error. This is a simple wrapper around 'catchError' that
 -- ignores the error's 'Severity'.
