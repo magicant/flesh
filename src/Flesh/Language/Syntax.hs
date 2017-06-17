@@ -26,10 +26,10 @@ This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
   -- * Tokens
-  DoubleQuoteUnit(..),
-  WordUnit(..),
+  DoubleQuoteUnit(..), unquoteDoubleQuoteUnit,
+  WordUnit(..), unquoteWordUnit,
   EWord(..), wordUnits, wordText,
-  Token(..), tokenUnits, tokenWord, tokenText,
+  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken,
   Assignment(..),
   -- * Redirections
   HereDocOp(..), Redirection(..), fd,
@@ -37,6 +37,7 @@ module Flesh.Language.Syntax (
   Command(..), Pipeline(..), AndOrCondition(..), ConditionalPipeline(..),
   AndOrList(..)) where
 
+import Data.Monoid
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
@@ -71,6 +72,13 @@ instance Show DoubleQuoteUnit where
   showList [] = id
   showList (u:us) = shows u . showList us
 
+-- | Converts a backslashed character to a bare character. Other double-quote
+-- units are returned intact. The Boolean is True iff conversion was
+-- performed.
+unquoteDoubleQuoteUnit :: DoubleQuoteUnit -> (Bool, DoubleQuoteUnit)
+unquoteDoubleQuoteUnit (Backslashed c) = (True, Char c)
+unquoteDoubleQuoteUnit u               = (False, u)
+
 -- | Element of words.
 data WordUnit =
     -- | Unquoted double-quote unit as a word unit.
@@ -89,6 +97,15 @@ instance Show WordUnit where
     showChar '\'' . (\s -> foldr (showChar . snd) s chars) . showChar '\''
   showList [] = id
   showList (u:us) = shows u . showList us
+
+-- | Removes backslash escapes, double-quotes, and single-quotes without word
+-- expansion. The Boolean is true iff quotation was removed.
+unquoteWordUnit :: WordUnit -> (Bool, [DoubleQuoteUnit])
+unquoteWordUnit (Unquoted u) = (b, [u'])
+  where ~(b, u') = unquoteDoubleQuoteUnit u
+unquoteWordUnit (DoubleQuote us) = (True, unq <$> us)
+  where unq = snd . unquoteDoubleQuoteUnit . snd
+unquoteWordUnit (SingleQuote cs) = (True, Char . snd <$> cs)
 
 -- | Expandable word, a possibly empty list of word units.
 newtype EWord = EWord [P.Positioned WordUnit]
@@ -128,6 +145,14 @@ tokenWord = EWord . NE.toList . tokenUnits
 -- returns the content as a text.
 tokenText :: Token -> Maybe (T.Text)
 tokenText = wordText . tokenWord
+
+-- | Removes backslash escapes, double-quotes, and single-quotes without word
+-- expansion. The Boolean is true iff quotation was removed.
+unquoteToken :: Token -> (Bool, [DoubleQuoteUnit])
+unquoteToken t = (disj bs, concat uss)
+  where ~(bs, uss) = unq t
+        disj = getAny . mconcat . fmap Any
+        unq = unzip . fmap unquoteWordUnit . NE.toList . fmap snd . tokenUnits
 
 instance Show Token where
   showsPrec n t = showsPrec n (tokenWord t)
