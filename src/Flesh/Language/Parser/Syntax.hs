@@ -174,10 +174,8 @@ hereDocLine :: MonadParser m => HereDocOp -> m [Positioned DoubleQuoteUnit]
 hereDocLine op = do
   hereDocTab $ isTabbed op
   -- TODO parse literally if op delimiter is quoted
-  us <- doubleQuoteUnit' (oneOfChars "\\$`") `manyTill` followedBy nl
-  posNl <- fmap (fmap Char) nl
-  return $ us ++ [posNl]
-    where nl = lc (char '\n')
+  NE.toList <$> doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` nl
+    where nl = fmap (fmap Char) $ lc $ char '\n'
 
 hereDocDelimiter :: MonadParser m => HereDocOp -> m ()
 hereDocDelimiter op = do
