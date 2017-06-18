@@ -149,9 +149,8 @@ tokenText = wordText . tokenWord
 -- | Removes backslash escapes, double-quotes, and single-quotes without word
 -- expansion. The Boolean is true iff quotation was removed.
 unquoteToken :: Token -> (Bool, [DoubleQuoteUnit])
-unquoteToken t = (disj bs, concat uss)
+unquoteToken t = (or bs, concat uss)
   where ~(bs, uss) = unq t
-        disj = getAny . mconcat . fmap Any
         unq = unzip . fmap unquoteWordUnit . NE.toList . fmap snd . tokenUnits
 
 instance Show Token where
