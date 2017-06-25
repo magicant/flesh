@@ -25,6 +25,7 @@ library
                        Flesh.Language.Parser.Lex,
                        Flesh.Language.Parser.Syntax,
                        Flesh.Language.Parser.Warning,
+                       Flesh.Language.Pretty,
                        Flesh.Language.Syntax,
                        Flesh.Language.Syntax.Print,
                        Flesh.Source.Position
