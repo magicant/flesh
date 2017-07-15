@@ -37,7 +37,6 @@ module Flesh.Language.Syntax (
   Command(..), Pipeline(..), AndOrCondition(..), ConditionalPipeline(..),
   AndOrList(..)) where
 
-import Data.Monoid
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
