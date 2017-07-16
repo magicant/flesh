@@ -102,7 +102,7 @@ endOfToken = lc $ followedBy op <|> followedBy blank' <|> followedBy eof
 -- This function does /not/ parse the newline or end-of-input operator.
 anyOperator :: MonadParser m => m (Positioned String)
 anyOperator = do
-  (p, c1) <- lc operatorStarter
+  (p, c1) <- operatorStarter
   lc $ case c1 of
     ';' -> ((p, ";;") <$ char ';') <|> return (p, ";")
     '|' -> ((p, "||") <$ char '|') <|> return (p, "|")
