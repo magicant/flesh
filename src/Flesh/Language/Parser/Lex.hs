@@ -103,16 +103,16 @@ endOfToken = lc $ followedBy op <|> followedBy blank' <|> followedBy eof
 anyOperator :: MonadParser m => m (Positioned String)
 anyOperator = do
   (p, c1) <- operatorStarter
-  lc $ case c1 of
-    ';' -> ((p, ";;") <$ char ';') <|> return (p, ";")
-    '|' -> ((p, "||") <$ char '|') <|> return (p, "|")
-    '&' -> ((p, "&&") <$ char '&') <|> return (p, "&")
-    '<' -> do (_, c2) <- oneOfChars "<>&"
+  case c1 of
+    ';' -> lc $ ((p, ";;") <$ char ';') <|> return (p, ";")
+    '|' -> lc $ ((p, "||") <$ char '|') <|> return (p, "|")
+    '&' -> lc $ ((p, "&&") <$ char '&') <|> return (p, "&")
+    '<' -> do (_, c2) <- lc $ oneOfChars "<>&"
               case c2 of
                 '<' -> lc $ ((p, "<<-") <$ char '-') <|> return (p, "<<")
                 _ -> return (p, [c1, c2]) 
            <|> return (p, [c1])
-    '>' -> do (_, c2) <- oneOfChars ">|&"
+    '>' -> do (_, c2) <- lc $ oneOfChars ">|&"
               return (p, [c1, c2])
            <|> return (p, ">")
     _ -> return (p, [c1])
