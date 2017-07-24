@@ -34,6 +34,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Data.Map.Lazy
+import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Syntax
@@ -125,7 +126,7 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
 
 readCompleteLine :: IO (Either Failure [AndOrList])
 readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $
-  flip runReaderT empty $ runParserT completeLine
+  flip runReaderT empty $ runParserT $ notFollowedBy eof *> completeLine
 
 writeCompleteLine :: Either Failure [AndOrList] -> IO ()
 writeCompleteLine (Left _e) = exitFailure -- TODO write error
