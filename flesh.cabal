@@ -25,7 +25,9 @@ library
                        Flesh.Language.Parser.Lex,
                        Flesh.Language.Parser.Syntax,
                        Flesh.Language.Parser.Warning,
+                       Flesh.Language.Pretty,
                        Flesh.Language.Syntax,
+                       Flesh.Language.Syntax.Print,
                        Flesh.Source.Position
   build-depends:       base >= 4.9 && < 5,
                        containers >= 0.5.0.0 && < 1,
