@@ -85,14 +85,18 @@ inputChar i = ci
                 Just _ -> return (Left (nextPosition "" rcs))
                 Nothing -> readNextLine >> ci
 
-type InputPosition = Int
+data InputPosition = InputPosition {
+  underlyingIndex :: Int,
+  pushedChars :: [Positioned Char]}
+
 newtype CursorT m a = CursorT (StateT InputPosition m a)
 
 runCursorT :: CursorT m a -> StateT InputPosition m a
 runCursorT (CursorT m) = m
 
 runCursorT' :: Functor m => CursorT m a -> m a
-runCursorT' = fmap fst . flip runStateT 0 . runCursorT
+runCursorT' = fmap fst . flip runStateT p . runCursorT
+  where p = InputPosition {underlyingIndex = 0, pushedChars = []}
 
 instance Functor m => Functor (CursorT m) where
   fmap f = CursorT . fmap f . runCursorT
@@ -111,11 +115,11 @@ instance MonadError e m => MonadError e (CursorT m) where
 
 instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
   popChar = CursorT $ do
-    i <- get
-    put (i + 1)
+    InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
+    put InputPosition {underlyingIndex = i + 1, pushedChars = pcs}
     lift (inputChar i)
   peekChar = CursorT $ do
-    i <- get
+    InputPosition {underlyingIndex = i, pushedChars = _} <- get
     lift (inputChar i)
   lookahead (CursorT m) = CursorT $ do
     oldPos <- get
