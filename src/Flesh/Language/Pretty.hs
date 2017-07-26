@@ -116,17 +116,26 @@ instance MonadError e m => MonadError e (CursorT m) where
 instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
   popChar = CursorT $ do
     InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
-    put InputPosition {underlyingIndex = i + 1, pushedChars = pcs}
-    lift (inputChar i)
+    case pcs of
+      [] -> do
+        put InputPosition {underlyingIndex = i + 1, pushedChars = []}
+        lift (inputChar i)
+      (c:cs) -> do
+        put InputPosition {underlyingIndex = i, pushedChars = cs}
+        return $ Right c
   peekChar = CursorT $ do
-    InputPosition {underlyingIndex = i, pushedChars = _} <- get
-    lift (inputChar i)
+    InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
+    case pcs of
+      [] -> lift (inputChar i)
+      (c:_) -> return $ Right c
   lookahead (CursorT m) = CursorT $ do
     oldPos <- get
     v <- m
     put oldPos
     return v
-  pushChars = undefined -- FIXME
+  pushChars cs = CursorT $ do
+    InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
+    put InputPosition {underlyingIndex = i, pushedChars = cs ++ pcs}
 
 readCompleteLine :: IO (Either Failure [AndOrList])
 readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $
