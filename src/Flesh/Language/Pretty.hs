@@ -35,6 +35,7 @@ import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Data.Map.Lazy
 import Flesh.Language.Parser.Char
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Syntax

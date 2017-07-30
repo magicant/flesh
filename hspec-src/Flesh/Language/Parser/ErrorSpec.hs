@@ -25,6 +25,7 @@ import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.State.Strict
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Source.Position
 import Test.Hspec

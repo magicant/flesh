@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Alias
-import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
 import Test.Hspec

@@ -19,6 +19,7 @@ library
                        Flesh.Language.Alias.Core,
                        Flesh.Language.Parser.Alias,
                        Flesh.Language.Parser.Char,
+                       Flesh.Language.Parser.Class,
                        Flesh.Language.Parser.Error,
                        Flesh.Language.Parser.HereDoc,
                        Flesh.Language.Parser.Input,
