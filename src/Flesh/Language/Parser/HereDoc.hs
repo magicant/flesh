@@ -54,6 +54,7 @@ module Flesh.Language.Parser.HereDoc (
 import Control.Applicative
 import Control.Monad.State.Strict
 import Data.List.NonEmpty (NonEmpty(..))
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
