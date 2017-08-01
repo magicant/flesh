@@ -41,6 +41,7 @@ import qualified Flesh.Source.Position as P
 -- | Reason of a parse error.
 data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
+  | InputError IOError
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   | MissingRedirectionTarget
