@@ -32,7 +32,7 @@ import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
---import Flesh.Language.Parser.Input
+import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -54,6 +54,29 @@ instance Monad Overrun where
 instance MonadError Failure Overrun where
   throwError = Overrun . throwError
   catchError (Overrun m) f = Overrun (catchError m (runOverrun . f))
+
+instance MonadInput (StateT [Positioned Char] Overrun) where
+  popChar = do
+    cs <- get
+    case cs of
+      [] -> lift $ Overrun $ lift $ Nothing
+      (c:cs') -> do
+        put cs'
+        return (Right c)
+
+  lookahead m = do
+    savedstate <- get
+    result <- m
+    put savedstate
+    return result
+
+  peekChar = do
+    cs <- get
+    case cs of
+      [] -> lift $ Overrun $ lift $ Nothing
+      (c:_) -> return (Right c)
+
+  pushChars cs = modify' (cs ++)
 
 type Tester = ParserT (ReaderT Alias.DefinitionSet
   (StateT PositionedString (ExceptT Failure Identity)))
