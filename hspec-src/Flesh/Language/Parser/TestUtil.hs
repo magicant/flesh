@@ -15,7 +15,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Flesh.Language.Parser.TestUtil where
 
@@ -34,6 +37,23 @@ import Flesh.Source.Position
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+
+newtype Overrun a = Overrun {runOverrun :: ExceptT Failure Maybe a}
+
+instance Functor Overrun where
+  fmap f = Overrun . fmap f . runOverrun
+
+instance Applicative Overrun where
+  pure = Overrun . pure
+  Overrun a <*> Overrun b = Overrun (a <*> b)
+
+instance Monad Overrun where
+  Overrun a >>= f = Overrun (a >>= runOverrun . f)
+  Overrun a >> Overrun b = Overrun (a >> b)
+
+instance MonadError Failure Overrun where
+  throwError = Overrun . throwError
+  catchError (Overrun m) f = Overrun (catchError m (runOverrun . f))
 
 type Tester = ParserT (ReaderT Alias.DefinitionSet
   (StateT PositionedString (ExceptT Failure Identity)))
