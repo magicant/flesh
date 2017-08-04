@@ -119,14 +119,14 @@ runTesterWithDummyPositions parser s = runTester parser s'
 readAll :: MonadParser m => m String
 readAll = fmap (fmap snd) (many anyChar)
 
--- | @expectSuccessEof consumed lookahead parser result@ runs the given
--- @parser@ for the source code @consumed ++ lookahead@ and tests if the
+-- | @expectSuccessEof consumed unconsumed parser result@ runs the given
+-- @parser@ for the source code @consumed ++ unconsumed@ and tests if the
 -- expected @result@ is returned and if the expected @consumed@ part of the
 -- code is actually consumed.
 expectSuccessEof :: (Eq a, Show a) =>
   String -> String -> Tester a -> a -> SpecWith ()
-expectSuccessEof consumed lookahead parser result =
-  let s = consumed ++ lookahead
+expectSuccessEof consumed unconsumed parser result =
+  let s = consumed ++ unconsumed
       s' = spread (dummyPosition s) s
       e = runTester parser s'
    in context s $ do
@@ -139,10 +139,10 @@ expectSuccessEof consumed lookahead parser result =
 -- | Like 'expectSuccessEof', but tries many arbitrary remainders.
 expectSuccess :: (Eq a, Show a) =>
   String -> String -> Tester a -> a -> SpecWith ()
-expectSuccess consumed lookahead parser result =
-  context (consumed ++ lookahead ++ "...") $
+expectSuccess consumed unconsumed parser result =
+  context (consumed ++ unconsumed ++ "...") $
     prop "returns expected result and state" $ \remainder ->
-      let s = consumed ++ lookahead ++ remainder
+      let s = consumed ++ unconsumed ++ remainder
           s' = spread (dummyPosition s) s
           e = runTester parser s'
        in e === Right (result, dropP (length consumed) s')
@@ -174,13 +174,13 @@ expectPosition input parser expectedPositionIndex =
 -- with the given expected string.
 expectShowEof :: Show a =>
   String -> String -> Tester a -> String -> SpecWith ()
-expectShowEof consumed lookahead parser =
-  expectSuccessEof consumed lookahead (show <$> parser)
+expectShowEof consumed unconsumed parser =
+  expectSuccessEof consumed unconsumed (show <$> parser)
 
 -- | Like 'expectShowEof', but tries many arbitrary remainders.
 expectShow :: Show a => String -> String -> Tester a -> String -> SpecWith ()
-expectShow consumed lookahead parser =
-  expectSuccess consumed lookahead (show <$> parser)
+expectShow consumed unconsumed parser =
+  expectSuccess consumed unconsumed (show <$> parser)
 
 -- | @expectFailureEof input parser severity reason position@ runs the given
 -- @parser@ for the given @input@ and tests if it fails for the expected error
