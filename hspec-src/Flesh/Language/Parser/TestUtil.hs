@@ -208,7 +208,8 @@ expectShow consumed unconsumed parser =
 
 -- | @expectFailureEof input parser severity reason position@ runs the given
 -- @parser@ for the given @input@ and tests if it fails for the expected error
--- of the given @severity@, @reason@, and @position@.
+-- of the given @severity@, @reason@, and @position@. If the parser tries to
+-- read beyond the @unconsumed@ part, it receives end-of-file.
 --
 -- Type parameter @a@ needs to be 'Show' and 'Eq'. Map to @()@ if you want to
 -- apply to a non-Show or non-Eq @a@.
@@ -221,6 +222,18 @@ expectFailureEof input parser s r expectedPositionIndex =
    in context input $ do
      it "fails" $
        e `shouldBe` Left (s, Error r expectedPosition)
+
+-- | Like 'expectFailureEof', but the test fails if the parser tries to look
+-- ahead beyond the @input@.
+expectFailure :: (Eq a, Show a) =>
+  String -> OverrunTester a -> Severity -> Reason -> Int -> SpecWith ()
+expectFailure input parser s r expectedPositionIndex =
+  let s' = spread (dummyPosition input) input
+      e = runOverrunTester parser (unposition s')
+      expectedPosition = headPosition (dropP expectedPositionIndex s')
+   in context input $ do
+     it "fails" $
+       e `shouldBe` Just (Left (s, Error r expectedPosition))
 
 -- | @expectFailureEof'@ is like 'expectFailureEof', but tests the reason by
 -- predicate rather than direct comparison. This is useful when the reason
@@ -237,6 +250,27 @@ expectFailureEof' input parser s r expectedPositionIndex =
          Right e' ->
            it "fails" $ expectationFailure $ show e'
          Left (as, Error ar apos) -> do
+           it "fails with expected severity" $ as `shouldBe` s
+           it "fails with expected reason" $ ar `shouldSatisfy` r
+           it "fails at expected position" $ apos `shouldBe` expectedPosition
+
+-- | @expectFailure'@ is like 'expectFailure', but tests the reason by
+-- predicate rather than direct comparison. This is useful when the reason
+-- cannot be easily constructed.
+expectFailure' :: Show a =>
+  String -> OverrunTester a -> Severity -> (Reason -> Bool) -> Int ->
+    SpecWith ()
+expectFailure' input parser s r expectedPositionIndex =
+  let s' = spread (dummyPosition input) input
+      e = runOverrunTester parser (unposition s')
+      expectedPosition = headPosition (dropP expectedPositionIndex s')
+   in context input $
+       case e of
+         Nothing ->
+           it "fails" $ expectationFailure "input overrun"
+         Just (Right e') ->
+           it "fails" $ expectationFailure $ show e'
+         Just (Left (as, Error ar apos)) -> do
            it "fails with expected severity" $ as `shouldBe` s
            it "fails with expected reason" $ ar `shouldSatisfy` r
            it "fails at expected position" $ apos `shouldBe` expectedPosition

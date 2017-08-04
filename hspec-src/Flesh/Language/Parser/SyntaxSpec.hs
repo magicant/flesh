@@ -102,8 +102,7 @@ spec = do
       expectShow "a\\\nX" "" (tokenTill (lc (char 'X'))) "a"
 
     context "rejects empty token" $ do
-      expectFailureEof "\\\n)" (tokenTill (lc (char ')')))
-        Soft UnknownReason 0
+      expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
 
   describe "aliasableToken" $ do
     let at = runAliasT aliasableToken
@@ -264,6 +263,7 @@ spec = do
 
   describe "pipeline" $ do
     let p = runAliasT $ fill pipeline
+        p' = runAliasT $ fill pipeline
 
     context "can start with !" $ do
       expectShowEof "! foo bar " "\n" p "Just ! foo bar"
@@ -274,11 +274,12 @@ spec = do
       expectShowEof "\\\nnew" "" p "Just new"
 
     context "requires command after !" $ do
-      expectFailureEof "!" p Hard (MissingCommandAfter "!") 1
-      expectFailureEof "! ;" p Hard (MissingCommandAfter "!") 2
+      expectFailureEof "!"   p  Hard (MissingCommandAfter "!") 1
+      expectFailure    "! ;" p' Hard (MissingCommandAfter "!") 2
 
   describe "conditionalPipeline" $ do
     let cp = runAliasT $ fill conditionalPipeline
+        cp' = runAliasT $ fill conditionalPipeline
 
     context "can start with && followed by pipeline" $ do
       expectShowEof "&&foo" "" cp "Just && foo"
@@ -293,13 +294,13 @@ spec = do
       expectShowEof "|| \n \n foo" ";" cp "Just || foo"
 
     context "requires pipeline after operator" $ do
-      expectFailureEof "&&"    cp Hard (MissingCommandAfter "&&") 2
-      expectFailureEof "||\n;" cp Hard (MissingCommandAfter "||") 3
+      expectFailureEof "&&"    cp  Hard (MissingCommandAfter "&&") 2
+      expectFailure    "||\n;" cp' Hard (MissingCommandAfter "||") 3
 
     context "must start with operator" $ do
-      expectFailureEof "foo" cp Soft UnknownReason 0
-      expectFailureEof "! bar" cp Soft UnknownReason 0
-      expectFailureEof ";" cp Soft UnknownReason 0
+      expectFailure    "foo"   cp' Soft UnknownReason 0
+      expectFailure    "! bar" cp' Soft UnknownReason 0
+      expectFailureEof ";"     cp  Soft UnknownReason 0
 
   describe "andOrList" $ do
     let aol = runAliasT $ fill andOrList
@@ -357,8 +358,8 @@ spec = do
     context "fails with incomplete line" $ do
       expectFailureEof ";"      completeLine Hard UnknownReason 0
       expectFailureEof "&"      completeLine Hard UnknownReason 0
-      expectFailureEof "foo;&"  completeLine Hard UnknownReason 4
-      expectFailureEof "foo("   completeLine Hard UnknownReason 3
+      expectFailure    "foo;&"  completeLine Hard UnknownReason 4
+      expectFailure    "foo("   completeLine Hard UnknownReason 3
       expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
       expectFailureEof "foo;;"  completeLine Hard UnknownReason 3
 
