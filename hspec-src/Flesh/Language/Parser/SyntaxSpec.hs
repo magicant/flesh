@@ -123,17 +123,17 @@ spec = do
       expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
 
     it "returns nothing after substitution" $
-      let e = runTesterWithDummyPositions at defaultAliasName
+      let e = runFullInputTesterWithDummyPositions at defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     it "stops on recursion" $
-      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
-                defaultAliasName
+      let e = runFullInputTesterWithDummyPositions
+                (reparse aliasableToken >> readAll) defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
     it "stops on exact recursion" $
-      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
-                recursiveAlias
+      let e = runFullInputTesterWithDummyPositions
+                (reparse aliasableToken >> readAll) recursiveAlias
        in fmap fst e `shouldBe` Right ""
 
   describe "reserved" $ do
@@ -236,7 +236,7 @@ spec = do
       expectFailureEof "" sc Soft UnknownReason 0
 
     it "returns nothing after alias substitution" $
-      let e = runTesterWithDummyPositions sc defaultAliasName
+      let e = runFullInputTesterWithDummyPositions sc defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     context "does not alias-substitute second token" $ do
@@ -369,7 +369,7 @@ spec = do
             (Pipeline (SimpleCommand [] [] [HereDoc _ c] :| _) _) _ _] =
               Just c
           f _ = Nothing
-          p = runTesterWithDummyPositions (f <$> completeLine)
+          p = runFullInputTesterWithDummyPositions (f <$> completeLine)
 
       it "fills empty here document content" $
         fmap fst (p "<<X\nX\n") `shouldBe` Right (Just [])

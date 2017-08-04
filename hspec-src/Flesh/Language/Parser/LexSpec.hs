@@ -37,14 +37,15 @@ spec = do
       not ("#" `isPrefixOf` s) && not ("\\\n" `isPrefixOf` s) ==>
         let p = dummyPosition s
             s' = spread p s
-         in runTester comment s' === Left (Soft, Error UnknownReason p)
+         in runFullInputTester comment s' ===
+              Left (Soft, Error UnknownReason p)
 
     prop "parses up to newline" $ \s s' ->
       not (elem '\n' s) ==>
         let input = '#' : s ++ '\n' : s'
             p = dummyPosition input
             input' = spread p input
-            e = runTester comment input'
+            e = runFullInputTester comment input'
             out = unposition $ spread (next p) s
          in e === Right (out, dropP (length s + 1) input')
 
@@ -53,7 +54,7 @@ spec = do
         let input = '#' : s
             p = dummyPosition input
             input' = spread p input
-            e = runTester comment input'
+            e = runFullInputTester comment input'
             out = unposition $ spread (next p) s
          in e === Right (out, dropP (length s + 1) input')
 
