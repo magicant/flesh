@@ -107,17 +107,18 @@ spec = do
 
   describe "aliasableToken" $ do
     let at = runAliasT aliasableToken
+        at' = runAliasT aliasableToken
 
     context "returns unmatched token" $ do
-      expectShow "foo" ";" at "Just foo"
+      expectShow "foo" ";" at' "Just foo"
 
     context "returns quoted token" $ do
-      expectShow "f\\oo" ";" at "Just f\\oo"
-      expectShow "f\"o\"o" "&" at "Just f\"o\"o"
-      expectShow "f'o'o" ")" at "Just f'o'o"
+      expectShow "f\\oo" ";" at' "Just f\\oo"
+      expectShow "f\"o\"o" "&" at' "Just f\"o\"o"
+      expectShow "f'o'o" ")" at' "Just f'o'o"
 
     context "returns non-constant token" $ do
-      expectShow "f${1}o" ";" at "Just f${1}o"
+      expectShow "f${1}o" ";" at' "Just f${1}o"
 
     context "modifies pending input" $ do
       expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
@@ -302,6 +303,7 @@ spec = do
 
   describe "andOrList" $ do
     let aol = runAliasT $ fill andOrList
+        aol' = runAliasT $ fill andOrList
 
     context "consists of pipelines" $ do
       expectShowEof "foo;" "" aol "Just foo;"
@@ -316,16 +318,16 @@ spec = do
         "Just foo && ! bar || baz&"
 
     context "can end before newline" $ do
-      expectShow "foo" "\n" aol "Just foo;"
-      expectShow "foo && bar" "\n" aol "Just foo && bar;"
+      expectShow "foo" "\n" aol' "Just foo;"
+      expectShow "foo && bar" "\n" aol' "Just foo && bar;"
       context "cannot have newlines before && or ||" $ do
         expectShowEof "foo" "\n&&bar" aol "Just foo;"
         expectShowEof "foo" "\n||bar" aol "Just foo;"
 
     context "can end before operators" $ do
-      expectShow "foo" ";;" aol "Just foo;"
-      expectShow "foo" "("  aol "Just foo;"
-      expectShow "foo" ")"  aol "Just foo;"
+      expectShow "foo" ";;" aol' "Just foo;"
+      expectShow "foo" "("  aol' "Just foo;"
+      expectShow "foo" ")"  aol' "Just foo;"
 
     context "can end at end of input" $ do
       expectShowEof "foo" "" aol "Just foo;"
