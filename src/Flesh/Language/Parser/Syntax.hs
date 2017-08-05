@@ -227,7 +227,7 @@ simpleCommand = f <$> nonEmptyBody
           pure ([], [], [])
         redirect' = mapHereDocT lift redirect
         aliasableToken' = lift aliasableToken
-        normalToken' = lift normalToken
+        normalToken' = lift $ lift normalToken
         fRedir r (ts, as, rs) = (ts, as, r:rs)
         fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
