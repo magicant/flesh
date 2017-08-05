@@ -29,7 +29,7 @@ This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  MonadInput(..), followedBy, currentPosition) where
+  MonadInput(..), followedBy) where
 
 import Flesh.Source.Position
 import Control.Monad.Except
@@ -67,6 +67,10 @@ class Monad m => MonadInput m where
   -- position. The default implementation is @lookahead popChar@.
   peekChar :: m (Either Position (Positioned Char))
   peekChar = lookahead popChar
+  -- | Returns the current position.
+  -- The default implementation is @either id fst <$> peekChar@.
+  currentPosition :: m Position
+  currentPosition = either id fst <$> peekChar
   -- | Pushes the given characters into the current position. Subsequent reads
   -- must first return the inserted characters and then return to the original
   -- position, continuing to characters that would have been immediately read
@@ -76,10 +80,6 @@ class Monad m => MonadInput m where
 -- | Like 'lookahead', but ignores the result.
 followedBy :: MonadInput m => m a -> m ()
 followedBy = void . lookahead
-
--- | Returns the current position.
-currentPosition :: MonadInput m => m Position
-currentPosition = either id fst <$> peekChar
 
 -- This would result in undecidable instance.
 -- instance (Monad m, MonadState PositionedString m) => MonadInput m where
