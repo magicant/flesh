@@ -31,11 +31,11 @@ parser.
 module Flesh.Language.Parser.Input (
   MonadInput(..), followedBy, currentPosition) where
 
-import Flesh.Source.Position
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
+import Flesh.Source.Position
 
 -- | Monad for character input operations.
 --
