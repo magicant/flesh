@@ -44,10 +44,10 @@ spec = do
       not (elem '\n' s) ==>
         let input = '#' : s ++ '\n' : s'
             p = dummyPosition input
-            input' = spread p input
-            e = runFullInputTester comment input'
+            input' = unposition $ spread p input
+            e = runOverrunTester comment input'
             out = unposition $ spread (next p) s
-         in e === Right (out, dropP (length s + 1) input')
+         in e === Just (Right (out, drop (length s + 1) input'))
 
     prop "parses up to end-of-file" $ \s ->
       not (elem '\n' s) ==>
@@ -62,70 +62,70 @@ spec = do
       expectSuccessEof "\\\n\\\n#" "" comment []
 
     context "ignores line continuations in comment body" $ do
-      expectSuccessEof "#\\" "\n" (fmap (fmap snd) comment) "\\"
+      expectSuccess "#\\" "\n" (fmap (fmap snd) comment) "\\"
 
   describe "whites" $ do
     context "does not skip newline" $ do
-      expectSuccessEof "" "\n" ("" <$ whites) ""
+      expectSuccess "" "\n" ("" <$ whites) ""
 
   describe "anyOperator" $ do
     context "parses control operator" $ do
       expectSuccessEof ";"  ""  (snd <$> anyOperator) ";"
-      expectSuccessEof ";"  "&" (snd <$> anyOperator) ";"
+      expectSuccess    ";"  "&" (snd <$> anyOperator) ";"
       expectSuccess    ";;" ""  (snd <$> anyOperator) ";;"
       expectSuccessEof "|"  ""  (snd <$> anyOperator) "|"
       expectSuccessEof "|"  "&" (snd <$> anyOperator) "|"
       expectSuccess    "||" ""  (snd <$> anyOperator) "||"
       expectSuccessEof "&"  ""  (snd <$> anyOperator) "&"
-      expectSuccessEof "&"  "|" (snd <$> anyOperator) "&"
+      expectSuccess    "&"  "|" (snd <$> anyOperator) "&"
       expectSuccess    "&&" ""  (snd <$> anyOperator) "&&"
       expectSuccess    "("  ""  (snd <$> anyOperator) "("
       expectSuccess    ")"  ""  (snd <$> anyOperator) ")"
 
     context "parses redirection operator" $ do
       expectSuccessEof "<"   ""  (snd <$> anyOperator) "<"
-      expectSuccessEof "<"   "-" (snd <$> anyOperator) "<"
-      expectSuccessEof "<"   "|" (snd <$> anyOperator) "<"
+      expectSuccess    "<"   "-" (snd <$> anyOperator) "<"
+      expectSuccess    "<"   "|" (snd <$> anyOperator) "<"
       expectSuccessEof "<<"  ""  (snd <$> anyOperator) "<<"
-      expectSuccessEof "<<"  "|" (snd <$> anyOperator) "<<"
+      expectSuccess    "<<"  "|" (snd <$> anyOperator) "<<"
       expectSuccess    "<<-" ""  (snd <$> anyOperator) "<<-"
       expectSuccess    "<>"  ""  (snd <$> anyOperator) "<>"
       expectSuccess    "<&"  ""  (snd <$> anyOperator) "<&"
       expectSuccessEof ">"   ""  (snd <$> anyOperator) ">"
-      expectSuccessEof ">"   "-" (snd <$> anyOperator) ">"
+      expectSuccess    ">"   "-" (snd <$> anyOperator) ">"
       expectSuccess    ">>"  ""  (snd <$> anyOperator) ">>"
       expectSuccess    ">|"  ""  (snd <$> anyOperator) ">|"
       expectSuccess    ">&"  ""  (snd <$> anyOperator) ">&"
 
     context "skips line continuations" $ do
-      expectSuccessEof "\\\n&\\\n\\\n&"  "\\\n" (snd <$> anyOperator) "&&"
-      expectSuccessEof "\\\n<\\\n<\\\n-" "\\\n" (snd <$> anyOperator) "<<-"
+      expectSuccess "\\\n&\\\n\\\n&"  "\\\n" (snd <$> anyOperator) "&&"
+      expectSuccess "\\\n<\\\n<\\\n-" "\\\n" (snd <$> anyOperator) "<<-"
 
   describe "operator" $ do
     context "parses argument control operator" $ do
       expectSuccessEof ";"  ""  (snd <$> operator ";")  ";"
-      expectSuccessEof ";"  "&" (snd <$> operator ";")  ";"
+      expectSuccess    ";"  "&" (snd <$> operator ";")  ";"
       expectSuccess    ";;" ""  (snd <$> operator ";;") ";;"
       expectSuccessEof "|"  ""  (snd <$> operator "|")  "|"
-      expectSuccessEof "|"  "&" (snd <$> operator "|")  "|"
+      expectSuccess    "|"  "&" (snd <$> operator "|")  "|"
       expectSuccess    "||" ""  (snd <$> operator "||") "||"
       expectSuccessEof "&"  ""  (snd <$> operator "&")  "&"
-      expectSuccessEof "&"  "|" (snd <$> operator "&")  "&"
+      expectSuccess    "&"  "|" (snd <$> operator "&")  "&"
       expectSuccess    "&&" ""  (snd <$> operator "&&") "&&"
       expectSuccess    "("  ""  (snd <$> operator "(")  "("
       expectSuccess    ")"  ""  (snd <$> operator ")")  ")"
 
     context "parses argument redirection operator" $ do
       expectSuccessEof "<"   ""  (snd <$> operator "<")   "<"
-      expectSuccessEof "<"   "-" (snd <$> operator "<")   "<"
-      expectSuccessEof "<"   "|" (snd <$> operator "<")   "<"
+      expectSuccess    "<"   "-" (snd <$> operator "<")   "<"
+      expectSuccess    "<"   "|" (snd <$> operator "<")   "<"
       expectSuccessEof "<<"  ""  (snd <$> operator "<<")  "<<"
-      expectSuccessEof "<<"  "|" (snd <$> operator "<<")  "<<"
+      expectSuccess    "<<"  "|" (snd <$> operator "<<")  "<<"
       expectSuccess    "<<-" ""  (snd <$> operator "<<-") "<<-"
       expectSuccess    "<>"  ""  (snd <$> operator "<>")  "<>"
       expectSuccess    "<&"  ""  (snd <$> operator "<&")  "<&"
       expectSuccessEof ">"   ""  (snd <$> operator ">")   ">"
-      expectSuccessEof ">"   "-" (snd <$> operator ">")   ">"
+      expectSuccess    ">"   "-" (snd <$> operator ">")   ">"
       expectSuccess    ">>"  ""  (snd <$> operator ">>")  ">>"
       expectSuccess    ">|"  ""  (snd <$> operator ">|")  ">|"
       expectSuccess    ">&"  ""  (snd <$> operator ">&")  ">&"
@@ -138,16 +138,16 @@ spec = do
       expectFailure    "<<-" (operator "<")  Soft UnknownReason 0
       expectFailure    "<<-" (operator "<<") Soft UnknownReason 0
       expectFailure    "<>"  (operator "<<") Soft UnknownReason 0
-      expectFailureEof ">>"  (operator ">")  Soft UnknownReason 0
+      expectFailure    ">>"  (operator ">")  Soft UnknownReason 0
       expectFailure    ">|"  (operator ">")  Soft UnknownReason 0
       expectFailure    ">&"  (operator ">")  Soft UnknownReason 0
       expectFailure    "\\\n>&" (operator ">") Soft UnknownReason 2
 
   describe "ioNumber" $ do
     context "parses digits followed by < or >" $ do
-      expectSuccessEof "1" "<" ioNumber 1
-      expectSuccessEof "20" ">" ioNumber 20
-      expectSuccessEof "123" ">" ioNumber 123
+      expectSuccess "1" "<" ioNumber 1
+      expectSuccess "20" ">" ioNumber 20
+      expectSuccess "123" ">" ioNumber 123
 
     context "rejects non-digits" $ do
       expectFailure "<" ioNumber Soft UnknownReason 0

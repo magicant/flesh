@@ -128,6 +128,11 @@ runFullInputTesterWithDummyPositions :: FullInputTester a -> String
 runFullInputTesterWithDummyPositions parser s = runFullInputTester parser s'
   where s' = spread (dummyPosition s) s
 
+runOverrunTesterWithDummyPositions :: OverrunTester a -> String ->
+  Maybe (Either Failure (a, [Positioned Char]))
+runOverrunTesterWithDummyPositions parser s = runOverrunTester parser s'
+  where s' = unposition $ spread (dummyPosition s) s
+
 readAll :: MonadParser m => m String
 readAll = fmap (fmap snd) (many anyChar)
 
