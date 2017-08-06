@@ -15,7 +15,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Flesh.Language.Parser.TestUtil where
 
@@ -29,14 +32,64 @@ import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
---import Flesh.Language.Parser.Input
+import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
-type Tester = ParserT (ReaderT Alias.DefinitionSet
-  (StateT PositionedString (ExceptT Failure Identity)))
+newtype Overrun a = Overrun {
+  runOverrun :: StateT PositionedString (ExceptT Failure Maybe) a}
+
+instance Functor Overrun where
+  fmap f = Overrun . fmap f . runOverrun
+
+instance Applicative Overrun where
+  pure = Overrun . pure
+  Overrun a <*> Overrun b = Overrun (a <*> b)
+
+instance Monad Overrun where
+  Overrun a >>= f = Overrun (a >>= runOverrun . f)
+  Overrun a >> Overrun b = Overrun (a >> b)
+
+instance MonadError Failure Overrun where
+  throwError = Overrun . throwError
+  catchError (Overrun m) f = Overrun (catchError m (runOverrun . f))
+
+instance MonadInput Overrun where
+  popChar = Overrun $ do
+    cs <- get
+    case cs of
+      Nil _ -> lift $ lift Nothing
+      c :~ cs' -> do
+        put cs'
+        return $ Right c
+
+  lookahead m = Overrun $ do
+    savedstate <- get
+    result <- runOverrun m
+    put savedstate
+    return result
+
+  peekChar = Overrun $ do
+    cs <- get
+    case cs of
+      Nil _ -> lift $ lift Nothing
+      c :~ _ -> return $ Right c
+
+  currentPosition = Overrun $ headPosition <$> get
+
+  pushChars [] = return ()
+  pushChars (c:cs) = do
+    pushChars cs
+    Overrun $ modify' (c :~)
+
+type TesterT m = ParserT (ReaderT Alias.DefinitionSet m)
+type OverrunTester = TesterT Overrun
+type FullInputTester =
+  TesterT (StateT PositionedString (ExceptT Failure Identity))
+
+type Tester = FullInputTester -- TODO replace
 
 defaultAliasName :: String
 defaultAliasName = "ls"
