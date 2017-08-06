@@ -89,8 +89,6 @@ type OverrunTester = TesterT Overrun
 type FullInputTester =
   TesterT (StateT PositionedString (ExceptT Failure Identity))
 
-type Tester = FullInputTester -- TODO replace
-
 defaultAliasName :: String
 defaultAliasName = "ls"
 
@@ -110,20 +108,24 @@ defaultAliasDefinitions =
             r = T.pack recursiveAlias
             pr = dummyPosition "alias rec=rec"
 
-runTesterAlias :: Tester a -> Alias.DefinitionSet -> PositionedString
-               -> Either Failure (a, PositionedString)
-runTesterAlias parser defs ps =
-  runIdentity $ runExceptT $ runStateT p1 ps
-    where p1 = runReaderT p2 defs
-          p2 = runParserT parser
+runTesterAliasT :: TesterT m a -> Alias.DefinitionSet -> m a
+runTesterAliasT parser defs = runReaderT (runParserT parser) defs
 
-runTester :: Tester a -> PositionedString
-          -> Either Failure (a, PositionedString)
-runTester parser = runTesterAlias parser defaultAliasDefinitions
+runFullInputTesterAlias :: FullInputTester a
+                        -> Alias.DefinitionSet -> PositionedString
+                        -> Either Failure (a, PositionedString)
+runFullInputTesterAlias parser defs ps =
+  runIdentity $ runExceptT $ runStateT (runTesterAliasT parser defs) ps
+    
 
-runTesterWithDummyPositions :: Tester a -> String
+runFullInputTester :: FullInputTester a -> PositionedString
+                   -> Either Failure (a, PositionedString)
+runFullInputTester parser =
+  runFullInputTesterAlias parser defaultAliasDefinitions
+
+runFullInputTesterWithDummyPositions :: FullInputTester a -> String
                             -> Either Failure (a, PositionedString)
-runTesterWithDummyPositions parser s = runTester parser s'
+runFullInputTesterWithDummyPositions parser s = runFullInputTester parser s'
   where s' = spread (dummyPosition s) s
 
 readAll :: MonadParser m => m String
@@ -134,11 +136,11 @@ readAll = fmap (fmap snd) (many anyChar)
 -- expected @result@ is returned and if the expected @consumed@ part of the
 -- code is actually consumed.
 expectSuccessEof :: (Eq a, Show a) =>
-  String -> String -> Tester a -> a -> SpecWith ()
+  String -> String -> FullInputTester a -> a -> SpecWith ()
 expectSuccessEof consumed unconsumed parser result =
   let s = consumed ++ unconsumed
       s' = spread (dummyPosition s) s
-      e = runTester parser s'
+      e = runFullInputTester parser s'
    in context s $ do
      it "returns expected result successfully" $
        fmap fst e `shouldBe` Right result
@@ -148,47 +150,48 @@ expectSuccessEof consumed unconsumed parser result =
 
 -- | Like 'expectSuccessEof', but tries many arbitrary remainders.
 expectSuccess :: (Eq a, Show a) =>
-  String -> String -> Tester a -> a -> SpecWith ()
+  String -> String -> FullInputTester a -> a -> SpecWith ()
 expectSuccess consumed unconsumed parser result =
   context (consumed ++ unconsumed ++ "...") $
     prop "returns expected result and state" $ \remainder ->
       let s = consumed ++ unconsumed ++ remainder
           s' = spread (dummyPosition s) s
-          e = runTester parser s'
+          e = runFullInputTester parser s'
        in e === Right (result, dropP (length consumed) s')
 
 -- | @expectPositionEof input parser expectedPositionIndex@ runs the given
 -- @parser@ for the given @input@ and tests if the result is a position at the
 -- given index withing the input.
-expectPositionEof :: String -> Tester Position -> Int -> SpecWith ()
+expectPositionEof :: String -> FullInputTester Position -> Int -> SpecWith ()
 expectPositionEof input parser expectedPositionIndex =
   let s' = spread (dummyPosition input) input
-      e = runTester parser s'
+      e = runFullInputTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
    in context input $ do
      it "returns expected position" $
        fmap fst e `shouldBe` Right expectedPosition
 
 -- | Like 'expectPositionEof', but tries many arbitrary remainders.
-expectPosition :: String -> Tester Position -> Int -> SpecWith ()
+expectPosition :: String -> FullInputTester Position -> Int -> SpecWith ()
 expectPosition input parser expectedPositionIndex =
   context (input ++ "...") $
     prop "returns expected position" $ \remainder ->
       let s = input ++ remainder
           s' = spread (dummyPosition s) s
-          e = runTester parser s'
+          e = runFullInputTester parser s'
           expectedPosition = headPosition (dropP expectedPositionIndex s')
        in fmap fst e === Right expectedPosition
 
 -- | Like 'expectSuccessEof', but compares string representation of the result
 -- with the given expected string.
 expectShowEof :: Show a =>
-  String -> String -> Tester a -> String -> SpecWith ()
+  String -> String -> FullInputTester a -> String -> SpecWith ()
 expectShowEof consumed unconsumed parser =
   expectSuccessEof consumed unconsumed (show <$> parser)
 
 -- | Like 'expectShowEof', but tries many arbitrary remainders.
-expectShow :: Show a => String -> String -> Tester a -> String -> SpecWith ()
+expectShow :: Show a
+           => String -> String -> FullInputTester a -> String -> SpecWith ()
 expectShow consumed unconsumed parser =
   expectSuccess consumed unconsumed (show <$> parser)
 
@@ -199,10 +202,10 @@ expectShow consumed unconsumed parser =
 -- Type parameter @a@ needs to be 'Show' and 'Eq'. Map to @()@ if you want to
 -- apply to a non-Show or non-Eq @a@.
 expectFailureEof :: (Eq a, Show a) =>
-  String -> Tester a -> Severity -> Reason -> Int -> SpecWith ()
+  String -> FullInputTester a -> Severity -> Reason -> Int -> SpecWith ()
 expectFailureEof input parser s r expectedPositionIndex =
   let s' = spread (dummyPosition input) input
-      e = runTester parser s'
+      e = runFullInputTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
    in context input $ do
      it "fails" $
@@ -212,10 +215,11 @@ expectFailureEof input parser s r expectedPositionIndex =
 -- predicate rather than direct comparison. This is useful when the reason
 -- cannot be easily constructed.
 expectFailureEof' :: Show a =>
-  String -> Tester a -> Severity -> (Reason -> Bool) -> Int -> SpecWith ()
+  String -> FullInputTester a -> Severity -> (Reason -> Bool) -> Int ->
+    SpecWith ()
 expectFailureEof' input parser s r expectedPositionIndex =
   let s' = spread (dummyPosition input) input
-      e = runTester parser s'
+      e = runFullInputTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
    in context input $
        case e of
