@@ -49,32 +49,51 @@ import Control.Monad.Trans.Maybe
 -- position before the characters were read. Thereafter the same characters
 -- must be returned in subsequent read operations.
 --
--- Reading a character may be an operation with a side effect. Such side
--- effects must be encoded in the monad. When re-reading characters after the
--- position was rewound, however, characters must be read without side
--- effects. In other words, reading operations must be idempotent in terms of
--- side effects.
+-- Reading a character may be an operation with a side effect on an underlying
+-- (typically external) input source. Such side effects must be encoded in the
+-- monad. When re-reading characters after the position was rewound, however,
+-- characters must be read without side effects. In other words, reading
+-- operations must be idempotent in terms of side effects.
 class Monad m => MonadInput m where
   -- | Reads one character at the current position, advancing the position to
   -- the next character. If the current position is end-of-input, the position
   -- must not be changed and @Left position@ is returned.
+  --
+  -- 'popChar' may have a side effect of reading from an underlying input
+  -- source.
   popChar :: m (Either Position (Positioned Char))
+
   -- | Returns the result of the given monad but cancels any position update
   -- that have occurred in the monad, i.e., the position is rewound to the
   -- original.
+  --
+  -- Note that any side effects that occur in the monad cannot be canceled by
+  -- 'lookahead'.
   lookahead :: m a -> m a
+
   -- | Returns the character at the current position without advancing the
   -- position. The default implementation is @lookahead popChar@.
+  --
+  -- 'peekChar' may have a side effect of reading from an underlying input
+  -- source.
   peekChar :: m (Either Position (Positioned Char))
   peekChar = lookahead popChar
+
   -- | Returns the current position.
   -- The default implementation is @either id fst <$> peekChar@.
+  --
+  -- 'currentPosition' must not have any side effect on an underlying input
+  -- source, which means the default implementation is not applicable if
+  -- 'peekChar' has a side effect on an underlying input source.
   currentPosition :: m Position
   currentPosition = either id fst <$> peekChar
+
   -- | Pushes the given characters into the current position. Subsequent reads
   -- must first return the inserted characters and then return to the original
   -- position, continuing to characters that would have been immediately read
   -- if 'pushChars' was not used.
+  --
+  -- 'pushChars' must not have any side effect on an underlying input source.
   pushChars :: [Positioned Char] -> m ()
 
 -- | Like 'lookahead', but ignores the result.
@@ -104,6 +123,8 @@ instance Monad m => MonadInput (StateT PositionedString m) where
       Nil p -> Left p
       c :~ _ -> Right c
 
+  currentPosition = headPosition <$> get
+
   pushChars [] = return ()
   pushChars (c:cs) = do
     pushChars cs
@@ -113,18 +134,21 @@ instance MonadInput m => MonadInput (ExceptT e m) where
   popChar = lift popChar
   lookahead = mapExceptT lookahead
   peekChar = lift peekChar
+  currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
 instance MonadInput m => MonadInput (MaybeT m) where
   popChar = lift popChar
   lookahead = mapMaybeT lookahead
   peekChar = lift peekChar
+  currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
 instance MonadInput m => MonadInput (ReaderT e m) where
   popChar = lift popChar
   lookahead = mapReaderT lookahead
   peekChar = lift peekChar
+  currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
 -- vim: set et sw=2 sts=2 tw=78:

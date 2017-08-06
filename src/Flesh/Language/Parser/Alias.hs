@@ -121,6 +121,7 @@ instance MonadParser m => MonadInput (AliasT m) where
   popChar = lift popChar
   lookahead = mapAliasT lookahead
   peekChar = lift peekChar
+  currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
 instance (MonadParser m, MonadError e m) => MonadError e (AliasT m) where

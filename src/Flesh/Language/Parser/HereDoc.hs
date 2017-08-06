@@ -154,6 +154,7 @@ instance MonadParser m => MonadInput (AccumT m) where
   popChar = lift popChar
   lookahead = mapAccumT lookahead
   peekChar = lift peekChar
+  currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
 instance MonadParser m => MonadParser (AccumT m)
