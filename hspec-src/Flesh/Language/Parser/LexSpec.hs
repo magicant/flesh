@@ -24,13 +24,13 @@ import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Test.QuickCheck
+import Test.QuickCheck hiding (expectFailure)
 
 spec :: Spec
 spec = do
   describe "blank" $ do
     context "does not accept newline" $ do
-      expectFailureEof "\n" blank Soft UnknownReason 0
+      expectFailure "\n" blank Soft UnknownReason 0
 
   describe "comment" $ do
     prop "fails if input does not start with #" $ \s ->
@@ -131,17 +131,17 @@ spec = do
       expectSuccess    ">&"  ""  (snd <$> operator ">&")  ">&"
 
     context "rejects operator other than argument" $ do
-      expectFailureEof ";;"  (operator ";")  Soft UnknownReason 0
-      expectFailureEof "&&"  (operator "&")  Soft UnknownReason 0
-      expectFailureEof "||"  (operator "|")  Soft UnknownReason 0
+      expectFailure    ";;"  (operator ";")  Soft UnknownReason 0
+      expectFailure    "&&"  (operator "&")  Soft UnknownReason 0
+      expectFailure    "||"  (operator "|")  Soft UnknownReason 0
       expectFailureEof "<<"  (operator "<")  Soft UnknownReason 0
-      expectFailureEof "<<-" (operator "<")  Soft UnknownReason 0
-      expectFailureEof "<<-" (operator "<<") Soft UnknownReason 0
-      expectFailureEof "<>"  (operator "<<") Soft UnknownReason 0
+      expectFailure    "<<-" (operator "<")  Soft UnknownReason 0
+      expectFailure    "<<-" (operator "<<") Soft UnknownReason 0
+      expectFailure    "<>"  (operator "<<") Soft UnknownReason 0
       expectFailureEof ">>"  (operator ">")  Soft UnknownReason 0
-      expectFailureEof ">|"  (operator ">")  Soft UnknownReason 0
-      expectFailureEof ">&"  (operator ">")  Soft UnknownReason 0
-      expectFailureEof "\\\n>&"  (operator ">")  Soft UnknownReason 2
+      expectFailure    ">|"  (operator ">")  Soft UnknownReason 0
+      expectFailure    ">&"  (operator ">")  Soft UnknownReason 0
+      expectFailure    "\\\n>&" (operator ">") Soft UnknownReason 2
 
   describe "ioNumber" $ do
     context "parses digits followed by < or >" $ do
@@ -150,18 +150,18 @@ spec = do
       expectSuccessEof "123" ">" ioNumber 123
 
     context "rejects non-digits" $ do
-      expectFailureEof "<" ioNumber Soft UnknownReason 0
-      expectFailureEof "a" ioNumber Soft UnknownReason 0
-      expectFailureEof " " ioNumber Soft UnknownReason 0
+      expectFailure "<" ioNumber Soft UnknownReason 0
+      expectFailure "a" ioNumber Soft UnknownReason 0
+      expectFailure " " ioNumber Soft UnknownReason 0
 
     context "rejects digits not followed by < or >" $ do
       expectFailureEof "0" ioNumber Soft UnknownReason 1
-      expectFailureEof "1-" ioNumber Soft UnknownReason 1
-      expectFailureEof "23 " ioNumber Soft UnknownReason 2
+      expectFailure    "1-" ioNumber Soft UnknownReason 1
+      expectFailure    "23 " ioNumber Soft UnknownReason 2
 
     context "skips line continuations" $ do
-      expectSuccessEof "\\\n\\\n1" "<" ioNumber 1
-      expectSuccessEof "1" "\\\n\\\n<" ioNumber 1
-      expectFailureEof "1\\\n-" ioNumber Soft UnknownReason 3
+      expectSuccess "\\\n\\\n1" "<" ioNumber 1
+      expectSuccess "1" "\\\n\\\n<" ioNumber 1
+      expectFailure "1\\\n-" ioNumber Soft UnknownReason 3
 
 -- vim: set et sw=2 sts=2 tw=78:
