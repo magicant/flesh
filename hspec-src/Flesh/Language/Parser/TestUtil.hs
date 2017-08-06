@@ -35,8 +35,6 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck
 
 newtype Overrun a = Overrun {
   runOverrun :: StateT PositionedString (ExceptT Failure Maybe) a}
@@ -116,12 +114,22 @@ runFullInputTesterAlias :: FullInputTester a
                         -> Either Failure (a, PositionedString)
 runFullInputTesterAlias parser defs ps =
   runIdentity $ runExceptT $ runStateT (runTesterAliasT parser defs) ps
-    
+
+runOverrunTesterAlias :: OverrunTester a
+                      -> Alias.DefinitionSet -> PositionedString
+                      -> Maybe (Either Failure (a, PositionedString))
+runOverrunTesterAlias parser defs ps =
+  runExceptT $ runStateT m ps
+    where m = runOverrun $ runTesterAliasT parser defs
 
 runFullInputTester :: FullInputTester a -> PositionedString
                    -> Either Failure (a, PositionedString)
 runFullInputTester parser =
   runFullInputTesterAlias parser defaultAliasDefinitions
+
+runOverrunTester :: OverrunTester a -> PositionedString
+                 -> Maybe (Either Failure (a, PositionedString))
+runOverrunTester parser = runOverrunTesterAlias parser defaultAliasDefinitions
 
 runFullInputTesterWithDummyPositions :: FullInputTester a -> String
                             -> Either Failure (a, PositionedString)
@@ -134,7 +142,8 @@ readAll = fmap (fmap snd) (many anyChar)
 -- | @expectSuccessEof consumed unconsumed parser result@ runs the given
 -- @parser@ for the source code @consumed ++ unconsumed@ and tests if the
 -- expected @result@ is returned and if the expected @consumed@ part of the
--- code is actually consumed.
+-- code is actually consumed. If the parser tries to read beyond the
+-- @unconsumed@ part, it receives end-of-file.
 expectSuccessEof :: (Eq a, Show a) =>
   String -> String -> FullInputTester a -> a -> SpecWith ()
 expectSuccessEof consumed unconsumed parser result =
@@ -148,20 +157,28 @@ expectSuccessEof consumed unconsumed parser result =
      it "consumes expected part of source code" $
        fmap snd e `shouldBe` Right (dropP (length consumed) s')
 
--- | Like 'expectSuccessEof', but tries many arbitrary remainders.
+-- | @expectSuccess consumed unconsumed parser result@ runs the given @parser@
+-- for the source code @consumed ++ unconsumed@ and tests if the expected
+-- @result@ is returned and if the expected @consumed@ part of the code is
+-- actually consumed. The test fails if the parser tries to look ahead beyond
+-- the @unconsumed@ part.
 expectSuccess :: (Eq a, Show a) =>
-  String -> String -> FullInputTester a -> a -> SpecWith ()
+  String -> String -> OverrunTester a -> a -> SpecWith ()
 expectSuccess consumed unconsumed parser result =
-  context (consumed ++ unconsumed ++ "...") $
-    prop "returns expected result and state" $ \remainder ->
-      let s = consumed ++ unconsumed ++ remainder
-          s' = spread (dummyPosition s) s
-          e = runFullInputTester parser s'
-       in e === Right (result, dropP (length consumed) s')
+  let s = consumed ++ unconsumed
+      s' = spread (dummyPosition s) s
+      e = runOverrunTester parser s'
+   in context s $ do
+     it "returns expected result successfully" $
+       fmap (fmap fst) e `shouldBe` Just (Right result)
+
+     it "consumes expected part of source code" $
+       fmap (fmap snd) e `shouldBe` Just (Right (dropP (length consumed) s'))
 
 -- | @expectPositionEof input parser expectedPositionIndex@ runs the given
 -- @parser@ for the given @input@ and tests if the result is a position at the
--- given index withing the input.
+-- given index withing the input. If the parser tries to read beyond the
+-- @input@, it receives end-of-file.
 expectPositionEof :: String -> FullInputTester Position -> Int -> SpecWith ()
 expectPositionEof input parser expectedPositionIndex =
   let s' = spread (dummyPosition input) input
@@ -171,16 +188,18 @@ expectPositionEof input parser expectedPositionIndex =
      it "returns expected position" $
        fmap fst e `shouldBe` Right expectedPosition
 
--- | Like 'expectPositionEof', but tries many arbitrary remainders.
-expectPosition :: String -> FullInputTester Position -> Int -> SpecWith ()
+-- | @expectPosition input parser expectedPositionIndex@ runs the given
+-- @parser@ for the given @input@ and tests if the result is a position at the
+-- given index withing the input. The test fails if the parser tries to look
+-- ahead beyond the @input@.
+expectPosition :: String -> OverrunTester Position -> Int -> SpecWith ()
 expectPosition input parser expectedPositionIndex =
-  context (input ++ "...") $
-    prop "returns expected position" $ \remainder ->
-      let s = input ++ remainder
-          s' = spread (dummyPosition s) s
-          e = runFullInputTester parser s'
-          expectedPosition = headPosition (dropP expectedPositionIndex s')
-       in fmap fst e === Right expectedPosition
+  let s' = spread (dummyPosition input) input
+      e = runOverrunTester parser s'
+      expectedPosition = headPosition (dropP expectedPositionIndex s')
+   in context input $ do
+     it "returns expected position" $
+       fmap (fmap fst) e `shouldBe` Just (Right expectedPosition)
 
 -- | Like 'expectSuccessEof', but compares string representation of the result
 -- with the given expected string.
@@ -191,7 +210,7 @@ expectShowEof consumed unconsumed parser =
 
 -- | Like 'expectShowEof', but tries many arbitrary remainders.
 expectShow :: Show a
-           => String -> String -> FullInputTester a -> String -> SpecWith ()
+           => String -> String -> OverrunTester a -> String -> SpecWith ()
 expectShow consumed unconsumed parser =
   expectSuccess consumed unconsumed (show <$> parser)
 
