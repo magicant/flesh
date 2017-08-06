@@ -275,7 +275,7 @@ spec = do
 
     context "requires command after !" $ do
       expectFailureEof "!"   p  Hard (MissingCommandAfter "!") 1
-      expectFailure    "! ;" p' Hard (MissingCommandAfter "!") 2
+      expectFailure    "! )" p' Hard (MissingCommandAfter "!") 2
 
   describe "conditionalPipeline" $ do
     let cp = runAliasT $ fill conditionalPipeline
@@ -295,7 +295,7 @@ spec = do
 
     context "requires pipeline after operator" $ do
       expectFailureEof "&&"    cp  Hard (MissingCommandAfter "&&") 2
-      expectFailure    "||\n;" cp' Hard (MissingCommandAfter "||") 3
+      expectFailure    "||\n)" cp' Hard (MissingCommandAfter "||") 3
 
     context "must start with operator" $ do
       expectFailure    "foo"   cp' Soft UnknownReason 0
@@ -321,9 +321,11 @@ spec = do
     context "can end before newline" $ do
       expectShow "foo" "\n" aol' "Just foo;"
       expectShow "foo && bar" "\n" aol' "Just foo && bar;"
+{- These special cases are covered by the case above
       context "cannot have newlines before && or ||" $ do
         expectShowEof "foo" "\n&&bar" aol "Just foo;"
         expectShowEof "foo" "\n||bar" aol "Just foo;"
+-}
 
     context "can end before operators" $ do
       expectShow "foo" ";;" aol' "Just foo;"
@@ -358,7 +360,7 @@ spec = do
     context "fails with incomplete line" $ do
       expectFailureEof ";"      completeLine Hard UnknownReason 0
       expectFailureEof "&"      completeLine Hard UnknownReason 0
-      expectFailure    "foo;&"  completeLine Hard UnknownReason 4
+      expectFailure    "foo;& " completeLine Hard UnknownReason 4
       expectFailure    "foo("   completeLine Hard UnknownReason 3
       expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
       expectFailureEof "foo;;"  completeLine Hard UnknownReason 3
