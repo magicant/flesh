@@ -75,12 +75,16 @@ data Situation =
 -- | Source code fragment, typically a single line of code.
 data Fragment = Fragment {
     -- | Source code.
-    code :: !String,
+    code :: String,
     -- | Situation in which the source code occurred.
     situation :: !Situation,
     -- | Line number (starts from 0).
     lineNo :: !Int}
-  deriving (Eq, Show)
+  deriving (Show)
+
+-- | Equality of Fragment is compared ignoring their 'code'.
+instance Eq Fragment where
+  a == b = lineNo a == lineNo b && situation a == situation b
 
 -- | Position of a character that occurs in a source code fragment.
 data Position = Position {

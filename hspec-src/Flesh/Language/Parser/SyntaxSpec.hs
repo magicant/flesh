@@ -102,44 +102,44 @@ spec = do
       expectShow "a\\\nX" "" (tokenTill (lc (char 'X'))) "a"
 
     context "rejects empty token" $ do
-      expectFailureEof "\\\n)" (tokenTill (lc (char ')')))
-        Soft UnknownReason 0
+      expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
 
   describe "aliasableToken" $ do
     let at = runAliasT aliasableToken
+        at' = runAliasT aliasableToken
 
     context "returns unmatched token" $ do
-      expectShow "foo" ";" at "Just foo"
+      expectShow "foo" ";" at' "Just foo"
 
     context "returns quoted token" $ do
-      expectShow "f\\oo" ";" at "Just f\\oo"
-      expectShow "f\"o\"o" "&" at "Just f\"o\"o"
-      expectShow "f'o'o" ")" at "Just f'o'o"
+      expectShow "f\\oo" ";" at' "Just f\\oo"
+      expectShow "f\"o\"o" "&" at' "Just f\"o\"o"
+      expectShow "f'o'o" ")" at' "Just f'o'o"
 
     context "returns non-constant token" $ do
-      expectShow "f${1}o" ";" at "Just f${1}o"
+      expectShow "f${1}o" ";" at' "Just f${1}o"
 
     context "modifies pending input" $ do
       expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
 
     it "returns nothing after substitution" $
-      let e = runTesterWithDummyPositions at defaultAliasName
+      let e = runFullInputTesterWithDummyPositions at defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     it "stops on recursion" $
-      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
-                defaultAliasName
+      let e = runFullInputTesterWithDummyPositions
+                (reparse aliasableToken >> readAll) defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
     it "stops on exact recursion" $
-      let e = runTesterWithDummyPositions (reparse aliasableToken >> readAll)
-                recursiveAlias
+      let e = runFullInputTesterWithDummyPositions
+                (reparse aliasableToken >> readAll) recursiveAlias
        in fmap fst e `shouldBe` Right ""
 
   describe "reserved" $ do
     context "returns matching unquoted token" $ do
       expectShowEof "! " "" (reserved (T.pack "!")) "!"
-      expectShowEof "i\\\nf" "\n" (reserved (T.pack "if")) "if"
+      expectShow    "i\\\nf" "\n" (reserved (T.pack "if")) "if"
       expectShowEof "foo" "" (reserved (T.pack "foo")) "foo"
 
     context "fails on unmatching unquoted token" $ do
@@ -226,17 +226,19 @@ spec = do
 
   describe "simpleCommand" $ do
     let sc = runAliasT $ fill simpleCommand
+        sc' = runAliasT $ fill simpleCommand
 
     context "is some tokens" $ do
       expectShowEof "foo" "" sc "Just foo"
       expectShowEof "foo bar" ";" sc "Just foo bar"
-      expectShowEof "foo  bar\tbaz #X" "\n" sc "Just foo bar baz"
+      expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
 
     context "rejects empty command" $ do
-      expectFailureEof "" sc Soft UnknownReason 0
+      expectFailureEof ""   sc  Soft UnknownReason 0
+      expectFailure    "\n" sc' Soft UnknownReason 0
 
     it "returns nothing after alias substitution" $
-      let e = runTesterWithDummyPositions sc defaultAliasName
+      let e = runFullInputTesterWithDummyPositions sc defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     context "does not alias-substitute second token" $ do
@@ -245,6 +247,7 @@ spec = do
 
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
+        ps' = runAliasT $ fill $ NE.toList <$> pipeSequence
 
     context "can be one simple command" $ do
       expectShowEof "foo bar" "" ps "Just [foo bar]"
@@ -259,10 +262,11 @@ spec = do
       expectShowEof "a| \n\\\n \n b" "" ps "Just [a,b]"
 
     context "cannot have newlines before |" $ do
-      expectShowEof "a " "\n|b" ps "Just [a]"
+      expectShow "a " "\n|b" ps' "Just [a]"
 
   describe "pipeline" $ do
     let p = runAliasT $ fill pipeline
+        p' = runAliasT $ fill pipeline
 
     context "can start with !" $ do
       expectShowEof "! foo bar " "\n" p "Just ! foo bar"
@@ -273,11 +277,12 @@ spec = do
       expectShowEof "\\\nnew" "" p "Just new"
 
     context "requires command after !" $ do
-      expectFailureEof "!" p Hard (MissingCommandAfter "!") 1
-      expectFailureEof "! ;" p Hard (MissingCommandAfter "!") 2
+      expectFailureEof "!"   p  Hard (MissingCommandAfter "!") 1
+      expectFailure    "! )" p' Hard (MissingCommandAfter "!") 2
 
   describe "conditionalPipeline" $ do
     let cp = runAliasT $ fill conditionalPipeline
+        cp' = runAliasT $ fill conditionalPipeline
 
     context "can start with && followed by pipeline" $ do
       expectShowEof "&&foo" "" cp "Just && foo"
@@ -288,20 +293,21 @@ spec = do
       expectShowEof "|\\\n| ! foo bar |\nbaz" "" cp "Just || ! foo bar | baz"
 
     context "allows linebreak after operator" $ do
-      expectShowEof "&& \n\n ! foo" "\n" cp "Just && ! foo"
+      expectShow    "&& \n\n ! foo" "\n" cp' "Just && ! foo"
       expectShowEof "|| \n \n foo" ";" cp "Just || foo"
 
     context "requires pipeline after operator" $ do
-      expectFailureEof "&&"    cp Hard (MissingCommandAfter "&&") 2
-      expectFailureEof "||\n;" cp Hard (MissingCommandAfter "||") 3
+      expectFailureEof "&&"    cp  Hard (MissingCommandAfter "&&") 2
+      expectFailure    "||\n)" cp' Hard (MissingCommandAfter "||") 3
 
     context "must start with operator" $ do
-      expectFailureEof "foo" cp Soft UnknownReason 0
-      expectFailureEof "! bar" cp Soft UnknownReason 0
-      expectFailureEof ";" cp Soft UnknownReason 0
+      expectFailure    "foo"   cp' Soft UnknownReason 0
+      expectFailure    "! bar" cp' Soft UnknownReason 0
+      expectFailureEof ";"     cp  Soft UnknownReason 0
 
   describe "andOrList" $ do
     let aol = runAliasT $ fill andOrList
+        aol' = runAliasT $ fill andOrList
 
     context "consists of pipelines" $ do
       expectShowEof "foo;" "" aol "Just foo;"
@@ -316,16 +322,18 @@ spec = do
         "Just foo && ! bar || baz&"
 
     context "can end before newline" $ do
-      expectShow "foo" "\n" aol "Just foo;"
-      expectShow "foo && bar" "\n" aol "Just foo && bar;"
+      expectShow "foo" "\n" aol' "Just foo;"
+      expectShow "foo && bar" "\n" aol' "Just foo && bar;"
+{- These special cases are covered by the case above
       context "cannot have newlines before && or ||" $ do
         expectShowEof "foo" "\n&&bar" aol "Just foo;"
         expectShowEof "foo" "\n||bar" aol "Just foo;"
+-}
 
     context "can end before operators" $ do
-      expectShow "foo" ";;" aol "Just foo;"
-      expectShow "foo" "("  aol "Just foo;"
-      expectShow "foo" ")"  aol "Just foo;"
+      expectShow "foo" ";;" aol' "Just foo;"
+      expectShow "foo" "("  aol' "Just foo;"
+      expectShow "foo" ")"  aol' "Just foo;"
 
     context "can end at end of input" $ do
       expectShowEof "foo" "" aol "Just foo;"
@@ -355,28 +363,27 @@ spec = do
     context "fails with incomplete line" $ do
       expectFailureEof ";"      completeLine Hard UnknownReason 0
       expectFailureEof "&"      completeLine Hard UnknownReason 0
-      expectFailureEof "foo;&"  completeLine Hard UnknownReason 4
-      expectFailureEof "foo("   completeLine Hard UnknownReason 3
+      expectFailure    "foo;& " completeLine Hard UnknownReason 4
+      expectFailure    "foo("   completeLine Hard UnknownReason 3
       expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
       expectFailureEof "foo;;"  completeLine Hard UnknownReason 3
 
     context "reparses alias" $ do
-      expectShowEof (defaultAliasName ++ "\n") "" completeLine
-        defaultAliasValue
+      expectShow (defaultAliasName ++ "\n") "" completeLine defaultAliasValue
 
     context "fills here document content" $ do
       let f [AndOrList
             (Pipeline (SimpleCommand [] [] [HereDoc _ c] :| _) _) _ _] =
               Just c
           f _ = Nothing
-          p = runTesterWithDummyPositions (f <$> completeLine)
+          p = runOverrunTesterWithDummyPositions (f <$> completeLine)
 
       it "fills empty here document content" $
-        fmap fst (p "<<X\nX\n") `shouldBe` Right (Just [])
+        fmap (fmap fst) (p "<<X\nX\n") `shouldBe` Just (Right (Just []))
 
       it "fills non-empty here document content" $
-        fmap (fmap (snd . unzip) . fst) (p "<<X\n\nX\n") `shouldBe`
-          Right (Just [Char '\n'])
+        fmap (fmap (fmap (snd . unzip) . fst)) (p "<<X\n\nX\n") `shouldBe`
+          Just (Right (Just [Char '\n']))
 
     context "fails with missing here doc contents" $ do
       let isExpectedReason (MissingHereDocContents

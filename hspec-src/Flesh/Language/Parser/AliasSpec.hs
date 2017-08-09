@@ -45,7 +45,7 @@ testSubstituteAlias result remainder l s t v =
       pos' = dummyPosition ""
       def = definition s' v' pos'
       defs = M.singleton s' def
-      run m = fmap fst (runTesterAlias m defs l')
+      run m = fmap fst (runFullInputTesterAlias m defs l')
       subst = ParserT $ runMaybeT $ substituteAlias pos' t'
    in run subst === Right result .&&.
         run (subst >> readAll) === Right remainder
@@ -69,7 +69,7 @@ spec = do
           sSit = Alias lPos def
           sFrag = Fragment "" sSit 0
           sPos = Position sFrag 0
-          run m = fmap fst (runTesterAlias m defs pl)
+          run m = fmap fst (runFullInputTesterAlias m defs pl)
           subst = ParserT $ runMaybeT $ substituteAlias sPos n'
        in run subst === Right Nothing .&&. run (subst >> readAll) === Right l
 

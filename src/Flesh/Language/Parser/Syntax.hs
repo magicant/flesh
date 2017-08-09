@@ -256,12 +256,13 @@ pipeline =
 
 -- | Parses an and-or condition token (@&&@ or @||@).
 andOrCondition :: MonadParser m => m AndOrCondition
-andOrCondition = do
-  (p, o) <- anyOperator <* whites
-  case o of
-    "&&" -> return AndThen
-    "||" -> return OrElse
-    _ -> failureOfPosition p
+andOrCondition = op <* whites
+  where op = do
+          (p, o) <- anyOperator
+          case o of
+            "&&" -> return AndThen
+            "||" -> return OrElse
+            _ -> failureOfPosition p
 
 -- | Parses a conditional pipeline.
 conditionalPipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -281,12 +282,13 @@ conditionalPipeline =
 -- | Parses a separator operator (@;@ or @&@). Returns True and False if the
 -- separator is @&@ and @;@, respectively.
 separatorOp :: MonadParser m => m Bool
-separatorOp = do
-  (p, o) <- anyOperator <* whites
-  case o of
-    ";" -> return False
-    "&" -> return True
-    _ -> failureOfPosition p
+separatorOp = op <* whites
+  where op = do
+          (p, o) <- anyOperator
+          case o of
+            ";" -> return False
+            "&" -> return True
+            _ -> failureOfPosition p
 
 -- | Parses an and-or list (@and_or@) and 'separator'.
 andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)

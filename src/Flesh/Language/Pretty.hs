@@ -85,6 +85,13 @@ inputChar i = ci
                 Just _ -> return (Left (nextPosition "" rcs))
                 Nothing -> readNextLine >> ci
 
+inputCharPosition :: (MonadState InputRecord m) => Int -> m Position
+inputCharPosition i = do
+  InputRecord {readChars = rcs, eofError = _} <- get
+  return $ case drop i rcs of
+    [] -> nextPosition "" rcs
+    ((p, _):_) -> p
+
 data InputPosition = InputPosition {
   underlyingIndex :: Int,
   pushedChars :: [Positioned Char]}
@@ -123,16 +130,25 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
       (c:cs) -> do
         put InputPosition {underlyingIndex = i, pushedChars = cs}
         return $ Right c
+
   peekChar = CursorT $ do
     InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
     case pcs of
       [] -> lift (inputChar i)
       (c:_) -> return $ Right c
+
   lookahead (CursorT m) = CursorT $ do
     oldPos <- get
     v <- m
     put oldPos
     return v
+
+  currentPosition = CursorT $ do
+    InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
+    case pcs of
+      [] -> lift (inputCharPosition i)
+      ((p, _):_) -> return p
+
   pushChars cs = CursorT $ do
     InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
     put InputPosition {underlyingIndex = i, pushedChars = cs ++ pcs}

@@ -255,6 +255,7 @@ instance MonadInput m => MonadInput (ParserT m) where
   popChar = lift popChar
   lookahead = mapParserT lookahead
   peekChar = lift peekChar
+  currentPosition = lift currentPosition
   pushChars = lift <$> pushChars
 
 instance MonadError e m => MonadError e (ParserT m) where
