@@ -41,6 +41,7 @@ import Flesh.Language.Parser.Syntax
 import Flesh.Language.Syntax.Print
 import Flesh.Source.Position
 import System.Exit
+import System.IO
 import System.IO.Error
 
 data InputRecord = InputRecord {
@@ -158,7 +159,8 @@ readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $
   flip runReaderT empty $ runParserT $ notFollowedBy eof *> completeLine
 
 writeCompleteLine :: Either Failure [AndOrList] -> IO ()
-writeCompleteLine (Left _e) = exitFailure -- TODO write error
+writeCompleteLine (Left e) = hPutStrLn stderr (show e) >> exitFailure
+-- TODO print error in human-friendly format
 writeCompleteLine (Right aols) = putStr (runPrint (printList aols) "")
 
 -- | Repeatedly reads commands from the standard input and pretty-prints them
