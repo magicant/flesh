@@ -28,11 +28,13 @@ shell language.
 module Flesh.Language.Parser.Lex (
   lineContinuation, lc, blank, digit, comment, whites, operatorStarter,
   endOfToken, anyOperator, operator, operatorToken, redirectOperatorToken,
-  ioNumber) where
+  ioNumber, isReserved) where
 
 import Control.Applicative
 import Data.Char
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Set as S
+import qualified Data.Text as T
 import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -144,5 +146,39 @@ ioNumber = do
       followedBy $ lc $ oneOfChars "<>"
       return n
     _ -> failureOfPosition $ fst (NE.head ds)
+
+-- | Reserved word text constant.
+reservedBang, reservedCase, reservedDo, reservedDone, reservedElif,
+  reservedElse, reservedEsac, reservedFi, reservedFor, reservedFunction,
+  reservedIf, reservedIn, reservedThen, reservedUntil, reservedWhile,
+  reservedOpenBrace, reservedCloseBrace :: T.Text
+reservedBang       = T.pack "!"
+reservedCase       = T.pack "case"
+reservedDo         = T.pack "do"
+reservedDone       = T.pack "done"
+reservedElif       = T.pack "elif"
+reservedElse       = T.pack "else"
+reservedEsac       = T.pack "esac"
+reservedFi         = T.pack "fi"
+reservedFor        = T.pack "for"
+reservedFunction   = T.pack "function"
+reservedIf         = T.pack "if"
+reservedIn         = T.pack "in"
+reservedThen       = T.pack "then"
+reservedUntil      = T.pack "until"
+reservedWhile      = T.pack "while"
+reservedOpenBrace  = T.pack "{"
+reservedCloseBrace = T.pack "}"
+
+-- | Set of all the reserved words.
+reservedWords :: S.Set T.Text
+reservedWords = S.fromList [reservedBang, reservedCase, reservedDo,
+  reservedDone, reservedElif, reservedElse, reservedEsac, reservedFi,
+  reservedFor, reservedFunction, reservedIf, reservedIn, reservedThen,
+  reservedUntil, reservedWhile, reservedOpenBrace, reservedCloseBrace]
+
+-- | Tests if the argument text is a reserved word token.
+isReserved :: T.Text -> Bool
+isReserved t = S.member t reservedWords
 
 -- vim: set et sw=2 sts=2 tw=78:
