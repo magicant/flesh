@@ -55,11 +55,11 @@ type ContextT = ReaderT DefinitionSet
 -- If alias substitution occurs on the first token in the parser, the result
 -- will be 'Nothing' and the parser must be applied again.
 --
--- | The '<*>' and '>>= operators for 'AliasT' behave differently from those
--- of 'MaybeT'. They try to re-parse the right hand side if it returned
--- 'Nothing' and the left hand side consumed any input characters. In other
--- words, the right hand side is implicitly re-parsed if the left hand side
--- was successfully parsed as a non-empty non-terminal.
+-- The '<*>' and '>>=' operators for 'AliasT' behave differently from those of
+-- 'MaybeT'. They try to re-parse the right hand side if it returned 'Nothing'
+-- and the left hand side consumed any input characters. In other words, the
+-- right hand side is implicitly re-parsed if the left hand side was
+-- successfully parsed as a non-empty non-terminal.
 newtype AliasT m a = AliasT {runAliasT :: m (Maybe a)}
 
 mapAliasT :: (m (Maybe a) -> n (Maybe b)) -> AliasT m a -> AliasT n b
