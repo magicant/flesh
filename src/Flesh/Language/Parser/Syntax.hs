@@ -28,7 +28,7 @@ tree, error, and warnings.
 -}
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
-  HereDocAliasT,
+  HereDocAliasT, sequenceAliasHereDocT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, aliasableToken, reserved,
@@ -59,6 +59,19 @@ import Numeric.Natural
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
+
+sequenceAliasHereDocT :: Monad m
+                      => AliasT m (HereDocT m a) -> HereDocAliasT m a
+sequenceAliasHereDocT m = HereDocT m1
+  where m1 = mapAccumT f1 m2 -- :: AccumT (AliasT m) (Filler a)
+        m2 = join m3 -- :: AccumT m (Maybe (Filler a))
+        m3 = lift m4 -- :: AccumT m (AccumT m (Maybe (Filler a)))
+        m4 = fmap sequence m5 -- :: m (AccumT m (Maybe (Filler a)))
+        m5 = runAliasT m6 -- :: m (Maybe (AccumT m (Filler a)))
+        m6 = fmap runHereDocT m -- :: AliasT m (AccumT m (Filler a))
+        f1 = AliasT . fmap f1'
+          -- :: m (Maybe (Filler a), b) -> AliasT m (Filler a, b)
+        f1' (mb, b) = fmap (\a -> (a, b)) mb
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m
