@@ -28,7 +28,12 @@ shell language.
 module Flesh.Language.Parser.Lex (
   lineContinuation, lc, blank, digit, comment, whites, operatorStarter,
   endOfToken, anyOperator, operator, operatorToken, redirectOperatorToken,
-  ioNumber, isReserved) where
+  ioNumber,
+  -- * Reserved words
+  reservedBang, reservedCase, reservedDo, reservedDone, reservedElif,
+  reservedElse, reservedEsac, reservedFi, reservedFor, reservedFunction,
+  reservedIf, reservedIn, reservedThen, reservedUntil, reservedWhile,
+  reservedOpenBrace, reservedCloseBrace, isReserved) where
 
 import Control.Applicative
 import Data.Char
