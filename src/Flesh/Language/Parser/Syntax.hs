@@ -32,7 +32,7 @@ module Flesh.Language.Parser.Syntax (
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
   normalToken, reservedOrToken, aliasableToken, reservedOrAliasOrToken,
-  reserved,
+  literal,
   -- * Syntax
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
@@ -160,9 +160,9 @@ reservedOrAliasOrToken = AliasT $ do
           return $ Nothing
 -- TODO substitute the next token if the current substitute ends with a blank.
 
--- | Parses an unquoted token as the given reserved word.
-reserved :: MonadParser m => T.Text -> m Token
-reserved w = normalToken `satisfying` (\t -> tokenText t == Just w)
+-- | Parses an unquoted token that matches the given text.
+literal :: MonadParser m => T.Text -> m Token
+literal w = normalToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
@@ -203,9 +203,9 @@ hereDocTab :: MonadParser m => Bool -> m ()
 hereDocTab tabbed = when tabbed $ void $ many $ char '\t'
 
 hereDocLine :: MonadParser m => Bool -> Bool -> m [Positioned DoubleQuoteUnit]
-hereDocLine tabbed literal = do
+hereDocLine tabbed isLiteral = do
   hereDocTab tabbed
-  fmap NE.toList $ if literal
+  fmap NE.toList $ if isLiteral
      then fmap (fmap Char) anyChar `manyTo` nl
      else doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
@@ -281,7 +281,7 @@ pipeSequence = (:|) <$> command <*> many trailer
 pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => HereDocAliasT m Pipeline
 pipeline =
-  lift (reserved reservedBang) *> req (make True <$> pipeSequence) <|>
+  lift (literal reservedBang) *> req (make True <$> pipeSequence) <|>
   make False <$> pipeSequence
     where req = setReasonHD (MissingCommandAfter "!") . requireHD
           make = flip Pipeline
