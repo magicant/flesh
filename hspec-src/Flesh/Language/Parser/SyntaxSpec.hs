@@ -179,20 +179,20 @@ spec = do
                 (reparse reservedOrAliasOrToken >> readAll) recursiveAlias
        in fmap fst e `shouldBe` Right ""
 
-  describe "reserved" $ do
+  describe "literal" $ do
     context "returns matching unquoted token" $ do
-      expectShowEof "! " "" (reserved (T.pack "!")) "!"
-      expectShow    "i\\\nf" "\n" (reserved (T.pack "if")) "if"
-      expectShowEof "foo" "" (reserved (T.pack "foo")) "foo"
+      expectShowEof "! " "" (literal (T.pack "!")) "!"
+      expectShow    "i\\\nf" "\n" (literal (T.pack "if")) "if"
+      expectShowEof "foo" "" (literal (T.pack "foo")) "foo"
 
     context "fails on unmatching unquoted token" $ do
-      expectFailureEof "a" (reserved (T.pack "!")) Soft UnknownReason 0
-      expectFailureEof "a" (reserved (T.pack "aa")) Soft UnknownReason 0
-      expectFailureEof "aa" (reserved (T.pack "a")) Soft UnknownReason 0
+      expectFailureEof "a" (literal (T.pack "!")) Soft UnknownReason 0
+      expectFailureEof "a" (literal (T.pack "aa")) Soft UnknownReason 0
+      expectFailureEof "aa" (literal (T.pack "a")) Soft UnknownReason 0
 
     context "fails on quoted token" $ do
-      expectFailureEof "\\if" (reserved (T.pack "if")) Soft UnknownReason 0
-      expectFailureEof "i\\f" (reserved (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "\\if" (literal (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "i\\f" (literal (T.pack "if")) Soft UnknownReason 0
 
   describe "redirect" $ do
     let yieldDummyContent = HereDocT $
