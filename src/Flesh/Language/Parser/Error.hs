@@ -194,7 +194,7 @@ notFollowedBy m = do
   join $ catchError m' (const $ return $ return ())
 
 -- | @some' a@ is like @some a@, but returns a NonEmpty list.
-some' :: MonadParser m => m a -> m (NonEmpty a)
+some' :: Alternative m => m a -> m (NonEmpty a)
 some' a = (:|) <$> a <*> many a
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and

@@ -382,6 +382,39 @@ spec = do
       expectShowEof "foo" "" aol "Just foo;"
       expectShowEof "foo && bar" "" aol "Just foo && bar;"
 
+  describe "compoundList" $ do
+    let cl = runAliasT $ fill $ NE.toList <$> compoundList
+        cl' = runAliasT $ fill $ NE.toList <$> compoundList
+
+    context "is not empty" $ do
+      expectShow "foo" ";;" cl' "Just foo"
+      expectFailure    ";;" cl' Soft UnknownReason 0
+      expectFailureEof ""   cl  Soft UnknownReason 0
+      expectFailureEof "  " cl  Soft UnknownReason 0
+
+    context "is some and-or lists" $ do
+      expectShowEof "foo; bar"       "" cl "Just foo; bar"
+      expectShowEof "foo; bar& baz;" "" cl "Just foo; bar& baz"
+
+    context "spans multiple lines" $ do
+      expectShowEof "foo\nbar"                 "" cl "Just foo; bar"
+      expectShowEof "foo&\nbar"                "" cl "Just foo& bar"
+      expectShowEof "foo #X\n #comment\n\tbar" "" cl "Just foo; bar"
+      expectShowEof "a;b\nc&d"                 "" cl "Just a; b; c& d"
+
+    context "can have preceding newlines and whites" $ do
+      expectShowEof "\nfoo"              "" cl "Just foo"
+      expectShowEof "\n \tfoo"           "" cl "Just foo"
+      expectShowEof "\n \t#comment\nfoo" "" cl "Just foo"
+      expectShowEof "\n\n\nfoo"          "" cl "Just foo"
+
+    context "can have trailing newlines and whites" $ do
+      expectShowEof "foo\n"              ""   cl  "Just foo"
+      expectShow    "foo\n"              ";;" cl' "Just foo"
+      expectShowEof "foo\n\t "           ""   cl  "Just foo"
+      expectShowEof "foo\n\t #comment\n" ""   cl  "Just foo"
+      expectShow    "foo\n\n\n"          ";;" cl' "Just foo"
+
   describe "completeLine" $ do
     context "can be empty" $ do
       expectShow "\n" "" completeLine ""
