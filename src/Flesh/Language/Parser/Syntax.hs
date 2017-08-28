@@ -28,14 +28,15 @@ tree, error, and warnings.
 -}
 module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
-  HereDocAliasT,
+  HereDocAliasT, sequenceAliasHereDocT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, aliasableToken, reserved,
+  normalToken, reservedOrToken, aliasableToken, reservedOrAliasOrToken,
+  literal,
   -- * Syntax
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
-  andOrList, completeLine) where
+  andOrList, compoundList, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -59,6 +60,19 @@ import Numeric.Natural
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
+
+sequenceAliasHereDocT :: Monad m
+                      => AliasT m (HereDocT m a) -> HereDocAliasT m a
+sequenceAliasHereDocT m = HereDocT m1
+  where m1 = mapAccumT f1 m2 -- :: AccumT (AliasT m) (Filler a)
+        m2 = join m3 -- :: AccumT m (Maybe (Filler a))
+        m3 = lift m4 -- :: AccumT m (AccumT m (Maybe (Filler a)))
+        m4 = fmap sequence m5 -- :: m (AccumT m (Maybe (Filler a)))
+        m5 = runAliasT m6 -- :: m (Maybe (AccumT m (Filler a)))
+        m6 = fmap runHereDocT m -- :: AliasT m (AccumT m (Filler a))
+        f1 = AliasT . fmap f1'
+          -- :: m (Maybe (Filler a), b) -> AliasT m (Filler a, b)
+        f1' (mb, b) = fmap (\a -> (a, b)) mb
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m
@@ -114,6 +128,14 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
 
+-- | Returns the token text in Left if the argument word 'isReserved',
+-- otherwise the argument itself in Right.
+reservedOrToken :: Token -> Either T.Text Token
+reservedOrToken t = maybe (Right t) Left $ do
+  t' <- tokenText t
+  guard $ isReserved t'
+  return t'
+
 -- | Like 'normalToken', but tries to perform alias substitution on the
 -- result.
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -128,9 +150,31 @@ aliasableToken = AliasT $ do
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
 
--- | Parses an unquoted token as the given reserved word.
-reserved :: MonadParser m => T.Text -> m Token
-reserved w = normalToken `satisfying` (\t -> tokenText t == Just w)
+-- | Parses a normal non-empty token followed by optional whitespaces.
+-- Reserved words are returned in Left as by 'reservedOrToken'.
+-- Non-reserved words are subject to alias substitution.
+reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => AliasT m (Either T.Text Token)
+reservedOrAliasOrToken = AliasT $ do
+  textOrToken <- reservedOrToken <$> normalToken
+  case textOrToken of
+    Left _ -> -- reserved words are not subject to alias substitution
+      return $ Just textOrToken
+    Right t -> do
+      r <- runMaybeT $ do
+        tt <- MaybeT $ return $ tokenText t
+        let pos = fst $ NE.head $ tokenUnits t
+        substituteAlias pos tt
+      case r of
+        Nothing -> -- no alias substitution performed
+          return $ Just textOrToken
+        Just () -> -- alias substitution performed!
+          return $ Nothing
+-- TODO substitute the next token if the current substitute ends with a blank.
+
+-- | Parses an unquoted token that matches the given text.
+literal :: MonadParser m => T.Text -> m Token
+literal w = normalToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
@@ -171,9 +215,9 @@ hereDocTab :: MonadParser m => Bool -> m ()
 hereDocTab tabbed = when tabbed $ void $ many $ char '\t'
 
 hereDocLine :: MonadParser m => Bool -> Bool -> m [Positioned DoubleQuoteUnit]
-hereDocLine tabbed literal = do
+hereDocLine tabbed isLiteral = do
   hereDocTab tabbed
-  fmap NE.toList $ if literal
+  fmap NE.toList $ if isLiteral
      then fmap (fmap Char) anyChar `manyTo` nl
      else doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
@@ -249,7 +293,7 @@ pipeSequence = (:|) <$> command <*> many trailer
 pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => HereDocAliasT m Pipeline
 pipeline =
-  lift (reserved (T.pack "!")) *> req (make True <$> pipeSequence) <|>
+  lift (literal reservedBang) *> req (make True <$> pipeSequence) <|>
   make False <$> pipeSequence
     where req = setReasonHD (MissingCommandAfter "!") . requireHD
           make = flip Pipeline
@@ -295,6 +339,12 @@ andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
           => HereDocAliasT m AndOrList
 andOrList = AndOrList <$> pipeline <*> many conditionalPipeline <*> sep
   where sep = lift $ separatorOp <|> return False
+
+-- | Parses a sequence of one or more and-or lists surrounded by optional
+-- linebreaks.
+compoundList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => HereDocAliasT m (NonEmpty AndOrList)
+compoundList = linebreak *> some' (andOrList <* linebreak)
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [AndOrList]

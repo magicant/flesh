@@ -96,6 +96,12 @@ defaultAliasValue = defaultAliasName ++ " --color"
 recursiveAlias :: String
 recursiveAlias = "rec"
 
+reservedWordAliasName :: String
+reservedWordAliasName = "while"
+
+reservedWordAliasValue :: String
+reservedWordAliasValue = ";;"
+
 defaultAliasDefinitions :: Alias.DefinitionSet
 defaultAliasDefinitions =
   M.insert n (Alias.definition n v p) $
@@ -105,6 +111,12 @@ defaultAliasDefinitions =
             p = dummyPosition "alias ls='ls --color'"
             r = T.pack recursiveAlias
             pr = dummyPosition "alias rec=rec"
+
+reservedWordAliasDefinitions :: Alias.DefinitionSet
+reservedWordAliasDefinitions = M.singleton n (Alias.definition n v p)
+  where n = T.pack reservedWordAliasName
+        v = T.pack reservedWordAliasValue
+        p = dummyPosition "alias while=';;'"
 
 runTesterAliasT :: TesterT m a -> Alias.DefinitionSet -> m a
 runTesterAliasT parser defs = runReaderT (runParserT parser) defs
