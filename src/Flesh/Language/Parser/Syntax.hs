@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntax
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
-  andOrList, completeLine) where
+  andOrList, compoundList, completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -327,6 +327,12 @@ andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
           => HereDocAliasT m AndOrList
 andOrList = AndOrList <$> pipeline <*> many conditionalPipeline <*> sep
   where sep = lift $ separatorOp <|> return False
+
+-- | Parses a sequence of one or more and-or lists surrounded by optional
+-- linebreaks.
+compoundList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => HereDocAliasT m (NonEmpty AndOrList)
+compoundList = linebreak *> some' (andOrList <* linebreak)
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [AndOrList]
