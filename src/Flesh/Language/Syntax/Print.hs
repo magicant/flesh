@@ -35,6 +35,7 @@ module Flesh.Language.Syntax.Print (
 
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Lazy
+import Data.Foldable
 import Data.List.NonEmpty (NonEmpty(..))
 import Flesh.Language.Syntax
 
@@ -116,6 +117,12 @@ instance ListPrintable Redirection where
             showSpace'
             prints r'
 
+instance Printable CompoundCommand where
+  prints (Grouping ls) = do
+    tell' $ showString "{ "
+    printList (toList ls)
+    tell' $ showString " }"
+
 instance Printable Command where
   prints (SimpleCommand [] [] []) = return ()
   prints c@(SimpleCommand _ _ []) = tell' $ shows c
@@ -124,6 +131,7 @@ instance Printable Command where
     prints (SimpleCommand ts as [])
     showSpace'
     printList rs
+  prints (CompoundCommand (_, cc)) = prints cc
   prints FunctionDefinition = undefined -- TODO
 
 instance Printable Pipeline where

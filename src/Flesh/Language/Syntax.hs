@@ -34,8 +34,8 @@ module Flesh.Language.Syntax (
   -- * Redirections
   HereDocOp(..), Redirection(..), fd,
   -- * Syntax
-  Command(..), Pipeline(..), AndOrCondition(..), ConditionalPipeline(..),
-  AndOrList(..)) where
+  CompoundCommand(..), Command(..), Pipeline(..), AndOrCondition(..),
+  ConditionalPipeline(..), AndOrList(..), showSeparatedList) where
 
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
@@ -197,11 +197,23 @@ fd :: Redirection -> Natural
 fd (FileRedirection fd') = fd'
 fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 
+-- | Commands that can contain other commands.
+data CompoundCommand =
+  -- | one or more and-or lists.
+  Grouping (NonEmpty AndOrList)
+  -- TODO other compound commands
+  deriving (Eq)
+
+instance Show CompoundCommand where
+  showsPrec _ (Grouping ls) =
+    showString "{ " . showSeparatedList (NE.toList ls) . showString " }"
+
 -- | Element of pipelines.
 data Command =
   -- | Simple command.
   SimpleCommand [Token] [P.Positioned Assignment] [Redirection]
-  -- FIXME Compound commands
+  -- | Compound commands
+  | CompoundCommand (P.Positioned CompoundCommand)
   -- | Function definition.
   | FunctionDefinition -- FIXME
   deriving (Eq)
@@ -216,6 +228,7 @@ instance Show Command where
   showsPrec n (SimpleCommand ts as rs) =
     showList as' . showSpace . showsPrec n (SimpleCommand ts [] rs)
     where as' = snd <$> as
+  showsPrec n (CompoundCommand (_, cc)) = showsPrec n cc
   showsPrec _ FunctionDefinition = id -- FIXME
 
 -- | Element of and-or lists. Optionally negated sequence of one or more
@@ -271,5 +284,10 @@ instance Show AndOrList where
   showList [] = id
   showList [l] = shows l
   showList (l:ls) = showsPrec 1 l . showSpace . showList ls
+
+showSeparatedList :: [AndOrList] -> ShowS
+showSeparatedList [] = id
+showSeparatedList [l] = showsPrec 1 l
+showSeparatedList (l:ls) = showsPrec 1 l . showSpace . showSeparatedList ls
 
 -- vim: set et sw=2 sts=2 tw=78:
