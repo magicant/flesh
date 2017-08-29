@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, aliasableToken, reserved,
+  normalToken, reservedOrToken, aliasableToken, reserved,
   -- * Syntax
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
@@ -113,6 +113,15 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 -- whitespaces after the token.
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
+
+-- | Returns the token text in Left if the argument word 'isReserved',
+-- otherwise the argument itself in Right.
+reservedOrToken :: Token -> Either (Positioned T.Text) Token
+reservedOrToken t = maybe (Right t) Left $ do
+  t' <- tokenText t
+  guard $ isReserved t'
+  return (p, t')
+    where Token ((p, _) :| _) = t -- position of the first word unit
 
 -- | Like 'normalToken', but tries to perform alias substitution on the
 -- result.
