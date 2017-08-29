@@ -249,7 +249,7 @@ pipeSequence = (:|) <$> command <*> many trailer
 pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => HereDocAliasT m Pipeline
 pipeline =
-  lift (reserved (T.pack "!")) *> req (make True <$> pipeSequence) <|>
+  lift (reserved reservedBang) *> req (make True <$> pipeSequence) <|>
   make False <$> pipeSequence
     where req = setReasonHD (MissingCommandAfter "!") . requireHD
           make = flip Pipeline
