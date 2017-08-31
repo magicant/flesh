@@ -46,7 +46,7 @@ import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Foldable
-import Data.List
+import Data.List hiding (words)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe
@@ -61,6 +61,7 @@ import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 import Numeric.Natural
+import Prelude hiding (words)
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
@@ -250,20 +251,29 @@ whitesHD = lift whites
 linebreak :: MonadParser m => HereDocT m ()
 linebreak = void (many (newlineHD *> whitesHD))
 
+-- | Parses a sequence of (non-assignment) words and redirections.
+--
+-- Returns a triple of parsed tokens, empty list, and redirections.
+simpleCommandArguments :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => HereDocAliasT m ([Token], [a], [Redirection])
+simpleCommandArguments = arg <*> simpleCommandArguments <|> pure ([], [], [])
+  where arg = consRedir <$> redirect' <|> consToken <$> normalToken'
+        consRedir r (ts, as, rs) = (ts, as, r:rs)
+        consToken t (ts, as, rs) = (t:ts, as, rs)
+        redirect' = mapHereDocT lift redirect
+        normalToken' = lift normalToken
+-- TODO global aliases
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
 simpleCommand = f <$> nonEmptyBody
   where f (ts, as, rs) = SimpleCommand ts as rs
         nonEmptyBody = fRedir <$> redirect' <*> requireHD body <|>
-          fToken <$> aliasableToken' <*> requireHD arguments
+          fToken <$> aliasableToken' <*> simpleCommandArguments
         body = nonEmptyBody <|> pure ([], [], [])
-        arguments = fRedir <$> redirect' <*> requireHD arguments <|>
-          fToken <$> normalToken' <*> requireHD arguments <|>
-          pure ([], [], [])
         redirect' = mapHereDocT lift redirect
         aliasableToken' = lift aliasableToken
-        normalToken' = lift normalToken
         fRedir r (ts, as, rs) = (ts, as, r:rs)
         fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
