@@ -29,6 +29,7 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
+import qualified Flesh.Source.Position as P
 import Test.Hspec
 
 spec :: Spec
@@ -134,6 +135,49 @@ spec = do
     it "stops on exact recursion" $
       let e = runFullInputTesterWithDummyPositions
                 (reparse aliasableToken >> readAll) recursiveAlias
+       in fmap fst e `shouldBe` Right ""
+
+  describe "reservedOrAliasOrToken" $ do
+    let ignorePosition = either (Left . snd) Right
+        rat = runAliasT $ ignorePosition <$> reservedOrAliasOrToken
+        rat' = runAliasT $ ignorePosition <$> reservedOrAliasOrToken
+
+    context "returns unmatched token" $ do
+      expectShow "foo" ";" rat' "Just (Right foo)"
+
+    context "returns quoted token" $ do
+      expectShow "f\\oo" ";" rat' "Just (Right f\\oo)"
+      expectShow "f\"o\"o" "&" rat' "Just (Right f\"o\"o)"
+      expectShow "f'o'o" ")" rat' "Just (Right f'o'o)"
+
+    context "returns non-constant token" $ do
+      expectShow "f${1}o" ";" rat' "Just (Right f${1}o)"
+
+    context "returns reserved word" $ do
+      expectShow "!" ";" rat' "Just (Left \"!\")"
+      expectShowEof reservedWordAliasName "" rat "Just (Left \"while\")"
+
+    it "doesn't perform alias substitution on reserved words" $
+      let e = runFullInputTesterAlias rat reservedWordAliasDefinitions s
+          s = P.spread (P.dummyPosition s') s'
+          s' = reservedWordAliasName
+       in fmap (show . fst) e `shouldBe` Right "Just (Left \"while\")"
+
+    context "modifies pending input on alias subsitution" $ do
+      expectSuccessEof defaultAliasName "" (rat >> readAll) defaultAliasValue
+
+    it "returns nothing after substitution" $
+      let e = runFullInputTesterWithDummyPositions rat defaultAliasName
+       in fmap fst e `shouldBe` Right Nothing
+
+    it "stops alias substitution on recursion" $
+      let e = runFullInputTesterWithDummyPositions
+                (reparse reservedOrAliasOrToken >> readAll) defaultAliasName
+       in fmap fst e `shouldBe` Right "--color"
+
+    it "stops alias substitution on exact recursion" $
+      let e = runFullInputTesterWithDummyPositions
+                (reparse reservedOrAliasOrToken >> readAll) recursiveAlias
        in fmap fst e `shouldBe` Right ""
 
   describe "reserved" $ do

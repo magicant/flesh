@@ -31,7 +31,8 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, reservedOrToken, aliasableToken, reserved,
+  normalToken, reservedOrToken, aliasableToken, reservedOrAliasOrToken,
+  reserved,
   -- * Syntax
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
@@ -136,6 +137,28 @@ aliasableToken = AliasT $ do
    in fmap inv $ runMaybeT $ tt >>= substituteAlias pos
    -- TODO substitute the next token if the current substitute ends with a
    -- blank.
+
+-- | Parses a normal non-empty token followed by optional whitespaces.
+-- Reserved words are returned in Left as by 'reservedOrToken'.
+-- Non-reserved words are subject to alias substitution.
+reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => AliasT m (Either (Positioned T.Text) Token)
+reservedOrAliasOrToken = AliasT $ do
+  textOrToken <- reservedOrToken <$> normalToken
+  case textOrToken of
+    Left _ -> -- reserved words are not subject to alias substitution
+      return $ Just textOrToken
+    Right t -> do
+      r <- runMaybeT $ do
+        tt <- MaybeT $ return $ tokenText t
+        let pos = fst $ NE.head $ tokenUnits t
+        substituteAlias pos tt
+      case r of
+        Nothing -> -- no alias substitution performed
+          return $ Just textOrToken
+        Just () -> -- alias substitution performed!
+          return $ Nothing
+-- TODO substitute the next token if the current substitute ends with a blank.
 
 -- | Parses an unquoted token as the given reserved word.
 reserved :: MonadParser m => T.Text -> m Token
