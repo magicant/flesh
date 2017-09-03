@@ -264,6 +264,17 @@ simpleCommandArguments = arg <*> simpleCommandArguments <|> pure ([], [], [])
         normalToken' = lift normalToken
 -- TODO global aliases
 
+-- | Parses a simple command but the first token.
+--
+-- The first token of the simple command is not parsed by this parser. It must
+-- have been parsed by another parser and must be passed as the argument.
+simpleCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                  => Token -> HereDocAliasT m Command
+simpleCommandTail t1 = toCommand . consToken t1 <$> simpleCommandArguments
+  where toCommand (ts, as, rs) = SimpleCommand ts as rs
+        consToken t (ts, as, rs) = (t:ts, as, rs)
+-- TODO assignments
+
 -- | Parses a simple command. Skips whitespaces after the command.
 simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
               => HereDocAliasT m Command
