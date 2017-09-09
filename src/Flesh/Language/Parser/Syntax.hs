@@ -307,6 +307,20 @@ groupingTail p = f <$> body <* closeBrace
         closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
           literal reservedCloseBrace
 
+-- | Parses a compound command except the first token that determines the type
+-- of the compound command.
+--
+-- The first token is not parsed by this parser. It must have been parsed by
+-- another parser and must be passed as the argument. This parser fails if the
+-- first token does not start a compound command.
+compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                    => Positioned T.Text
+                    -> HereDocT m (Positioned CompoundCommand)
+compoundCommandTail (p, t)
+  | t == reservedOpenBrace = requireHD $ groupingTail p
+  | otherwise = lift $ failureOfPosition p
+  -- TODO if, while, until, for, case
+
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
         => HereDocAliasT m Command
