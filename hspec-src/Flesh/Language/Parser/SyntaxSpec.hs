@@ -289,6 +289,34 @@ spec = do
       expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
 
+  -- TODO These failing tests are disabled. The close brace is not yet parsed
+  -- as expected.
+  xdescribe "groupingTail" $ do
+    let p = P.dummyPosition "X"
+        g = snd <$> fill (groupingTail p)
+        g' = snd <$> fill (groupingTail p)
+
+    context "may have one inner command" $ do
+      expectShowEof "foo;}" "" g "{ foo; }"
+      expectShowEof "bar\n} " "" g "{ bar; }"
+
+    context "may have three inner commands" $ do
+      expectShowEof "foo; bar& baz; }" "" g "{ foo; bar& baz; }"
+      expectShowEof "foo& bar; baz& }" "" g "{ foo& bar; baz& }"
+      expectShowEof "foo\nbar&\nbaz\n \n }" "" g "{ foo; bar& baz; }"
+
+    context "can have preceding newlines and whiles" $ do
+      expectShowEof "\nfoo;}" "" g "{ foo; }"
+      expectShowEof "\n # \n \n \tfoo;}" "" g "{ foo; }"
+
+    context "cannot be empty" $ do
+      expectFailureEof ""  g Soft (MissingCommandAfter "{") 0
+      expectFailureEof "}" g Soft (MissingCommandAfter "{") 0
+
+    context "must be closed by brace" $ do
+      expectFailureEof "foo " g  Hard (UnclosedGrouping p) 4
+      expectFailure    "foo)" g' Hard (UnclosedGrouping p) 3
+
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
         ps' = runAliasT $ fill $ NE.toList <$> pipeSequence

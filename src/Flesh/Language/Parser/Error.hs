@@ -59,6 +59,7 @@ data Reason =
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NonEmpty HereDocOp)
   | MissingCommandAfter String
+  | UnclosedGrouping P.Position -- ^ with position of the open brace
   deriving (Eq, Show)
 
 -- | Parse error description.

@@ -34,9 +34,13 @@ module Flesh.Language.Parser.Syntax (
   normalToken, reservedOrToken, aliasableToken, reservedOrAliasOrToken,
   literal,
   -- * Syntax
+  -- ** Basic parts
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
-  simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
-  andOrList, compoundList, completeLine) where
+  -- ** Commands
+  simpleCommand, groupingTail, command,
+  -- ** Lists
+  pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
+  completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -264,6 +268,19 @@ simpleCommand = f <$> nonEmptyBody
         fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
 -- TODO assignments
+
+-- | Parses a grouping except the first open brace, which must have just been
+-- parsed.
+groupingTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => Position -- ^ Position of the open brace.
+             -> HereDocT m (Positioned CompoundCommand)
+groupingTail p = f <$> body <* closeBrace
+  where f ls = (p, Grouping ls)
+        body = setReasonHD (MissingCommandAfter openBraceString) $
+          mapHereDocT reparse compoundList
+        openBraceString = T.unpack reservedOpenBrace
+        closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
+          literal reservedCloseBrace
 
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
