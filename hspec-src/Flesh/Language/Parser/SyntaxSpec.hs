@@ -289,9 +289,7 @@ spec = do
       expectShowEof ("foo " ++ defaultAliasName) "" sc $
         "Just foo " ++ defaultAliasName
 
-  -- TODO These failing tests are disabled. The close brace is not yet parsed
-  -- as expected.
-  xdescribe "groupingTail" $ do
+  describe "groupingTail" $ do
     let p = P.dummyPosition "X"
         g = snd <$> fill (groupingTail p)
         g' = snd <$> fill (groupingTail p)
@@ -316,6 +314,35 @@ spec = do
     context "must be closed by brace" $ do
       expectFailureEof "foo " g  Hard (UnclosedGrouping p) 4
       expectFailure    "foo)" g' Hard (UnclosedGrouping p) 3
+
+  describe "command" $ do
+    let sc = runAliasT $ fill command
+        sc' = runAliasT $ fill command
+
+    context "as simple command" $ do
+      context "is some tokens" $ do
+        expectShowEof "foo" "" sc "Just foo"
+        expectShowEof "foo bar" ";" sc "Just foo bar"
+        expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
+
+      context "rejects empty command" $ do
+        expectFailureEof ""   sc  Soft UnknownReason 0
+        expectFailure    "\n" sc' Soft UnknownReason 0
+
+      it "returns nothing after alias substitution" $
+        let e = runFullInputTesterWithDummyPositions sc defaultAliasName
+         in fmap fst e `shouldBe` Right Nothing
+
+      context "does not alias-substitute second token" $ do
+        expectShowEof ("foo " ++ defaultAliasName) "" sc $
+          "Just foo " ++ defaultAliasName
+
+    context "as grouping" $ do
+      context "starts with a brace" $ do
+        expectShowEof "{ foo\n}" "" sc "Just { foo; }"
+
+      context "does not start with a quoted brace" $ do
+        expectShowEof "\\{ foo" "\n}" sc "Just \\{ foo"
 
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence

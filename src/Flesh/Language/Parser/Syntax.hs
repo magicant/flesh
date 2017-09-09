@@ -324,7 +324,21 @@ compoundCommandTail (p, t)
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
         => HereDocAliasT m Command
-command = simpleCommand -- FIXME support other types of commands
+command =
+  -- First, if the command begins with a redirection, it is a simple command.
+  toCommand <$> (consRedir <$> redirect' <*> simpleCommand') <|>
+  -- Otherwise, the first token can be a reserved word or alias.
+  joinAliasHereDocAliasT (compoundOrSimple <$> reservedOrAliasOrToken)
+    where toCommand (ts, as, rs) = SimpleCommand ts as rs
+          consRedir r (ts, as, rs) = (ts, as, r:rs)
+          redirect' = mapHereDocT lift redirect
+          simpleCommand' = simpleCommandArguments -- TODO parse assignments
+          compoundOrSimple = either compoundCommandTail' simpleCommandTail
+            -- :: Either (Positioned T.Text) Token -> HereDocAliasT m Command
+          compoundCommandTail' =
+            mapHereDocT lift . fmap CompoundCommand . compoundCommandTail
+            -- :: Positioned T.Text -> HereDocAliasT m Command
+-- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
 pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
