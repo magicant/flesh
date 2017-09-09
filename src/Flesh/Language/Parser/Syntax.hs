@@ -66,6 +66,10 @@ import Prelude hiding (words)
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
 
+joinAliasHereDocAliasT :: MonadParser m
+                       => AliasT m (HereDocAliasT m a) -> HereDocAliasT m a
+joinAliasHereDocAliasT = HereDocT . join . lift . fmap runHereDocT
+
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m
             => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
