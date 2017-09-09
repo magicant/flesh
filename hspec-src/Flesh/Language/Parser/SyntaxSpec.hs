@@ -268,27 +268,6 @@ spec = do
     context "parses pending here doc contents after newline" $ return ()
     -- This property is tested in test cases for other properties.
 
-  describe "simpleCommand" $ do
-    let sc = runAliasT $ fill simpleCommand
-        sc' = runAliasT $ fill simpleCommand
-
-    context "is some tokens" $ do
-      expectShowEof "foo" "" sc "Just foo"
-      expectShowEof "foo bar" ";" sc "Just foo bar"
-      expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
-
-    context "rejects empty command" $ do
-      expectFailureEof ""   sc  Soft UnknownReason 0
-      expectFailure    "\n" sc' Soft UnknownReason 0
-
-    it "returns nothing after alias substitution" $
-      let e = runFullInputTesterWithDummyPositions sc defaultAliasName
-       in fmap fst e `shouldBe` Right Nothing
-
-    context "does not alias-substitute second token" $ do
-      expectShowEof ("foo " ++ defaultAliasName) "" sc $
-        "Just foo " ++ defaultAliasName
-
   describe "groupingTail" $ do
     let p = P.dummyPosition "X"
         g = snd <$> fill (groupingTail p)

@@ -37,7 +37,7 @@ module Flesh.Language.Parser.Syntax (
   -- ** Basic parts
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- ** Commands
-  simpleCommand, groupingTail, command,
+  groupingTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine) where
@@ -277,21 +277,6 @@ simpleCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
 simpleCommandTail t1 = toCommand . consToken t1 <$> simpleCommandArguments
   where toCommand (ts, as, rs) = SimpleCommand ts as rs
         consToken t (ts, as, rs) = (t:ts, as, rs)
--- TODO assignments
-
--- | Parses a simple command. Skips whitespaces after the command.
-simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-              => HereDocAliasT m Command
-simpleCommand = f <$> nonEmptyBody
-  where f (ts, as, rs) = SimpleCommand ts as rs
-        nonEmptyBody = fRedir <$> redirect' <*> requireHD body <|>
-          fToken <$> aliasableToken' <*> simpleCommandArguments
-        body = nonEmptyBody <|> pure ([], [], [])
-        redirect' = mapHereDocT lift redirect
-        aliasableToken' = lift aliasableToken
-        fRedir r (ts, as, rs) = (ts, as, r:rs)
-        fToken t (ts, as, rs) = (t:ts, as, rs)
--- TODO global aliases
 -- TODO assignments
 
 -- | Parses a grouping except the first open brace, which must have just been
