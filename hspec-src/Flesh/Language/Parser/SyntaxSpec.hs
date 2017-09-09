@@ -105,38 +105,6 @@ spec = do
     context "rejects empty token" $ do
       expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
 
-  describe "aliasableToken" $ do
-    let at = runAliasT aliasableToken
-        at' = runAliasT aliasableToken
-
-    context "returns unmatched token" $ do
-      expectShow "foo" ";" at' "Just foo"
-
-    context "returns quoted token" $ do
-      expectShow "f\\oo" ";" at' "Just f\\oo"
-      expectShow "f\"o\"o" "&" at' "Just f\"o\"o"
-      expectShow "f'o'o" ")" at' "Just f'o'o"
-
-    context "returns non-constant token" $ do
-      expectShow "f${1}o" ";" at' "Just f${1}o"
-
-    context "modifies pending input" $ do
-      expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
-
-    it "returns nothing after substitution" $
-      let e = runFullInputTesterWithDummyPositions at defaultAliasName
-       in fmap fst e `shouldBe` Right Nothing
-
-    it "stops on recursion" $
-      let e = runFullInputTesterWithDummyPositions
-                (reparse aliasableToken >> readAll) defaultAliasName
-       in fmap fst e `shouldBe` Right "--color"
-
-    it "stops on exact recursion" $
-      let e = runFullInputTesterWithDummyPositions
-                (reparse aliasableToken >> readAll) recursiveAlias
-       in fmap fst e `shouldBe` Right ""
-
   describe "reservedOrAliasOrToken" $ do
     let ignorePosition = either (Left . snd) Right
         rat = runAliasT $ ignorePosition <$> reservedOrAliasOrToken

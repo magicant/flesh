@@ -31,8 +31,7 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, reservedOrToken, aliasableToken, reservedOrAliasOrToken,
-  literal,
+  normalToken, reservedOrToken, reservedOrAliasOrToken, literal,
   -- * Syntax
   -- ** Basic parts
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
@@ -132,20 +131,6 @@ reservedOrToken t = maybe (Right t) Left $ do
   guard $ isReserved t'
   return (p, t')
     where Token ((p, _) :| _) = t -- position of the first word unit
-
--- | Like 'normalToken', but tries to perform alias substitution on the
--- result.
-aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => AliasT m Token
-aliasableToken = AliasT $ do
-  t <- normalToken
-  let inv Nothing = Just t
-      inv (Just ()) = Nothing
-      tt = MaybeT $ return $ tokenText t
-      pos = fst $ NE.head $ tokenUnits t
-   in fmap inv $ runMaybeT $ tt >>= substituteAlias pos
-   -- TODO substitute the next token if the current substitute ends with a
-   -- blank.
 
 -- | Parses a normal non-empty token followed by optional whitespaces.
 -- Reserved words are returned in Left as by 'reservedOrToken'.
