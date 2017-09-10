@@ -31,17 +31,21 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, aliasableToken, reserved,
+  normalToken, reservedOrToken, reservedOrAliasOrToken, literal,
   -- * Syntax
+  -- ** Basic parts
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
-  simpleCommand, command, pipeSequence, pipeline, conditionalPipeline,
-  andOrList, completeLine) where
+  -- ** Commands
+  groupingTail, command,
+  -- ** Lists
+  pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
+  completeLine) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Foldable
-import Data.List
+import Data.List hiding (words)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe
@@ -56,9 +60,14 @@ import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 import Numeric.Natural
+import Prelude hiding (words)
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
+
+joinAliasHereDocAliasT :: MonadParser m
+                       => AliasT m (HereDocAliasT m a) -> HereDocAliasT m a
+joinAliasHereDocAliasT = HereDocT . join . lift . fmap runHereDocT
 
 -- | Parses a backslash-escaped character that is parsed by the given parser.
 backslashed :: MonadParser m
@@ -114,23 +123,40 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
 
--- | Like 'normalToken', but tries to perform alias substitution on the
--- result.
-aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => AliasT m Token
-aliasableToken = AliasT $ do
-  t <- normalToken
-  let inv Nothing = Just t
-      inv (Just ()) = Nothing
-      tt = MaybeT $ return $ tokenText t
-      pos = fst $ NE.head $ tokenUnits t
-   in fmap inv $ runMaybeT $ tt >>= substituteAlias pos
-   -- TODO substitute the next token if the current substitute ends with a
-   -- blank.
+-- | Returns the token text in Left if the argument word 'isReserved',
+-- otherwise the argument itself in Right.
+reservedOrToken :: Token -> Either (Positioned T.Text) Token
+reservedOrToken t = maybe (Right t) Left $ do
+  t' <- tokenText t
+  guard $ isReserved t'
+  return (p, t')
+    where Token ((p, _) :| _) = t -- position of the first word unit
 
--- | Parses an unquoted token as the given reserved word.
-reserved :: MonadParser m => T.Text -> m Token
-reserved w = normalToken `satisfying` (\t -> tokenText t == Just w)
+-- | Parses a normal non-empty token followed by optional whitespaces.
+-- Reserved words are returned in Left as by 'reservedOrToken'.
+-- Non-reserved words are subject to alias substitution.
+reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => AliasT m (Either (Positioned T.Text) Token)
+reservedOrAliasOrToken = AliasT $ do
+  textOrToken <- reservedOrToken <$> normalToken
+  case textOrToken of
+    Left _ -> -- reserved words are not subject to alias substitution
+      return $ Just textOrToken
+    Right t -> do
+      r <- runMaybeT $ do
+        tt <- MaybeT $ return $ tokenText t
+        let pos = fst $ NE.head $ tokenUnits t
+        substituteAlias pos tt
+      case r of
+        Nothing -> -- no alias substitution performed
+          return $ Just textOrToken
+        Just () -> -- alias substitution performed!
+          return $ Nothing
+-- TODO substitute the next token if the current substitute ends with a blank.
+
+-- | Parses an unquoted token that matches the given text.
+literal :: MonadParser m => T.Text -> m Token
+literal w = normalToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
@@ -171,9 +197,9 @@ hereDocTab :: MonadParser m => Bool -> m ()
 hereDocTab tabbed = when tabbed $ void $ many $ char '\t'
 
 hereDocLine :: MonadParser m => Bool -> Bool -> m [Positioned DoubleQuoteUnit]
-hereDocLine tabbed literal = do
+hereDocLine tabbed isLiteral = do
   hereDocTab tabbed
-  fmap NE.toList $ if literal
+  fmap NE.toList $ if isLiteral
      then fmap (fmap Char) anyChar `manyTo` nl
      else doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
@@ -214,29 +240,75 @@ whitesHD = lift whites
 linebreak :: MonadParser m => HereDocT m ()
 linebreak = void (many (newlineHD *> whitesHD))
 
--- | Parses a simple command. Skips whitespaces after the command.
-simpleCommand :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-              => HereDocAliasT m Command
-simpleCommand = f <$> nonEmptyBody
-  where f (ts, as, rs) = SimpleCommand ts as rs
-        nonEmptyBody = fRedir <$> redirect' <*> requireHD body <|>
-          fToken <$> aliasableToken' <*> requireHD arguments
-        body = nonEmptyBody <|> pure ([], [], [])
-        arguments = fRedir <$> redirect' <*> requireHD arguments <|>
-          fToken <$> normalToken' <*> requireHD arguments <|>
-          pure ([], [], [])
+-- | Parses a sequence of (non-assignment) words and redirections.
+--
+-- Returns a triple of parsed tokens, empty list, and redirections.
+simpleCommandArguments :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => HereDocAliasT m ([Token], [a], [Redirection])
+simpleCommandArguments = arg <*> simpleCommandArguments <|> pure ([], [], [])
+  where arg = consRedir <$> redirect' <|> consToken <$> normalToken'
+        consRedir r (ts, as, rs) = (ts, as, r:rs)
+        consToken t (ts, as, rs) = (t:ts, as, rs)
         redirect' = mapHereDocT lift redirect
-        aliasableToken' = lift aliasableToken
         normalToken' = lift normalToken
-        fRedir r (ts, as, rs) = (ts, as, r:rs)
-        fToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO global aliases
+
+-- | Parses a simple command but the first token.
+--
+-- The first token of the simple command is not parsed by this parser. It must
+-- have been parsed by another parser and must be passed as the argument.
+simpleCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                  => Token -> HereDocAliasT m Command
+simpleCommandTail t1 = toCommand . consToken t1 <$> simpleCommandArguments
+  where toCommand (ts, as, rs) = SimpleCommand ts as rs
+        consToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO assignments
+
+-- | Parses a grouping except the first open brace, which must have just been
+-- parsed.
+groupingTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => Position -- ^ Position of the open brace.
+             -> HereDocT m (Positioned CompoundCommand)
+groupingTail p = f <$> body <* closeBrace
+  where f ls = (p, Grouping ls)
+        body = setReasonHD (MissingCommandAfter openBraceString) $
+          mapHereDocT reparse compoundList
+        openBraceString = T.unpack reservedOpenBrace
+        closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
+          literal reservedCloseBrace
+
+-- | Parses a compound command except the first token that determines the type
+-- of the compound command.
+--
+-- The first token is not parsed by this parser. It must have been parsed by
+-- another parser and must be passed as the argument. This parser fails if the
+-- first token does not start a compound command.
+compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                    => Positioned T.Text
+                    -> HereDocT m (Positioned CompoundCommand)
+compoundCommandTail (p, t)
+  | t == reservedOpenBrace = requireHD $ groupingTail p
+  | otherwise = lift $ failureOfPosition p
+  -- TODO if, while, until, for, case
 
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
         => HereDocAliasT m Command
-command = simpleCommand -- FIXME support other types of commands
+command =
+  -- First, if the command begins with a redirection, it is a simple command.
+  toCommand <$> (consRedir <$> redirect' <*> simpleCommand') <|>
+  -- Otherwise, the first token can be a reserved word or alias.
+  joinAliasHereDocAliasT (compoundOrSimple <$> reservedOrAliasOrToken)
+    where toCommand (ts, as, rs) = SimpleCommand ts as rs
+          consRedir r (ts, as, rs) = (ts, as, r:rs)
+          redirect' = mapHereDocT lift redirect
+          simpleCommand' = simpleCommandArguments -- TODO parse assignments
+          compoundOrSimple = either compoundCommandTail' simpleCommandTail
+            -- :: Either (Positioned T.Text) Token -> HereDocAliasT m Command
+          compoundCommandTail' =
+            mapHereDocT lift . fmap CompoundCommand . compoundCommandTail
+            -- :: Positioned T.Text -> HereDocAliasT m Command
+-- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
 pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -249,7 +321,7 @@ pipeSequence = (:|) <$> command <*> many trailer
 pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => HereDocAliasT m Pipeline
 pipeline =
-  lift (reserved (T.pack "!")) *> req (make True <$> pipeSequence) <|>
+  lift (literal reservedBang) *> req (make True <$> pipeSequence) <|>
   make False <$> pipeSequence
     where req = setReasonHD (MissingCommandAfter "!") . requireHD
           make = flip Pipeline
@@ -295,6 +367,12 @@ andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
           => HereDocAliasT m AndOrList
 andOrList = AndOrList <$> pipeline <*> many conditionalPipeline <*> sep
   where sep = lift $ separatorOp <|> return False
+
+-- | Parses a sequence of one or more and-or lists surrounded by optional
+-- linebreaks.
+compoundList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => HereDocAliasT m (NonEmpty AndOrList)
+compoundList = linebreak *> some' (andOrList <* linebreak)
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [AndOrList]

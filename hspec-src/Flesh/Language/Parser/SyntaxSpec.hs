@@ -29,6 +29,7 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
+import qualified Flesh.Source.Position as P
 import Test.Hspec
 
 spec :: Spec
@@ -104,52 +105,63 @@ spec = do
     context "rejects empty token" $ do
       expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
 
-  describe "aliasableToken" $ do
-    let at = runAliasT aliasableToken
-        at' = runAliasT aliasableToken
+  describe "reservedOrAliasOrToken" $ do
+    let ignorePosition = either (Left . snd) Right
+        rat = runAliasT $ ignorePosition <$> reservedOrAliasOrToken
+        rat' = runAliasT $ ignorePosition <$> reservedOrAliasOrToken
 
     context "returns unmatched token" $ do
-      expectShow "foo" ";" at' "Just foo"
+      expectShow "foo" ";" rat' "Just (Right foo)"
 
     context "returns quoted token" $ do
-      expectShow "f\\oo" ";" at' "Just f\\oo"
-      expectShow "f\"o\"o" "&" at' "Just f\"o\"o"
-      expectShow "f'o'o" ")" at' "Just f'o'o"
+      expectShow "f\\oo" ";" rat' "Just (Right f\\oo)"
+      expectShow "f\"o\"o" "&" rat' "Just (Right f\"o\"o)"
+      expectShow "f'o'o" ")" rat' "Just (Right f'o'o)"
 
     context "returns non-constant token" $ do
-      expectShow "f${1}o" ";" at' "Just f${1}o"
+      expectShow "f${1}o" ";" rat' "Just (Right f${1}o)"
 
-    context "modifies pending input" $ do
-      expectSuccessEof defaultAliasName "" (at >> readAll) defaultAliasValue
+    context "returns reserved word" $ do
+      expectShow "!" ";" rat' "Just (Left \"!\")"
+      expectShowEof reservedWordAliasName "" rat "Just (Left \"while\")"
+
+    it "doesn't perform alias substitution on reserved words" $
+      let e = runFullInputTesterAlias rat reservedWordAliasDefinitions s
+          s = P.spread (P.dummyPosition s') s'
+          s' = reservedWordAliasName
+       in fmap (show . fst) e `shouldBe` Right "Just (Left \"while\")"
+
+    context "modifies pending input on alias subsitution" $ do
+      expectSuccessEof defaultAliasName "" (rat >> readAll) defaultAliasValue
 
     it "returns nothing after substitution" $
-      let e = runFullInputTesterWithDummyPositions at defaultAliasName
+      let e = runFullInputTesterWithDummyPositions rat defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
-    it "stops on recursion" $
+    it "stops alias substitution on recursion" $
       let e = runFullInputTesterWithDummyPositions
-                (reparse aliasableToken >> readAll) defaultAliasName
+                (reparse reservedOrAliasOrToken >> readAll) defaultAliasName
        in fmap fst e `shouldBe` Right "--color"
 
-    it "stops on exact recursion" $
+    it "stops alias substitution on exact recursion" $
       let e = runFullInputTesterWithDummyPositions
-                (reparse aliasableToken >> readAll) recursiveAlias
+                (reparse reservedOrAliasOrToken >> readAll) recursiveAlias
        in fmap fst e `shouldBe` Right ""
 
-  describe "reserved" $ do
+  describe "literal" $ do
     context "returns matching unquoted token" $ do
-      expectShowEof "! " "" (reserved (T.pack "!")) "!"
-      expectShow    "i\\\nf" "\n" (reserved (T.pack "if")) "if"
-      expectShowEof "foo" "" (reserved (T.pack "foo")) "foo"
+      expectShowEof "! " "" (literal (T.pack "!")) "!"
+      expectShow    "i\\\nf" "\n" (literal (T.pack "if")) "if"
+      expectShowEof "foo" "" (literal (T.pack "foo")) "foo"
 
     context "fails on unmatching unquoted token" $ do
-      expectFailureEof "a" (reserved (T.pack "!")) Soft UnknownReason 0
-      expectFailureEof "a" (reserved (T.pack "aa")) Soft UnknownReason 0
-      expectFailureEof "aa" (reserved (T.pack "a")) Soft UnknownReason 0
+      expectFailureEof "a" (literal (T.pack "!")) Soft UnknownReason 0
+      expectFailureEof "a" (literal (T.pack "aa")) Soft UnknownReason 0
+      expectFailureEof "aa" (literal (T.pack "a")) Soft UnknownReason 0
 
     context "fails on quoted token" $ do
-      expectFailureEof "\\if" (reserved (T.pack "if")) Soft UnknownReason 0
-      expectFailureEof "i\\f" (reserved (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "\\if" (literal (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "i\\f" (literal (T.pack "if")) Soft UnknownReason 0
 
   describe "redirect" $ do
     let yieldDummyContent = HereDocT $
@@ -224,26 +236,60 @@ spec = do
     context "parses pending here doc contents after newline" $ return ()
     -- This property is tested in test cases for other properties.
 
-  describe "simpleCommand" $ do
-    let sc = runAliasT $ fill simpleCommand
-        sc' = runAliasT $ fill simpleCommand
+  describe "groupingTail" $ do
+    let p = P.dummyPosition "X"
+        g = snd <$> fill (groupingTail p)
+        g' = snd <$> fill (groupingTail p)
 
-    context "is some tokens" $ do
-      expectShowEof "foo" "" sc "Just foo"
-      expectShowEof "foo bar" ";" sc "Just foo bar"
-      expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
+    context "may have one inner command" $ do
+      expectShowEof "foo;}" "" g "{ foo; }"
+      expectShowEof "bar\n} " "" g "{ bar; }"
 
-    context "rejects empty command" $ do
-      expectFailureEof ""   sc  Soft UnknownReason 0
-      expectFailure    "\n" sc' Soft UnknownReason 0
+    context "may have three inner commands" $ do
+      expectShowEof "foo; bar& baz; }" "" g "{ foo; bar& baz; }"
+      expectShowEof "foo& bar; baz& }" "" g "{ foo& bar; baz& }"
+      expectShowEof "foo\nbar&\nbaz\n \n }" "" g "{ foo; bar& baz; }"
 
-    it "returns nothing after alias substitution" $
-      let e = runFullInputTesterWithDummyPositions sc defaultAliasName
-       in fmap fst e `shouldBe` Right Nothing
+    context "can have preceding newlines and whiles" $ do
+      expectShowEof "\nfoo;}" "" g "{ foo; }"
+      expectShowEof "\n # \n \n \tfoo;}" "" g "{ foo; }"
 
-    context "does not alias-substitute second token" $ do
-      expectShowEof ("foo " ++ defaultAliasName) "" sc $
-        "Just foo " ++ defaultAliasName
+    context "cannot be empty" $ do
+      expectFailureEof ""  g Soft (MissingCommandAfter "{") 0
+      expectFailureEof "}" g Soft (MissingCommandAfter "{") 0
+
+    context "must be closed by brace" $ do
+      expectFailureEof "foo " g  Hard (UnclosedGrouping p) 4
+      expectFailure    "foo)" g' Hard (UnclosedGrouping p) 3
+
+  describe "command" $ do
+    let sc = runAliasT $ fill command
+        sc' = runAliasT $ fill command
+
+    context "as simple command" $ do
+      context "is some tokens" $ do
+        expectShowEof "foo" "" sc "Just foo"
+        expectShowEof "foo bar" ";" sc "Just foo bar"
+        expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
+
+      context "rejects empty command" $ do
+        expectFailureEof ""   sc  Soft UnknownReason 0
+        expectFailure    "\n" sc' Soft UnknownReason 0
+
+      it "returns nothing after alias substitution" $
+        let e = runFullInputTesterWithDummyPositions sc defaultAliasName
+         in fmap fst e `shouldBe` Right Nothing
+
+      context "does not alias-substitute second token" $ do
+        expectShowEof ("foo " ++ defaultAliasName) "" sc $
+          "Just foo " ++ defaultAliasName
+
+    context "as grouping" $ do
+      context "starts with a brace" $ do
+        expectShowEof "{ foo\n}" "" sc "Just { foo; }"
+
+      context "does not start with a quoted brace" $ do
+        expectShowEof "\\{ foo" "\n}" sc "Just \\{ foo"
 
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
@@ -338,6 +384,39 @@ spec = do
     context "can end at end of input" $ do
       expectShowEof "foo" "" aol "Just foo;"
       expectShowEof "foo && bar" "" aol "Just foo && bar;"
+
+  describe "compoundList" $ do
+    let cl = runAliasT $ fill $ NE.toList <$> compoundList
+        cl' = runAliasT $ fill $ NE.toList <$> compoundList
+
+    context "is not empty" $ do
+      expectShow "foo" ";;" cl' "Just foo"
+      expectFailure    ";;" cl' Soft UnknownReason 0
+      expectFailureEof ""   cl  Soft UnknownReason 0
+      expectFailureEof "  " cl  Soft UnknownReason 0
+
+    context "is some and-or lists" $ do
+      expectShowEof "foo; bar"       "" cl "Just foo; bar"
+      expectShowEof "foo; bar& baz;" "" cl "Just foo; bar& baz"
+
+    context "spans multiple lines" $ do
+      expectShowEof "foo\nbar"                 "" cl "Just foo; bar"
+      expectShowEof "foo&\nbar"                "" cl "Just foo& bar"
+      expectShowEof "foo #X\n #comment\n\tbar" "" cl "Just foo; bar"
+      expectShowEof "a;b\nc&d"                 "" cl "Just a; b; c& d"
+
+    context "can have preceding newlines and whites" $ do
+      expectShowEof "\nfoo"              "" cl "Just foo"
+      expectShowEof "\n \tfoo"           "" cl "Just foo"
+      expectShowEof "\n \t#comment\nfoo" "" cl "Just foo"
+      expectShowEof "\n\n\nfoo"          "" cl "Just foo"
+
+    context "can have trailing newlines and whites" $ do
+      expectShowEof "foo\n"              ""   cl  "Just foo"
+      expectShow    "foo\n"              ";;" cl' "Just foo"
+      expectShowEof "foo\n\t "           ""   cl  "Just foo"
+      expectShowEof "foo\n\t #comment\n" ""   cl  "Just foo"
+      expectShow    "foo\n\n\n"          ";;" cl' "Just foo"
 
   describe "completeLine" $ do
     context "can be empty" $ do
