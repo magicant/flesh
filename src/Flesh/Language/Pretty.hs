@@ -108,13 +108,17 @@ runCursorT' = fmap fst . flip runStateT p . runCursorT
 
 instance Functor m => Functor (CursorT m) where
   fmap f = CursorT . fmap f . runCursorT
+  a <$ CursorT b = CursorT (a <$ b)
 
 instance Monad m => Applicative (CursorT m) where
   pure = CursorT . pure
   CursorT a <*> CursorT b = CursorT (a <*> b)
+  CursorT a  *> CursorT b = CursorT (a  *> b)
+  CursorT a <*  CursorT b = CursorT (a <*  b)
 
 instance Monad m => Monad (CursorT m) where
   CursorT a >>= f = CursorT (a >>= runCursorT . f)
+  CursorT a >> CursorT b = CursorT (a >> b)
 
 instance MonadError e m => MonadError e (CursorT m) where
   throwError = CursorT . throwError

@@ -78,22 +78,11 @@ instance MonadTrans AliasT where
 
 instance Functor m => Functor (AliasT m) where
   fmap f = mapAliasT $ fmap $ fmap f
+  (<$) x = mapAliasT (Just x <$)
 
 instance MonadParser m => Applicative (AliasT m) where
   pure = AliasT . pure . Just
-  af <*> ax = AliasT $ do
-    p1 <- currentPosition
-    mf <- runAliasT af
-    case mf of
-      Nothing -> pure Nothing
-      Just f -> do
-        p2 <- currentPosition
-        let parseRhs = do
-              mx <- runAliasT ax
-              case mx of
-                Nothing -> if p1 == p2 then pure Nothing else parseRhs
-                Just x -> pure $ Just $ f x
-         in parseRhs
+  af <*> ax = af >>= (<$> ax)
 
 instance MonadParser m => Alternative (AliasT m) where
   empty = lift empty
