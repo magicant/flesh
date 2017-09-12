@@ -41,10 +41,13 @@ newtype Overrun a = Overrun {
 
 instance Functor Overrun where
   fmap f = Overrun . fmap f . runOverrun
+  a <$ Overrun b = Overrun (a <$ b)
 
 instance Applicative Overrun where
   pure = Overrun . pure
   Overrun a <*> Overrun b = Overrun (a <*> b)
+  Overrun a  *> Overrun b = Overrun (a  *> b)
+  Overrun a <*  Overrun b = Overrun (a <*  b)
 
 instance Monad Overrun where
   Overrun a >>= f = Overrun (a >>= runOverrun . f)
