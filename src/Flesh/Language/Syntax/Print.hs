@@ -89,6 +89,17 @@ printNewline = do
   printHereDoc
   printIndent
 
+-- | Temporarily increments the 'indent' while performing the given monad.
+indented :: MonadState PrintState m => m a -> m a
+indented m = do
+  before <- get
+  put PrintState {indent = indent before + 2, hereDoc = hereDoc before}
+  x <- m
+  after <- get
+  put PrintState {indent = indent before, hereDoc = hereDoc after}
+  return x
+-- TODO: Consider using Lens.
+
 -- | Class of printable syntax.
 class Printable s where
   -- | Prints the given syntax.
@@ -119,9 +130,12 @@ instance ListPrintable Redirection where
 
 instance Printable CompoundCommand where
   prints (Grouping ls) = do
-    tell' $ showString "{ "
-    printList (toList ls)
-    tell' $ showString " }"
+    tell' $ showString "{"
+    indented $ do
+      printNewline
+      printList $ toList ls
+    printIndent
+    tell' $ showString "}"
 
 instance Printable Command where
   prints (SimpleCommand [] [] []) = return ()
