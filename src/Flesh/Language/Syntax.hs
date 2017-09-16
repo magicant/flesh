@@ -213,7 +213,7 @@ data Command =
   -- | Simple command.
   SimpleCommand [Token] [P.Positioned Assignment] [Redirection]
   -- | Compound commands
-  | CompoundCommand (P.Positioned CompoundCommand)
+  | CompoundCommand (P.Positioned CompoundCommand) [Redirection]
   -- | Function definition.
   | FunctionDefinition -- FIXME
   deriving (Eq)
@@ -228,7 +228,9 @@ instance Show Command where
   showsPrec n (SimpleCommand ts as rs) =
     showList as' . showSpace . showsPrec n (SimpleCommand ts [] rs)
     where as' = snd <$> as
-  showsPrec n (CompoundCommand (_, cc)) = showsPrec n cc
+  showsPrec n (CompoundCommand (_, cc) []) = showsPrec n cc
+  showsPrec n (CompoundCommand (_, cc) rs) =
+    showsPrec n cc . showSpace . showList rs
   showsPrec _ FunctionDefinition = id -- FIXME
 
 -- | Element of and-or lists. Optionally negated sequence of one or more

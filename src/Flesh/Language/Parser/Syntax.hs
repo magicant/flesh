@@ -305,8 +305,8 @@ command =
           simpleCommand' = simpleCommandArguments -- TODO parse assignments
           compoundOrSimple = either compoundCommandTail' simpleCommandTail
             -- :: Either (Positioned T.Text) Token -> HereDocAliasT m Command
-          compoundCommandTail' =
-            mapHereDocT lift . fmap CompoundCommand . compoundCommandTail
+          compoundCommandTail' t = CompoundCommand <$>
+            mapHereDocT lift (compoundCommandTail t) <*> many redirect
             -- :: Positioned T.Text -> HereDocAliasT m Command
 -- TODO parse function definitions
 

@@ -291,6 +291,9 @@ spec = do
       context "does not start with a quoted brace" $ do
         expectShowEof "\\{ foo" "\n}" sc "Just \\{ foo"
 
+      it "can have some redirections" $ pendingWith "need redirections"
+        -- expectShowEof "{ foo\n}<foo >bar" "" sc "Just { foo; } <foo >bar"
+
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
         ps' = runAliasT $ fill $ NE.toList <$> pipeSequence
