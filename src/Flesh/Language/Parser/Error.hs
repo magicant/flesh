@@ -59,6 +59,7 @@ data Reason =
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NonEmpty HereDocOp)
   | MissingCommandAfter String
+  | UnclosedSubshell P.Position -- ^ with position of the open parenthesis
   | UnclosedGrouping P.Position -- ^ with position of the open brace
   deriving (Eq, Show)
 

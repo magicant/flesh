@@ -236,6 +236,34 @@ spec = do
     context "parses pending here doc contents after newline" $ return ()
     -- This property is tested in test cases for other properties.
 
+  describe "subshell" $ do
+    let p = P.dummyPosition "X"
+        s = runAliasT (fill (snd <$> subshell))
+        s' = runAliasT (fill (snd <$> subshell))
+
+    context "may have one inner command" $ do
+      expectShowEof "(foo)" "" s "Just (foo)"
+      expectShowEof "(foo;)" "" s "Just (foo)"
+      expectShowEof "(foo\n)" "" s "Just (foo)"
+
+    context "may have three inner commands" $ do
+      expectShowEof "(foo;bar&baz)" "" s "Just (foo; bar& baz)"
+      expectShowEof "(foo&bar;baz&)" "" s "Just (foo& bar; baz&)"
+      expectShowEof "(foo\nbar&\nbaz\n \n )" "" s "Just (foo; bar& baz)"
+
+    context "body can have preceding newlines and whiles" $ do
+      expectShowEof "(\nfoo)" "" s "Just (foo)"
+      expectShowEof "(\n # \n \n \tfoo)" "" s "Just (foo)"
+
+    context "cannot be empty" $ do
+      expectFailureEof "("    s Hard (MissingCommandAfter "(") 1
+      expectFailureEof "()"   s Hard (MissingCommandAfter "(") 1
+      expectFailureEof "(\n)" s Hard (MissingCommandAfter "(") 2
+
+    context "must be closed by parenthesis" $ do
+      expectFailureEof "(foo "   s  Hard (UnclosedSubshell p) 5
+      expectFailure    "(foo;})" s' Hard (UnclosedSubshell p) 5
+
   describe "groupingTail" $ do
     let p = P.dummyPosition "X"
         g = snd <$> fill (groupingTail p)

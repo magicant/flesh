@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Syntax (
   -- ** Basic parts
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- ** Commands
-  groupingTail, command,
+  subshell, groupingTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine) where
@@ -263,6 +263,17 @@ simpleCommandTail t1 = toCommand . consToken t1 <$> simpleCommandArguments
   where toCommand (ts, as, rs) = SimpleCommand ts as rs
         consToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO assignments
+
+subshell :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+         => HereDocAliasT m (Positioned CompoundCommand)
+subshell = HereDocT $ do
+  (pos, _) <- operatorToken "("
+  require $ do
+    lsFiller <- setReason (MissingCommandAfter "(") $ runHereDocT compoundList
+    _ <- setReason (UnclosedSubshell pos) $ operatorToken ")"
+    return $ do
+      ls <- lsFiller
+      return (pos, Subshell ls)
 
 -- | Parses a grouping except the first open brace, which must have just been
 -- parsed.
