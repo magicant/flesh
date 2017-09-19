@@ -145,7 +145,11 @@ instance Printable Command where
     prints (SimpleCommand ts as [])
     showSpace'
     printList rs
-  prints (CompoundCommand (_, cc)) = prints cc
+  prints (CompoundCommand (_, cc) []) = prints cc
+  prints (CompoundCommand (_, cc) rs) = do
+    prints cc
+    showSpace'
+    printList rs
   prints FunctionDefinition = undefined -- TODO
 
 instance Printable Pipeline where
