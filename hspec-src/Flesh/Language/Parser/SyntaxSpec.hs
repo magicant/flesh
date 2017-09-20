@@ -322,6 +322,13 @@ spec = do
       it "can have some redirections" $ pendingWith "need redirections"
         -- expectShowEof "{ foo\n}<foo >bar" "" sc "Just { foo; } <foo >bar"
 
+    context "as subshell" $ do
+      context "starts with a parenthesis" $ do
+        expectShowEof "(foo)" "" sc "Just (foo)"
+
+      context "does not start with a quoted parenthesis" $ do
+        expectShowEof "\\( foo" "\n)" sc "Just \\( foo"
+
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
         ps' = runAliasT $ fill $ NE.toList <$> pipeSequence

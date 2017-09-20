@@ -306,7 +306,9 @@ compoundCommandTail (p, t)
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
         => HereDocAliasT m Command
 command =
-  -- First, if the command begins with a redirection, it is a simple command.
+  -- First, check if this is a subshell.
+  CompoundCommand <$> subshell <*> many redirect' <|>
+  -- Next, if the command begins with a redirection, it is a simple command.
   toCommand <$> (consRedir <$> redirect' <*> simpleCommand') <|>
   -- Otherwise, the first token can be a reserved word or alias.
   joinAliasHereDocAliasT (compoundOrSimple <$> reservedOrAliasOrToken)
