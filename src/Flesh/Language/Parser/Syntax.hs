@@ -236,6 +236,10 @@ newlineHD = lift (lc (char '\n')) <*
 whitesHD :: MonadParser m => HereDocT m (Maybe [Positioned Char])
 whitesHD = lift whites
 
+-- | Parses one or more 'newlineHD's optionally followed by 'whites'.
+newlineList :: MonadParser m => HereDocT m ()
+newlineList = void (some (newlineHD *> whitesHD))
+
 -- | Parses any number of 'newlineHD' optionally followed by 'whites'.
 linebreak :: MonadParser m => HereDocT m ()
 linebreak = void (many (newlineHD *> whitesHD))
@@ -375,22 +379,54 @@ separatorOp = op <* whites
             "&" -> return True
             _ -> failureOfPosition p
 
--- | Parses an and-or list (@and_or@) and 'separator'.
+-- | Parses a separator operator (@;@ or @&@) and/or newlines. Returns True
+-- and False if the separator is @&@ and @;@, respectively.
+separator :: MonadParser m => HereDocT m Bool
+separator = lift separatorOp <* linebreak <|> False <$ newlineList
+
+-- | Parses an and-or list (@and_or@), not including a trailing separator.
 andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-          => HereDocAliasT m AndOrList
-andOrList = AndOrList <$> pipeline <*> many conditionalPipeline <*> sep
-  where sep = lift $ separatorOp <|> return False
+          => HereDocAliasT m (Bool -> AndOrList)
+andOrList = AndOrList <$> pipeline <*> many conditionalPipeline
+  --where sep = lift $ separatorOp <|> return False
+
+-- | Given a separator parser, returns a pair of 'manyAndOrLists' and
+-- 'someAndOrLists'.
+manySomeAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                   => HereDocAliasT m Bool
+                   -> (HereDocAliasT m [AndOrList],
+                       HereDocAliasT m (NonEmpty AndOrList))
+manySomeAndOrLists sep = (manyAols, someAols)
+  where manyAols = toList <$> someAols <|> pure []
+        someAols = cons <$> andOrList <*> maybeSepAndMany
+        cons aol (a, aols) = aol a :| aols
+        maybeSepAndMany = (,) <$> sep <*> manyAols <|> pure (False, [])
+
+-- | Given a separator parser, parses a possibly empty sequence of and-or
+-- lists. The lists must be each separated by the separator. The separator is
+-- optional after the last list.
+manyAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+               => HereDocAliasT m Bool -> HereDocAliasT m [AndOrList]
+manyAndOrLists = fst . manySomeAndOrLists
+
+-- | Given a separator parser, parses a non-empty sequence of and-or lists.
+-- The lists must be each separated by the separator. The separator is
+-- optional after the last list.
+someAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+               => HereDocAliasT m Bool -> HereDocAliasT m (NonEmpty AndOrList)
+someAndOrLists = snd . manySomeAndOrLists
 
 -- | Parses a sequence of one or more and-or lists surrounded by optional
 -- linebreaks.
 compoundList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => HereDocAliasT m (NonEmpty AndOrList)
-compoundList = linebreak *> some' (andOrList <* linebreak)
+compoundList = linebreak *> someAndOrLists separator
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => HereDocAliasT m [AndOrList]
 completeLineBody =
-  many andOrList <* requireHD (void newlineHD <|> lift (void eof))
+  manyAndOrLists (lift separatorOp) <*
+    requireHD (void newlineHD <|> lift (void eof))
 
 -- | Parses a line.
 --

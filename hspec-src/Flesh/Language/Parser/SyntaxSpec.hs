@@ -390,29 +390,18 @@ spec = do
       expectFailureEof ";"     cp  Soft UnknownReason 0
 
   describe "andOrList" $ do
-    let aol = runAliasT $ fill andOrList
-        aol' = runAliasT $ fill andOrList
+    let aol = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
+        aol' = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
+        aol'' = fmap (fmap ($ True)) $ runAliasT $ fill andOrList
 
     context "consists of pipelines" $ do
-      expectShowEof "foo;" "" aol "Just foo;"
-      expectShowEof "foo&&bar||baz;" "" aol "Just foo && bar || baz;"
-      expectShowEof "foo \\\n&&! bar ||\nbaz; \t " "" aol
+      expectShowEof "foo" ";" aol "Just foo;"
+      expectShowEof "foo&&bar||baz" ";" aol "Just foo && bar || baz;"
+      expectShowEof "foo \\\n&&! bar ||\nbaz" "&" aol
         "Just foo && ! bar || baz;"
 
-    context "can end with &" $ do
-      expectShowEof "foo&" "" aol "Just foo&"
-      expectShowEof "foo&&bar||baz&" "" aol "Just foo && bar || baz&"
-      expectShowEof "foo \\\n&&! bar ||\nbaz& \t " "" aol
-        "Just foo && ! bar || baz&"
-
-    context "can end before newline" $ do
-      expectShow "foo" "\n" aol' "Just foo;"
-      expectShow "foo && bar" "\n" aol' "Just foo && bar;"
-{- These special cases are covered by the case above
-      context "cannot have newlines before && or ||" $ do
-        expectShowEof "foo" "\n&&bar" aol "Just foo;"
-        expectShowEof "foo" "\n||bar" aol "Just foo;"
--}
+    context "takes asynchronicity parameter" $ do
+      expectShowEof "foo" ";" aol'' "Just foo&"
 
     context "can end before operators" $ do
       expectShow "foo" ";;" aol' "Just foo;"
