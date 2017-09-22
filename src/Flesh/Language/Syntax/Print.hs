@@ -136,6 +136,13 @@ instance Printable CompoundCommand where
       printList $ toList ls
     printIndent
     tell' $ showString "}"
+  prints (Subshell ls) = do
+    tell' $ showChar '('
+    indented $ do
+      printNewline
+      printList $ toList ls
+    printIndent
+    tell' $ showChar ')'
 
 instance Printable Command where
   prints (SimpleCommand [] [] []) = return ()

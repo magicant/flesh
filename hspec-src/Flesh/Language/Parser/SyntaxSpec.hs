@@ -236,6 +236,34 @@ spec = do
     context "parses pending here doc contents after newline" $ return ()
     -- This property is tested in test cases for other properties.
 
+  describe "subshell" $ do
+    let p = P.dummyPosition "X"
+        s = runAliasT (fill (snd <$> subshell))
+        s' = runAliasT (fill (snd <$> subshell))
+
+    context "may have one inner command" $ do
+      expectShowEof "(foo)" "" s "Just (foo)"
+      expectShowEof "(foo;)" "" s "Just (foo)"
+      expectShowEof "(foo\n)" "" s "Just (foo)"
+
+    context "may have three inner commands" $ do
+      expectShowEof "(foo;bar&baz)" "" s "Just (foo; bar& baz)"
+      expectShowEof "(foo&bar;baz&)" "" s "Just (foo& bar; baz&)"
+      expectShowEof "(foo\nbar&\nbaz\n \n )" "" s "Just (foo; bar& baz)"
+
+    context "body can have preceding newlines and whiles" $ do
+      expectShowEof "(\nfoo)" "" s "Just (foo)"
+      expectShowEof "(\n # \n \n \tfoo)" "" s "Just (foo)"
+
+    context "cannot be empty" $ do
+      expectFailureEof "("    s Hard (MissingCommandAfter "(") 1
+      expectFailureEof "()"   s Hard (MissingCommandAfter "(") 1
+      expectFailureEof "(\n)" s Hard (MissingCommandAfter "(") 2
+
+    context "must be closed by parenthesis" $ do
+      expectFailureEof "(foo "   s  Hard (UnclosedSubshell p) 5
+      expectFailure    "(foo;})" s' Hard (UnclosedSubshell p) 5
+
   describe "groupingTail" $ do
     let p = P.dummyPosition "X"
         g = snd <$> fill (groupingTail p)
@@ -293,6 +321,13 @@ spec = do
 
       it "can have some redirections" $ pendingWith "need redirections"
         -- expectShowEof "{ foo\n}<foo >bar" "" sc "Just { foo; } <foo >bar"
+
+    context "as subshell" $ do
+      context "starts with a parenthesis" $ do
+        expectShowEof "(foo)" "" sc "Just (foo)"
+
+      context "does not start with a quoted parenthesis" $ do
+        expectShowEof "\\( foo" "\n)" sc "Just \\( foo"
 
   describe "pipeSequence" $ do
     let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
@@ -355,29 +390,18 @@ spec = do
       expectFailureEof ";"     cp  Soft UnknownReason 0
 
   describe "andOrList" $ do
-    let aol = runAliasT $ fill andOrList
-        aol' = runAliasT $ fill andOrList
+    let aol = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
+        aol' = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
+        aol'' = fmap (fmap ($ True)) $ runAliasT $ fill andOrList
 
     context "consists of pipelines" $ do
-      expectShowEof "foo;" "" aol "Just foo;"
-      expectShowEof "foo&&bar||baz;" "" aol "Just foo && bar || baz;"
-      expectShowEof "foo \\\n&&! bar ||\nbaz; \t " "" aol
+      expectShowEof "foo" ";" aol "Just foo;"
+      expectShowEof "foo&&bar||baz" ";" aol "Just foo && bar || baz;"
+      expectShowEof "foo \\\n&&! bar ||\nbaz" "&" aol
         "Just foo && ! bar || baz;"
 
-    context "can end with &" $ do
-      expectShowEof "foo&" "" aol "Just foo&"
-      expectShowEof "foo&&bar||baz&" "" aol "Just foo && bar || baz&"
-      expectShowEof "foo \\\n&&! bar ||\nbaz& \t " "" aol
-        "Just foo && ! bar || baz&"
-
-    context "can end before newline" $ do
-      expectShow "foo" "\n" aol' "Just foo;"
-      expectShow "foo && bar" "\n" aol' "Just foo && bar;"
-{- These special cases are covered by the case above
-      context "cannot have newlines before && or ||" $ do
-        expectShowEof "foo" "\n&&bar" aol "Just foo;"
-        expectShowEof "foo" "\n||bar" aol "Just foo;"
--}
+    context "takes asynchronicity parameter" $ do
+      expectShowEof "foo" ";" aol'' "Just foo&"
 
     context "can end before operators" $ do
       expectShow "foo" ";;" aol' "Just foo;"

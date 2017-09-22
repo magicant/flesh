@@ -201,12 +201,19 @@ fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 data CompoundCommand =
   -- | one or more and-or lists.
   Grouping (NonEmpty AndOrList)
-  -- TODO other compound commands
+  -- | one or more and-or lists.
+  | Subshell (NonEmpty AndOrList)
+  -- TODO for command
+  -- TODO case command
+  -- TODO if command
+  -- TODO while/until command
   deriving (Eq)
 
 instance Show CompoundCommand where
   showsPrec _ (Grouping ls) =
     showString "{ " . showSeparatedList (NE.toList ls) . showString " }"
+  showsPrec _ (Subshell ls) =
+    showChar '(' . showList (NE.toList ls) . showChar ')'
 
 -- | Element of pipelines.
 data Command =
