@@ -36,6 +36,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
+import Control.Monad.Writer
 
 -- | Monad for character input operations.
 --
@@ -147,6 +148,13 @@ instance MonadInput m => MonadInput (MaybeT m) where
 instance MonadInput m => MonadInput (ReaderT e m) where
   popChar = lift popChar
   lookahead = mapReaderT lookahead
+  peekChar = lift peekChar
+  currentPosition = lift currentPosition
+  pushChars = lift . pushChars
+
+instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
+  popChar = lift popChar
+  lookahead = mapWriterT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
