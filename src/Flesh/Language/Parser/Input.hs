@@ -36,7 +36,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
-import Control.Monad.Writer
+import Control.Monad.Writer.Strict
 
 -- | Monad for character input operations.
 --

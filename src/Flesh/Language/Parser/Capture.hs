@@ -32,7 +32,7 @@ module Flesh.Language.Parser.Capture (
   CaptureT, runCaptureT, execCaptureT) where
 
 import Control.Applicative
-import Control.Monad.Writer
+import Control.Monad.Writer.Strict
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
