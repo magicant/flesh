@@ -54,7 +54,10 @@ test-suite flesh-hspec
   other-modules:       Flesh.Language.Parser.AliasSpec,
                        Flesh.Language.Parser.ErrorSpec,
                        Flesh.Language.Parser.LexSpec,
-                       Flesh.Language.Parser.SyntaxSpec,
+                       Flesh.Language.Parser.Syntax_CommandSpec,
+                       Flesh.Language.Parser.Syntax_ListSpec,
+                       Flesh.Language.Parser.Syntax_RedirSpec,
+                       Flesh.Language.Parser.Syntax_TokenSpec,
                        Flesh.Language.Parser.TestUtil
   build-depends:       base,
                        containers >= 0.5.0.0 && < 1,
