@@ -39,7 +39,7 @@ module Flesh.Language.Parser.Syntax (
   subshell, groupingTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
-  completeLine) where
+  completeLine, program) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -439,5 +439,10 @@ completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
 completeLine = do
   _ <- whites
   reparse $ fill completeLineBody
+
+-- | Parses an entire program.
+program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
+program = reparse $ fill $ whitesHD *> linebreak *> manyAndOrLists separator
+-- TODO should not return UnknownReason
 
 -- vim: set et sw=2 sts=2 tw=78:
