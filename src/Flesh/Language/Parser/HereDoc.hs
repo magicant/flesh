@@ -128,6 +128,8 @@ instance MonadTrans AccumT where
 instance MonadPlus m => Alternative (AccumT m) where
   empty = AccumT empty
   AccumT a <|> AccumT b = AccumT (a <|> b)
+  some = AccumT . some . runAccumT
+  many = AccumT . many . runAccumT
 
 instance MonadPlus m => MonadPlus (AccumT m)
 
