@@ -31,12 +31,14 @@ parser.
 module Flesh.Language.Parser.Input (
   MonadInput(..), followedBy) where
 
+import Control.Monad (void)
+import Control.Monad.Except (ExceptT, mapExceptT)
+import Control.Monad.Reader (ReaderT, mapReaderT)
+import Control.Monad.State.Strict (StateT, get, modify', put)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Maybe (MaybeT, mapMaybeT)
+import Control.Monad.Writer.Strict (WriterT, mapWriterT)
 import Flesh.Source.Position
-import Control.Monad.Except
-import Control.Monad.Reader
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Maybe
-import Control.Monad.Writer
 
 -- | Monad for character input operations.
 --

@@ -30,19 +30,21 @@ This module implements pretty printing feature.
 -}
 module Flesh.Language.Pretty (main) where
 
-import Control.Monad.Except
-import Control.Monad.Reader
-import Control.Monad.State.Strict
-import Data.Map.Lazy
+import Control.Monad.Except (runExceptT)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader (runReaderT)
+import Control.Monad.State.Strict (MonadState, StateT, get, put, runStateT)
+import Control.Monad.Trans.Class (lift)
+import Data.Map.Lazy (empty)
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Syntax.Print
 import Flesh.Source.Position
-import System.Exit
-import System.IO
-import System.IO.Error
+import System.Exit (exitFailure)
+import System.IO (hPutStrLn, stderr)
+import System.IO.Error (tryIOError)
 
 data InputRecord = InputRecord {
   readChars :: [Positioned Char],

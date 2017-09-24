@@ -35,16 +35,16 @@ module Flesh.Language.Parser.Lex (
   reservedIf, reservedIn, reservedThen, reservedUntil, reservedWhile,
   reservedOpenBrace, reservedCloseBrace, isReserved) where
 
-import Control.Applicative
-import Data.Char
+import Control.Applicative (many, (<|>))
+import Data.Char (isDigit, isSpace, ord)
 import qualified Data.List.NonEmpty as NE
-import qualified Data.Set as S
-import qualified Data.Text as T
+import Data.Set (Set, fromList, member)
+import Data.Text (Text, pack)
 import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
-import Numeric.Natural
+import Numeric.Natural (Natural)
 
 -- | Parses a line continuation: a backslash followed by a newline.
 lineContinuation :: MonadParser m => m Position
@@ -156,34 +156,34 @@ ioNumber = do
 reservedBang, reservedCase, reservedDo, reservedDone, reservedElif,
   reservedElse, reservedEsac, reservedFi, reservedFor, reservedFunction,
   reservedIf, reservedIn, reservedThen, reservedUntil, reservedWhile,
-  reservedOpenBrace, reservedCloseBrace :: T.Text
-reservedBang       = T.pack "!"
-reservedCase       = T.pack "case"
-reservedDo         = T.pack "do"
-reservedDone       = T.pack "done"
-reservedElif       = T.pack "elif"
-reservedElse       = T.pack "else"
-reservedEsac       = T.pack "esac"
-reservedFi         = T.pack "fi"
-reservedFor        = T.pack "for"
-reservedFunction   = T.pack "function"
-reservedIf         = T.pack "if"
-reservedIn         = T.pack "in"
-reservedThen       = T.pack "then"
-reservedUntil      = T.pack "until"
-reservedWhile      = T.pack "while"
-reservedOpenBrace  = T.pack "{"
-reservedCloseBrace = T.pack "}"
+  reservedOpenBrace, reservedCloseBrace :: Text
+reservedBang       = pack "!"
+reservedCase       = pack "case"
+reservedDo         = pack "do"
+reservedDone       = pack "done"
+reservedElif       = pack "elif"
+reservedElse       = pack "else"
+reservedEsac       = pack "esac"
+reservedFi         = pack "fi"
+reservedFor        = pack "for"
+reservedFunction   = pack "function"
+reservedIf         = pack "if"
+reservedIn         = pack "in"
+reservedThen       = pack "then"
+reservedUntil      = pack "until"
+reservedWhile      = pack "while"
+reservedOpenBrace  = pack "{"
+reservedCloseBrace = pack "}"
 
 -- | Set of all the reserved words.
-reservedWords :: S.Set T.Text
-reservedWords = S.fromList [reservedBang, reservedCase, reservedDo,
+reservedWords :: Set Text
+reservedWords = fromList [reservedBang, reservedCase, reservedDo,
   reservedDone, reservedElif, reservedElse, reservedEsac, reservedFi,
   reservedFor, reservedFunction, reservedIf, reservedIn, reservedThen,
   reservedUntil, reservedWhile, reservedOpenBrace, reservedCloseBrace]
 
 -- | Tests if the argument text is a reserved word token.
-isReserved :: T.Text -> Bool
-isReserved t = S.member t reservedWords
+isReserved :: Text -> Bool
+isReserved t = member t reservedWords
 
 -- vim: set et sw=2 sts=2 tw=78:

@@ -41,14 +41,16 @@ module Flesh.Language.Parser.Error (
   -- * The 'ParserT' monad transformer
   ParserT(..), runParserT, mapParserT) where
 
-import Control.Applicative
-import Control.Monad.Except
-import Control.Monad.Reader
-import Data.Foldable
-import Data.List.NonEmpty (NonEmpty(..))
+import Control.Applicative (Alternative, empty, many, (<|>))
+import Control.Monad (MonadPlus, join)
+import Control.Monad.Except (MonadError, catchError, throwError)
+import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Data.Foldable (fold, foldl, foldl', foldr, foldr', toList)
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
-import qualified Flesh.Source.Position as P
+import Flesh.Source.Position
 
 -- | Reason of a parse error.
 data Reason =
@@ -56,18 +58,18 @@ data Reason =
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   -- | with position of the open parenthesis
-  | UnclosedCommandSubstitution P.Position
+  | UnclosedCommandSubstitution Position
   | MissingExpansionAfterDollar
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NonEmpty HereDocOp)
   | MissingCommandAfter String
-  | UnclosedSubshell P.Position -- ^ with position of the open parenthesis
-  | UnclosedGrouping P.Position -- ^ with position of the open brace
+  | UnclosedSubshell Position -- ^ with position of the open parenthesis
+  | UnclosedGrouping Position -- ^ with position of the open brace
   deriving (Eq, Show)
 
 -- | Parse error description.
-data Error = Error {reason :: !Reason, position :: !P.Position}
+data Error = Error {reason :: !Reason, position :: !Position}
   deriving (Eq, Show)
 
 -- | Error severity.
@@ -87,7 +89,7 @@ failureOfError :: MonadError Failure m => Error -> m a
 failureOfError e = throwError (Soft, e)
 
 -- | Failure of unknown reason.
-failureOfPosition :: MonadError Failure m => P.Position -> m a
+failureOfPosition :: MonadError Failure m => Position -> m a
 failureOfPosition p = failureOfError (Error UnknownReason p)
 
 -- | Helper function for 'manyTill'. Re-throws the better error.
@@ -183,7 +185,7 @@ satisfying m p = do
 -- | 'satisfyingP' is like 'satisfying' but applies the predicate to the
 -- second item of the pair.
 satisfyingP :: MonadParser m
-            => m (P.Positioned a) -> (a -> Bool) -> m (P.Positioned a)
+            => m (Positioned a) -> (a -> Bool) -> m (Positioned a)
 -- satisfyingP m p = satisfying m (p . snd)
 -- This would return a better error position:
 satisfyingP m p = do

@@ -19,17 +19,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.AliasSpec (spec) where
 
-import Control.Monad.Trans.Maybe
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
+import Control.Monad.Trans.Maybe (runMaybeT)
+import Data.Map.Strict (singleton)
+import Data.Text (pack)
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
-import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck
+import Test.Hspec (Spec, describe)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (Property, (===), (==>), (.&&.))
 
 testSubstituteAlias :: Maybe () -- ^ expected result
                     -> String -- ^ expected remaining input
@@ -41,10 +41,10 @@ testSubstituteAlias :: Maybe () -- ^ expected result
 testSubstituteAlias result remainder l s t v =
   let pos = dummyPosition l
       l' = spread pos l
-      [s', t', v'] = T.pack <$> [s, t, v]
+      [s', t', v'] = pack <$> [s, t, v]
       pos' = dummyPosition ""
       def = definition s' v' pos'
-      defs = M.singleton s' def
+      defs = singleton s' def
       run m = fmap fst (runFullInputTesterAlias m defs l')
       subst = ParserT $ runMaybeT $ substituteAlias pos' t'
    in run subst === Right result .&&.
@@ -62,10 +62,10 @@ spec = do
     prop "prevents recursion" $ \l n v ->
       let lPos = dummyPosition l
           pl = spread lPos l
-          [n', v'] = T.pack <$> [n, v]
+          [n', v'] = pack <$> [n, v]
           dPos = dummyPosition ""
           def = definition n' v' dPos
-          defs = M.singleton n' def
+          defs = singleton n' def
           sSit = Alias lPos def
           sFrag = Fragment "" sSit 0
           sPos = Position sFrag 0

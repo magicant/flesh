@@ -22,19 +22,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.TestUtil where
 
-import Control.Applicative
-import Control.Monad.Except
-import Control.Monad.Identity
-import Control.Monad.Reader
-import Control.Monad.State.Strict
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
+import Control.Applicative (many)
+import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Identity (Identity, runIdentity)
+import Control.Monad.Reader (ReaderT, runReaderT)
+import Control.Monad.State.Strict (StateT, get, modify', put, runStateT)
+import Control.Monad.Trans.Class (lift)
+import Data.Map.Strict (insert, singleton)
+import Data.Text (pack)
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
-import Test.Hspec
+import Test.Hspec (
+  SpecWith, context, expectationFailure, it, shouldBe, shouldSatisfy)
 
 newtype Overrun a = Overrun {
   runOverrun :: StateT PositionedString (ExceptT Failure Maybe) a}
@@ -107,18 +109,18 @@ reservedWordAliasValue = ";;"
 
 defaultAliasDefinitions :: Alias.DefinitionSet
 defaultAliasDefinitions =
-  M.insert n (Alias.definition n v p) $
-    M.singleton r (Alias.definition r r pr)
-      where n = T.pack defaultAliasName
-            v = T.pack defaultAliasValue
+  insert n (Alias.definition n v p) $
+    singleton r (Alias.definition r r pr)
+      where n = pack defaultAliasName
+            v = pack defaultAliasValue
             p = dummyPosition "alias ls='ls --color'"
-            r = T.pack recursiveAlias
+            r = pack recursiveAlias
             pr = dummyPosition "alias rec=rec"
 
 reservedWordAliasDefinitions :: Alias.DefinitionSet
-reservedWordAliasDefinitions = M.singleton n (Alias.definition n v p)
-  where n = T.pack reservedWordAliasName
-        v = T.pack reservedWordAliasValue
+reservedWordAliasDefinitions = singleton n (Alias.definition n v p)
+  where n = pack reservedWordAliasName
+        v = pack reservedWordAliasValue
         p = dummyPosition "alias while=';;'"
 
 runTesterAliasT :: TesterT m a -> Alias.DefinitionSet -> m a

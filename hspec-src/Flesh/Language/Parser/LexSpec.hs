@@ -17,14 +17,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.LexSpec (spec) where
 
-import Data.List
+import Data.List (isPrefixOf)
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
-import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck hiding (expectFailure)
+import Test.Hspec (Spec, context, describe)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck ((===), (==>))
 
 spec :: Spec
 spec = do

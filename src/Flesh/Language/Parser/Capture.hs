@@ -31,8 +31,10 @@ by parsers.
 module Flesh.Language.Parser.Capture (
   CaptureT, runCaptureT, execCaptureT) where
 
-import Control.Applicative
-import Control.Monad.Writer
+import Control.Applicative (Alternative, empty, many, some, (<|>))
+import Control.Monad (MonadPlus, mplus, mzero)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad.Writer.Strict (WriterT, censor, runWriterT, tell)
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
