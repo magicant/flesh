@@ -55,6 +55,9 @@ data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
+  -- | with position of the open parenthesis
+  | UnclosedCommandSubstitution P.Position
+  | MissingExpansionAfterDollar
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NonEmpty HereDocOp)
@@ -198,6 +201,8 @@ notFollowedBy m = do
 -- | @some' a@ is like @some a@, but returns a NonEmpty list.
 some' :: Alternative m => m a -> m (NonEmpty a)
 some' a = (:|) <$> a <*> many a
+
+instance MonadParser m => MonadParser (ReaderT r m)
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
 -- 'MonadError'.

@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
+import Data.Foldable
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
@@ -34,6 +35,37 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
+  describe "dollarExpansion" $ do
+    context "command substitution" $ do
+      let reflect s = expectShow s "" (snd <$> dollarExpansion) s
+
+      context "can be empty" $ do
+        expectSuccess "$()" "" (snd <$> dollarExpansion) $
+          CommandSubstitution []
+        expectPosition "$()" (fst <$> dollarExpansion) 0
+        reflect "$( \t#\\\n)"
+        expectPosition "$( \t#\\\n)" (fst <$> dollarExpansion) 0
+
+      context "can contain some commands" $ do
+        traverse_ reflect ["$( foo )", "$(foo ||\nbar &)", "$(\nls\n)"]
+
+      context "can contain here documents" $ do
+        reflect "$(<<END\n1\n2\n3\nEND\n)"
+
+      context "can contain escapes" $ do
+        reflect "$(\\(\\))"
+
+      context "ignores aliases" $ do
+        reflect $ "$(" ++ defaultAliasName ++ ")"
+
+      context "requires valid program" $ do
+        expectFailure "$(! )" dollarExpansion Hard (MissingCommandAfter "!") 4
+
+      context "must be closed" $ do
+        let isExpectedReason (UnclosedCommandSubstitution p) = P.index p == 1
+            isExpectedReason _ = False
+        expectFailureEof' "$(X" dollarExpansion Hard isExpectedReason  3
+
   describe "doubleQuoteUnit" $ do
     context "parses backslashed backslash" $ do
       expectSuccess "\\\\" "" (snd <$> doubleQuoteUnit) (Backslashed '\\')
