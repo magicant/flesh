@@ -33,9 +33,9 @@ module Flesh.Language.Parser.Syntax (
   backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
   wordUnit, tokenTill, normalToken, reservedOrToken, reservedOrAliasOrToken,
   literal,
-  -- * Syntax
-  -- ** Basic parts
+  -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
+  -- * Syntax
   -- ** Commands
   subshell, groupingTail, command,
   -- ** Lists
