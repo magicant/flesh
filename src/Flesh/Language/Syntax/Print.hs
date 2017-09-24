@@ -33,10 +33,12 @@ module Flesh.Language.Syntax.Print (
   PrintS, runPrint,
   Printable(..), ListPrintable(..)) where
 
-import Control.Monad.State.Strict
-import Control.Monad.Writer.Lazy
-import Data.Foldable
-import Data.List.NonEmpty (NonEmpty(..))
+import Control.Monad (when)
+import Control.Monad.State.Strict (
+  MonadState, State, evalState, get, modify', put, state)
+import Control.Monad.Writer.Lazy (
+  Endo(Endo), MonadWriter, WriterT, appEndo, execWriterT, tell)
+import Data.List.NonEmpty (NonEmpty((:|)), toList)
 import Flesh.Language.Syntax
 
 -- | Intermediate state used while constructing a printer function.

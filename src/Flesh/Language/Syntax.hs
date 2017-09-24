@@ -37,11 +37,11 @@ module Flesh.Language.Syntax (
   CompoundCommand(..), Command(..), Pipeline(..), AndOrCondition(..),
   ConditionalPipeline(..), AndOrList(..), showSeparatedList) where
 
-import Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Text as T
-import qualified Flesh.Source.Position as P
-import Numeric.Natural
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.List.NonEmpty (toList)
+import Data.Text (Text, pack)
+import Flesh.Source.Position (Position, Positioned)
+import Numeric.Natural (Natural)
 
 -- Utility for Show instances
 showSpace :: ShowS
@@ -56,7 +56,7 @@ data DoubleQuoteUnit =
     -- | Parameter expansion.
     | Parameter -- FIXME
     -- | @$(...)@
-    | CommandSubstitution [P.Positioned Char]
+    | CommandSubstitution [Positioned Char]
     | Backquoted -- FIXME command substitution
     | Arithmetic -- FIXME
   deriving (Eq)
@@ -85,9 +85,9 @@ data WordUnit =
     -- | Unquoted double-quote unit as a word unit.
     Unquoted !DoubleQuoteUnit
     -- | Double-quote.
-    | DoubleQuote [P.Positioned DoubleQuoteUnit]
+    | DoubleQuote [Positioned DoubleQuoteUnit]
     -- | Single-quote.
-    | SingleQuote [P.Positioned Char]
+    | SingleQuote [Positioned Char]
   deriving (Eq)
 
 instance Show WordUnit where
@@ -109,17 +109,17 @@ unquoteWordUnit (DoubleQuote us) = (True, unq <$> us)
 unquoteWordUnit (SingleQuote cs) = (True, Char . snd <$> cs)
 
 -- | Expandable word, a possibly empty list of word units.
-newtype EWord = EWord [P.Positioned WordUnit]
+newtype EWord = EWord [Positioned WordUnit]
   deriving (Eq)
 
 -- | Returns the content of a word.
-wordUnits :: EWord -> [P.Positioned WordUnit]
+wordUnits :: EWord -> [Positioned WordUnit]
 wordUnits (EWord us) = us
 
 -- | If the given word consists of constant unquoted characters only, then
 -- returns the content as a text.
-wordText :: EWord -> Maybe (T.Text)
-wordText us = fmap T.pack $ sequenceA $ fmap (constChar . snd) $ wordUnits us
+wordText :: EWord -> Maybe (Text)
+wordText us = fmap pack $ sequenceA $ fmap (constChar . snd) $ wordUnits us
   where constChar (Unquoted (Char c)) = Just c
         constChar _ = Nothing
 
@@ -131,20 +131,20 @@ instance Show EWord where
 
 -- | Non-empty word, defined as a (lexical) token with the token identifier
 -- @TOKEN@ in POSIX.
-newtype Token = Token (NonEmpty (P.Positioned WordUnit))
+newtype Token = Token (NonEmpty (Positioned WordUnit))
   deriving (Eq)
 
 -- | Returns the content of a token.
-tokenUnits :: Token -> NonEmpty (P.Positioned WordUnit)
+tokenUnits :: Token -> NonEmpty (Positioned WordUnit)
 tokenUnits (Token us) = us
 
 -- | Converts a token to a word.
 tokenWord :: Token -> EWord
-tokenWord = EWord . NE.toList . tokenUnits
+tokenWord = EWord . toList . tokenUnits
 
 -- | If the given token consists of constant unquoted characters only, then
 -- returns the content as a text.
-tokenText :: Token -> Maybe (T.Text)
+tokenText :: Token -> Maybe (Text)
 tokenText = wordText . tokenWord
 
 -- | Removes backslash escapes, double-quotes, and single-quotes without word
@@ -152,7 +152,7 @@ tokenText = wordText . tokenWord
 unquoteToken :: Token -> (Bool, [DoubleQuoteUnit])
 unquoteToken t = (or bs, concat uss)
   where ~(bs, uss) = unq t
-        unq = unzip . fmap unquoteWordUnit . NE.toList . fmap snd . tokenUnits
+        unq = unzip . fmap unquoteWordUnit . toList . fmap snd . tokenUnits
 
 instance Show Token where
   showsPrec n t = showsPrec n (tokenWord t)
@@ -167,7 +167,7 @@ instance Show Assignment where
 
 -- | Here document redirection operator.
 data HereDocOp = HereDocOp {
-  hereDocOpPos :: P.Position,
+  hereDocOpPos :: Position,
   hereDocFd :: !Natural,
   isTabbed :: !Bool,
   delimiter :: Token}
@@ -184,7 +184,7 @@ data Redirection =
     fileFd :: !Natural} -- FIXME
   | HereDoc {
     hereDocOp :: !HereDocOp,
-    content :: [P.Positioned DoubleQuoteUnit]}
+    content :: [Positioned DoubleQuoteUnit]}
   deriving (Eq)
 
 instance Show Redirection where
@@ -213,16 +213,16 @@ data CompoundCommand =
 
 instance Show CompoundCommand where
   showsPrec _ (Grouping ls) =
-    showString "{ " . showSeparatedList (NE.toList ls) . showString " }"
+    showString "{ " . showSeparatedList (toList ls) . showString " }"
   showsPrec _ (Subshell ls) =
-    showChar '(' . showList (NE.toList ls) . showChar ')'
+    showChar '(' . showList (toList ls) . showChar ')'
 
 -- | Element of pipelines.
 data Command =
   -- | Simple command.
-  SimpleCommand [Token] [P.Positioned Assignment] [Redirection]
+  SimpleCommand [Token] [Positioned Assignment] [Redirection]
   -- | Compound commands
-  | CompoundCommand (P.Positioned CompoundCommand) [Redirection]
+  | CompoundCommand (Positioned CompoundCommand) [Redirection]
   -- | Function definition.
   | FunctionDefinition -- FIXME
   deriving (Eq)

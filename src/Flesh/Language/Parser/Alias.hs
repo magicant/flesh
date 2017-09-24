@@ -36,15 +36,18 @@ module Flesh.Language.Parser.Alias (
   -- * Alias substitution
   AliasT(..), mapAliasT, toMaybeT, fromMaybeT, substituteAlias, reparse) where
 
-import Control.Applicative
-import Control.Monad.Reader
-import Control.Monad.Trans.Maybe
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
+import Control.Applicative (Alternative, empty, (<|>))
+import Control.Monad (MonadPlus, guard)
+import Control.Monad.Reader (MonadReader, ReaderT, ask)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
+import Data.Map.Strict (lookup)
+import Data.Text (Text, unpack)
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
+import Prelude hiding (lookup)
 
 -- | Monad transformer that makes parse results depend on alias definitions.
 type ContextT = ReaderT DefinitionSet
@@ -122,7 +125,7 @@ instance MonadParser m => MonadParser (AliasT m)
 -- | Returns 'True' iff the given position is applicable for alias
 -- substitution of the given name. The name is not applicable if the current
 -- position is already a result of alias substitution of the name.
-applicable :: T.Text -> Position -> Bool
+applicable :: Text -> Position -> Bool
 applicable t (Position (Fragment _ (Alias pos def) _) _)
   | name def == t = False
   | otherwise     = applicable t pos
@@ -138,13 +141,13 @@ applicable _ _ = True
 -- Returns @'return' ()@ if substitution was performed; returns 'Nothing'
 -- otherwise.
 substituteAlias :: (MonadReader DefinitionSet m, MonadInput m)
-                => Position -> T.Text -> MaybeT m ()
+                => Position -> Text -> MaybeT m ()
 substituteAlias pos' t = do
   defs <- ask
-  def <- MaybeT $ return $ M.lookup t defs
+  def <- MaybeT $ return $ lookup t defs
   guard $ applicable t pos'
   let a = Alias pos' def
-      v = T.unpack $ value def
+      v = unpack $ value def
       frag = Fragment v a 0
       pos = Position frag 0
       cs = unposition $ spread pos $ v

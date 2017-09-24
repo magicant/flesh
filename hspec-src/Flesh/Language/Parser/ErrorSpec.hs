@@ -21,15 +21,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.ErrorSpec (spec) where
 
-import Control.Applicative
-import Control.Monad.Except
-import Control.Monad.Identity
-import Control.Monad.State.Strict
+import Control.Applicative ((<|>))
+import Control.Monad.Except (MonadError, ExceptT, mapExceptT, runExceptT)
+import Control.Monad.Identity (Identity, runIdentity)
+import Control.Monad.State.Strict (State, runState)
 import Flesh.Language.Parser.Error
 import Flesh.Source.Position
-import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck
+import Test.Hspec (Spec, describe)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (
+  Arbitrary, Gen, arbitrary, elements, oneof, (===), (==>))
 
 instance Arbitrary Reason where
   arbitrary =

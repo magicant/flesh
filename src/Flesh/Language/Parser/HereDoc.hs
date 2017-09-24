@@ -51,9 +51,12 @@ module Flesh.Language.Parser.HereDoc (
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
   fill, setReasonHD, requireHD) where
 
-import Control.Applicative
-import Control.Monad.State.Strict
-import Data.List.NonEmpty (NonEmpty(..))
+import Control.Applicative (Alternative, empty, many, some, (<|>))
+import Control.Monad (MonadPlus)
+import Control.Monad.State.Strict (
+  MonadState, State, StateT, evalStateT, get, mapStateT, put, runState, state)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax

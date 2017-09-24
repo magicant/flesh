@@ -28,8 +28,8 @@ module Flesh.Language.Alias (
   Definition, definition, Core.name, Core.value, Core.position, DefinitionSet)
     where
 
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
+import Data.Map.Strict (Map)
+import Data.Text (Text)
 import qualified Flesh.Language.Alias.Core as Core
 import Flesh.Source.Position
 
@@ -37,14 +37,14 @@ import Flesh.Source.Position
 type Definition = Core.Definition Position
 
 -- | Constructs an alias definition.
-definition :: T.Text -- ^ name
-           -> T.Text -- ^ value
+definition :: Text -- ^ name
+           -> Text -- ^ value
            -> Position -- ^ position
            -> Definition
 definition = Core.Definition
 
 -- | Set of alias definitions. It is a map from alias names to alias
 -- definitions.
-type DefinitionSet = M.Map T.Text Definition
+type DefinitionSet = Map Text Definition
 
 -- vim: set et sw=2 sts=2 tw=78:

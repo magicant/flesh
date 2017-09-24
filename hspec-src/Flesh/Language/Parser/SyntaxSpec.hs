@@ -19,10 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.SyntaxSpec (spec) where
 
-import Data.Foldable
-import Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Text as T
+import Data.Foldable (toList, traverse_)
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Text (pack)
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -30,8 +29,8 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import qualified Flesh.Source.Position as P
-import Test.Hspec
+import Flesh.Source.Position
+import Test.Hspec (Spec, context, describe, it, pendingWith, shouldBe)
 
 spec :: Spec
 spec = do
@@ -41,7 +40,7 @@ spec = do
 
       context "can be empty" $ do
         expectSuccess "$()" "" (snd <$> dollarExpansion) $
-          CommandSubstitution []
+          Flesh.Language.Parser.Syntax.CommandSubstitution []
         expectPosition "$()" (fst <$> dollarExpansion) 0
         reflect "$( \t#\\\n)"
         expectPosition "$( \t#\\\n)" (fst <$> dollarExpansion) 0
@@ -62,7 +61,7 @@ spec = do
         expectFailure "$(! )" dollarExpansion Hard (MissingCommandAfter "!") 4
 
       context "must be closed" $ do
-        let isExpectedReason (UnclosedCommandSubstitution p) = P.index p == 1
+        let isExpectedReason (UnclosedCommandSubstitution p) = index p == 1
             isExpectedReason _ = False
         expectFailureEof' "$(X" dollarExpansion Hard isExpectedReason  3
 
@@ -159,7 +158,7 @@ spec = do
 
     it "doesn't perform alias substitution on reserved words" $
       let e = runFullInputTesterAlias rat reservedWordAliasDefinitions s
-          s = P.spread (P.dummyPosition s') s'
+          s = spread (dummyPosition s') s'
           s' = reservedWordAliasName
        in fmap (show . fst) e `shouldBe` Right "Just (Left \"while\")"
 
@@ -182,18 +181,18 @@ spec = do
 
   describe "literal" $ do
     context "returns matching unquoted token" $ do
-      expectShowEof "! " "" (literal (T.pack "!")) "!"
-      expectShow    "i\\\nf" "\n" (literal (T.pack "if")) "if"
-      expectShowEof "foo" "" (literal (T.pack "foo")) "foo"
+      expectShowEof "! " "" (literal (pack "!")) "!"
+      expectShow    "i\\\nf" "\n" (literal (pack "if")) "if"
+      expectShowEof "foo" "" (literal (pack "foo")) "foo"
 
     context "fails on unmatching unquoted token" $ do
-      expectFailureEof "a" (literal (T.pack "!")) Soft UnknownReason 0
-      expectFailureEof "a" (literal (T.pack "aa")) Soft UnknownReason 0
-      expectFailureEof "aa" (literal (T.pack "a")) Soft UnknownReason 0
+      expectFailureEof "a" (literal (pack "!")) Soft UnknownReason 0
+      expectFailureEof "a" (literal (pack "aa")) Soft UnknownReason 0
+      expectFailureEof "aa" (literal (pack "a")) Soft UnknownReason 0
 
     context "fails on quoted token" $ do
-      expectFailureEof "\\if" (literal (T.pack "if")) Soft UnknownReason 0
-      expectFailureEof "i\\f" (literal (T.pack "if")) Soft UnknownReason 0
+      expectFailureEof "\\if" (literal (pack "if")) Soft UnknownReason 0
+      expectFailureEof "i\\f" (literal (pack "if")) Soft UnknownReason 0
 
   describe "redirect" $ do
     let yieldDummyContent = HereDocT $
@@ -269,7 +268,7 @@ spec = do
     -- This property is tested in test cases for other properties.
 
   describe "subshell" $ do
-    let p = P.dummyPosition "X"
+    let p = dummyPosition "X"
         s = runAliasT (fill (snd <$> subshell))
         s' = runAliasT (fill (snd <$> subshell))
 
@@ -297,7 +296,7 @@ spec = do
       expectFailure    "(foo;})" s' Hard (UnclosedSubshell p) 5
 
   describe "groupingTail" $ do
-    let p = P.dummyPosition "X"
+    let p = dummyPosition "X"
         g = snd <$> fill (groupingTail p)
         g' = snd <$> fill (groupingTail p)
 
@@ -362,8 +361,8 @@ spec = do
         expectShowEof "\\( foo" "\n)" sc "Just \\( foo"
 
   describe "pipeSequence" $ do
-    let ps = runAliasT $ fill $ NE.toList <$> pipeSequence
-        ps' = runAliasT $ fill $ NE.toList <$> pipeSequence
+    let ps = runAliasT $ fill $ toList <$> pipeSequence
+        ps' = runAliasT $ fill $ toList <$> pipeSequence
 
     context "can be one simple command" $ do
       expectShowEof "foo bar" "" ps "Just [foo bar]"
@@ -445,8 +444,8 @@ spec = do
       expectShowEof "foo && bar" "" aol "Just foo && bar;"
 
   describe "compoundList" $ do
-    let cl = runAliasT $ fill $ NE.toList <$> compoundList
-        cl' = runAliasT $ fill $ NE.toList <$> compoundList
+    let cl = runAliasT $ fill $ toList <$> compoundList
+        cl' = runAliasT $ fill $ toList <$> compoundList
 
     context "is not empty" $ do
       expectShow "foo" ";;" cl' "Just foo"

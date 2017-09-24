@@ -42,16 +42,18 @@ module Flesh.Language.Parser.Syntax (
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine, program) where
 
-import Control.Applicative
-import Control.Monad.Reader
-import Control.Monad.Trans.Maybe
-import Data.Foldable
-import Data.List hiding (words)
-import Data.List.NonEmpty (NonEmpty(..))
+import Control.Applicative (liftA3, many, optional, some, (<|>))
+import Control.Monad (guard, join, void, when)
+import Control.Monad.Reader (MonadReader, runReaderT)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
+import Data.Foldable (sequenceA_, toList)
+import Data.List (isPrefixOf)
+import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
-import qualified Data.Map.Strict as M
-import Data.Maybe
-import qualified Data.Text as T
+import Data.Map.Strict (empty)
+import Data.Maybe (fromMaybe)
+import Data.Text (Text, unpack)
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Capture
@@ -62,7 +64,7 @@ import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
-import Numeric.Natural
+import Numeric.Natural (Natural)
 import Prelude hiding (words)
 
 -- | Combination of 'HereDocT' and 'AliasT'.
@@ -87,7 +89,7 @@ dollarExpansionTail = do
     -- TODO unbraced parameter expansion
     '(' -> require $ fmap Flesh.Language.Syntax.CommandSubstitution $
       execCaptureT cmdsubstBody <* closeParan
-      where cmdsubstBody = runReaderT program M.empty
+      where cmdsubstBody = runReaderT program empty
             closeParan = setReason (UnclosedCommandSubstitution p) (char ')')
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
 
@@ -149,7 +151,7 @@ normalToken = tokenTill endOfToken <* whites
 
 -- | Returns the token text in Left if the argument word 'isReserved',
 -- otherwise the argument itself in Right.
-reservedOrToken :: Token -> Either (Positioned T.Text) Token
+reservedOrToken :: Token -> Either (Positioned Text) Token
 reservedOrToken t = maybe (Right t) Left $ do
   t' <- tokenText t
   guard $ isReserved t'
@@ -160,7 +162,7 @@ reservedOrToken t = maybe (Right t) Left $ do
 -- Reserved words are returned in Left as by 'reservedOrToken'.
 -- Non-reserved words are subject to alias substitution.
 reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                       => AliasT m (Either (Positioned T.Text) Token)
+                       => AliasT m (Either (Positioned Text) Token)
 reservedOrAliasOrToken = AliasT $ do
   textOrToken <- reservedOrToken <$> normalToken
   case textOrToken of
@@ -179,7 +181,7 @@ reservedOrAliasOrToken = AliasT $ do
 -- TODO substitute the next token if the current substitute ends with a blank.
 
 -- | Parses an unquoted token that matches the given text.
-literal :: MonadParser m => T.Text -> m Token
+literal :: MonadParser m => Text -> m Token
 literal w = normalToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
@@ -312,7 +314,7 @@ groupingTail p = f <$> body <* closeBrace
   where f ls = (p, Grouping ls)
         body = setReasonHD (MissingCommandAfter openBraceString) $
           mapHereDocT reparse compoundList
-        openBraceString = T.unpack reservedOpenBrace
+        openBraceString = unpack reservedOpenBrace
         closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
           literal reservedCloseBrace
 
@@ -323,7 +325,7 @@ groupingTail p = f <$> body <* closeBrace
 -- another parser and must be passed as the argument. This parser fails if the
 -- first token does not start a compound command.
 compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                    => Positioned T.Text
+                    => Positioned Text
                     -> HereDocT m (Positioned CompoundCommand)
 compoundCommandTail (p, t)
   | t == reservedOpenBrace = requireHD $ groupingTail p
@@ -345,10 +347,10 @@ command =
           redirect' = mapHereDocT lift redirect
           simpleCommand' = simpleCommandArguments -- TODO parse assignments
           compoundOrSimple = either compoundCommandTail' simpleCommandTail
-            -- :: Either (Positioned T.Text) Token -> HereDocAliasT m Command
+            -- :: Either (Positioned Text) Token -> HereDocAliasT m Command
           compoundCommandTail' t = CompoundCommand <$>
             mapHereDocT lift (compoundCommandTail t) <*> many redirect
-            -- :: Positioned T.Text -> HereDocAliasT m Command
+            -- :: Positioned Text -> HereDocAliasT m Command
 -- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.

@@ -30,7 +30,7 @@ module Flesh.Language.Parser.Warning (
   -- * Monad for recording warnings
   ReportT) where
 
-import Control.Monad.Writer.Strict
+import Control.Monad.Writer.Strict (WriterT)
 
 -- | Warning produced during source code parsing.
 data Warning = Warning -- FIXME
