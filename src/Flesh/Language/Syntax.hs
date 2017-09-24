@@ -55,7 +55,8 @@ data DoubleQuoteUnit =
     | Backslashed !Char
     -- | Parameter expansion.
     | Parameter -- FIXME
-    | CommandSubstitution -- FIXME of the $(...) form
+    -- | @$(...)@
+    | CommandSubstitution [P.Positioned Char]
     | Backquoted -- FIXME command substitution
     | Arithmetic -- FIXME
   deriving (Eq)
@@ -64,7 +65,8 @@ instance Show DoubleQuoteUnit where
   showsPrec _ (Char c) = showChar c
   showsPrec _ (Backslashed c) = \s -> '\\':c:s
   showsPrec _ Parameter = id
-  showsPrec _ CommandSubstitution = id
+  showsPrec _ (CommandSubstitution pcs) =
+    showString "$(" . showString (snd (unzip pcs)) . showChar ')'
   showsPrec _ Backquoted = id
   showsPrec _ Arithmetic = id
   -- | Just joins the given units, without enclosing double quotes.

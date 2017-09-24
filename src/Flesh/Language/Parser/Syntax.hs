@@ -30,8 +30,9 @@ module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
   HereDocAliasT,
   -- * Tokens
-  backslashed, doubleQuoteUnit, doubleQuote, singleQuote, wordUnit, tokenTill,
-  normalToken, reservedOrToken, reservedOrAliasOrToken, literal,
+  backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
+  wordUnit, tokenTill, normalToken, reservedOrToken, reservedOrAliasOrToken,
+  literal,
   -- * Syntax
   -- ** Basic parts
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
@@ -39,7 +40,7 @@ module Flesh.Language.Parser.Syntax (
   subshell, groupingTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
-  completeLine) where
+  completeLine, program) where
 
 import Control.Applicative
 import Control.Monad.Reader
@@ -48,10 +49,12 @@ import Data.Foldable
 import Data.List hiding (words)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Map.Strict as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Capture
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
@@ -74,13 +77,34 @@ backslashed :: MonadParser m
             => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
 backslashed m = char '\\' *> fmap (fmap Backslashed) m
 
+-- | Parses an expansion that occurs after a dollar.
+dollarExpansionTail :: MonadParser m => m DoubleQuoteUnit
+dollarExpansionTail = do
+  ~(p, c) <- setReason MissingExpansionAfterDollar anyChar
+  case c of
+    -- TODO arithmetic expansion
+    -- TODO braced parameter expansion
+    -- TODO unbraced parameter expansion
+    '(' -> require $ fmap Flesh.Language.Syntax.CommandSubstitution $
+      execCaptureT cmdsubstBody <* closeParan
+      where cmdsubstBody = runReaderT program M.empty
+            closeParan = setReason (UnclosedCommandSubstitution p) (char ')')
+    _ -> failureOfError (Error MissingExpansionAfterDollar p)
+
+-- | Parses an expansion that starts with a dollar.
+dollarExpansion :: MonadParser m => m (Positioned DoubleQuoteUnit)
+dollarExpansion = do
+  ~(p, _) <- char '$'
+  dqu <- dollarExpansionTail
+  return (p, dqu)
+
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 --
 -- The argument parser is used to parse a backslashed character.
 doubleQuoteUnit' :: MonadParser m
                  => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit' c = lc $ -- TODO parse expansions
-  backslashed c <|> fmap (fmap Char) anyChar
+doubleQuoteUnit' c = lc $ -- TODO backquote
+  backslashed c <|> dollarExpansion <|> fmap (fmap Char) anyChar
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: MonadParser m => m (Positioned DoubleQuoteUnit)
@@ -439,5 +463,10 @@ completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
 completeLine = do
   _ <- whites
   reparse $ fill completeLineBody
+
+-- | Parses an entire program.
+program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
+program = reparse $ fill $ whitesHD *> linebreak *> manyAndOrLists separator
+-- TODO should not return UnknownReason
 
 -- vim: set et sw=2 sts=2 tw=78:
