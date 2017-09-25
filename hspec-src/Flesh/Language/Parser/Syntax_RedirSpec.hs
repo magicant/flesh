@@ -29,6 +29,48 @@ import Test.Hspec (Spec, context, describe)
 spec :: Spec
 spec = do
   describe "redirect" $ do
+    context "parses < operator" $ do
+      expectPositionEof "29< foo"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "29< foo" "" (fileOpFd     <$> fill redirect) 29
+      expectSuccessEof  "29< foo" "" (fileOp       <$> fill redirect) In
+      expectShowEof     "29< foo" "" (fileOpTarget <$> fill redirect) "foo"
+
+    context "parses <> operator" $ do
+      expectPositionEof "9<> foo"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "9<> foo" "" (fileOpFd     <$> fill redirect) 9
+      expectSuccessEof  "9<> foo" "" (fileOp       <$> fill redirect) InOut
+      expectShowEof     "9<> foo" "" (fileOpTarget <$> fill redirect) "foo"
+
+    context "parses > operator" $ do
+      expectPositionEof "2> foo"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "2> foo" "" (fileOpFd     <$> fill redirect) 2
+      expectSuccessEof  "2> foo" "" (fileOp       <$> fill redirect) Out
+      expectShowEof     "2> foo" "" (fileOpTarget <$> fill redirect) "foo"
+
+    context "parses >> operator" $ do
+      expectPositionEof "29>>foo"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "29>>foo" "" (fileOpFd     <$> fill redirect) 29
+      expectSuccessEof  "29>>foo" "" (fileOp       <$> fill redirect) Append
+      expectShowEof     "29>>foo" "" (fileOpTarget <$> fill redirect) "foo"
+
+    context "parses >| operator" $ do
+      expectPositionEof "29>| bar"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "29>| bar" "" (fileOpFd     <$> fill redirect) 29
+      expectSuccessEof  "29>| bar" "" (fileOp       <$> fill redirect) Clobber
+      expectShowEof     "29>| bar" "" (fileOpTarget <$> fill redirect) "bar"
+
+    context "parses <& operator" $ do
+      expectPositionEof "29<& foo"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "29<& foo" "" (fileOpFd     <$> fill redirect) 29
+      expectSuccessEof  "29<& foo" "" (fileOp       <$> fill redirect) DupIn
+      expectShowEof     "29<& foo" "" (fileOpTarget <$> fill redirect) "foo"
+
+    context "parses >& operator" $ do
+      expectPositionEof "29>& foo"    (fileOpPos    <$> fill redirect) 0
+      expectSuccessEof  "29>& foo" "" (fileOpFd     <$> fill redirect) 29
+      expectSuccessEof  "29>& foo" "" (fileOp       <$> fill redirect) DupOut
+      expectShowEof     "29>& foo" "" (fileOpTarget <$> fill redirect) "foo"
+
     let yieldDummyContent = HereDocT $
           return () <$ (drainOperators >> yieldContent [])
         rTester = hereDocOp <$> (fill (redirect <* yieldDummyContent))
@@ -38,6 +80,9 @@ spec = do
       expectSuccessEof  "12<< END" "" (hereDocFd    <$> rTester) 12
       expectSuccessEof  "12<< END" "" (isTabbed     <$> rTester) False
       expectShowEof     "12<< END" "" (delimiter    <$> rTester) "END"
+
+    context "rejects quoted FD" $ do
+      expectFailure "1\\2" (fill redirect) Soft UnknownReason 0
 
   describe "hereDocLine" $ do
     context "contains expansions for unquoted delimiter" $ do

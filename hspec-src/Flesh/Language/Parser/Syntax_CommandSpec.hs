@@ -25,7 +25,7 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
-import Test.Hspec (Spec, context, describe, it, pendingWith, shouldBe)
+import Test.Hspec (Spec, context, describe, it, shouldBe)
 
 spec :: Spec
 spec = do
@@ -112,8 +112,8 @@ spec = do
       context "does not start with a quoted brace" $ do
         expectShowEof "\\{ foo" "\n}" sc "Just \\{ foo"
 
-      it "can have some redirections" $ pendingWith "need redirections"
-        -- expectShowEof "{ foo\n}<foo >bar" "" sc "Just { foo; } <foo >bar"
+      context "can have some redirections" $ do
+        expectShowEof "{ foo\n}<bar >baz" "" sc "Just { foo; } 0<bar 1>baz"
 
     context "as subshell" $ do
       context "starts with a parenthesis" $ do

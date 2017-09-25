@@ -114,7 +114,7 @@ class ListPrintable s where
             => [s] -> m ()
 
 instance Printable Redirection where
-  prints r@(FileRedirection _) = tell' $ shows r
+  prints r@(FileRedirection _ _ _ _) = tell' $ shows r
   prints r@(HereDoc op cntnt) = do
     appendHereDoc $ showContent . showDelimiter . showChar '\n'
     tell' $ shows r
