@@ -207,14 +207,15 @@ redirect = HereDocT $ do
   -- TODO define 0 and 1 as constants elsewhere
   let defaultFd = if "<" `isPrefixOf` op then 0 else 1
       fd' = fromMaybe defaultFd maybeFd
+      fileRedir op' = return $ return $ FileRedirection pos fd' op' t
   case op of
-    "<"  -> return $ return $ FileRedirection fd' -- TODO redirection type
-    "<>" -> return $ return $ FileRedirection fd' -- TODO redirection type
-    "<&" -> return $ return $ FileRedirection fd' -- TODO redirection type
-    ">"  -> return $ return $ FileRedirection fd' -- TODO redirection type
-    ">>" -> return $ return $ FileRedirection fd' -- TODO redirection type
-    ">|" -> return $ return $ FileRedirection fd' -- TODO redirection type
-    ">&" -> return $ return $ FileRedirection fd' -- TODO redirection type
+    "<"  -> fileRedir In
+    "<>" -> fileRedir InOut
+    "<&" -> fileRedir DupIn
+    ">"  -> fileRedir Out
+    ">>" -> fileRedir Append
+    ">|" -> fileRedir Clobber
+    ">&" -> fileRedir DupOut
     "<<" -> yieldHereDoc $ HereDocOp pos fd' False t
     "<<-" -> yieldHereDoc $ HereDocOp pos fd' True t
     _ -> error $ "unexpected redirection operator " ++ op

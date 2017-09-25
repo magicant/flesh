@@ -32,7 +32,7 @@ module Flesh.Language.Syntax (
   Token(..), tokenUnits, tokenWord, tokenText, unquoteToken,
   Assignment(..),
   -- * Redirections
-  HereDocOp(..), Redirection(..), fd,
+  HereDocOp(..), FileOp(..), Redirection(..), fd,
   -- * Syntax
   CompoundCommand(..), Command(..), Pipeline(..), AndOrCondition(..),
   ConditionalPipeline(..), AndOrList(..), showSeparatedList) where
@@ -178,17 +178,41 @@ instance Show HereDocOp where
     showsPrec n (hereDocFd o) . showString s . showsPrec n (delimiter o)
     where s = if isTabbed o then "<<-" else "<<"
 
+-- | Types of file redirection operations.
+data FileOp =
+    In      -- ^ @<@
+  | InOut   -- ^ @<>@
+  | Out     -- ^ @>@
+  | Append  -- ^ @>>@
+  | Clobber -- ^ @>|@
+  | DupIn   -- ^ @<&@
+  | DupOut  -- ^ @>&@
+  deriving (Eq)
+
+instance Show FileOp where
+  showsPrec _ In      = showString "<"
+  showsPrec _ InOut   = showString "<>"
+  showsPrec _ Out     = showString ">"
+  showsPrec _ Append  = showString ">>"
+  showsPrec _ Clobber = showString ">|"
+  showsPrec _ DupIn   = showString "<&"
+  showsPrec _ DupOut  = showString ">&"
+
 -- | Redirection.
 data Redirection =
   FileRedirection {
-    fileFd :: !Natural} -- FIXME
+    fileOpPos :: Position,
+    fileOpFd :: !Natural,
+    fileOp :: !FileOp,
+    fileOpTarget :: Token}
   | HereDoc {
     hereDocOp :: !HereDocOp,
     content :: [Positioned DoubleQuoteUnit]}
   deriving (Eq)
 
 instance Show Redirection where
-  showsPrec n (FileRedirection fd') = showsPrec n fd' -- FIXME
+  showsPrec n (FileRedirection _ fd' op f) =
+    showsPrec n fd' . showsPrec n op . showsPrec n f
   showsPrec n (HereDoc o _) = showsPrec n o -- content is ignored
   showList [] = id
   showList [r] = shows r
@@ -196,7 +220,7 @@ instance Show Redirection where
 
 -- | Returns the target file descriptor of the given redirection.
 fd :: Redirection -> Natural
-fd (FileRedirection fd') = fd'
+fd (FileRedirection _ fd' _ _) = fd'
 fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 
 -- | Commands that can contain other commands.
