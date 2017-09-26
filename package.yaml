@@ -1,0 +1,36 @@
+name: flesh
+version: '0.1.0.0'
+synopsis: Flexible POSIX shell
+category: Shell
+author: WATANABE Yuki
+maintainer: magicant@wonderwand.net
+copyright: 2017 WATANABE Yuki
+license: GPL-2
+github: magicant/flesh
+extra-source-files:
+- README.md
+
+dependencies:
+- base >=4.9 && <5
+- containers >=0.5.0.0 && <1
+- mtl >=2.2.1 && <2.3
+- text >=1.0.0.0 && <2
+- transformers >=0.4 && <0.6
+ghc-options: -Wall
+
+library:
+  source-dirs: src
+executables:
+  flesh:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+    - flesh
+tests:
+  flesh-hspec:
+    main: Main.hs
+    source-dirs: hspec-src
+    dependencies:
+    - flesh
+    - hspec >=2 && <3
+    - QuickCheck >=2.8.2 && <3
