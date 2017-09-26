@@ -12,22 +12,6 @@ extra-source-files:
 library:
   source-dirs: src
   ghc-options: -Wall
-  exposed-modules:
-  - Flesh.Language.Alias
-  - Flesh.Language.Alias.Core
-  - Flesh.Language.Parser.Alias
-  - Flesh.Language.Parser.Capture
-  - Flesh.Language.Parser.Char
-  - Flesh.Language.Parser.Error
-  - Flesh.Language.Parser.HereDoc
-  - Flesh.Language.Parser.Input
-  - Flesh.Language.Parser.Lex
-  - Flesh.Language.Parser.Syntax
-  - Flesh.Language.Parser.Warning
-  - Flesh.Language.Pretty
-  - Flesh.Language.Syntax
-  - Flesh.Language.Syntax.Print
-  - Flesh.Source.Position
   dependencies:
   - base >=4.9 && <5
   - containers >=0.5.0.0 && <1
