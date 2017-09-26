@@ -21,3 +21,4 @@ tags
 /cabal.sandbox.config
 /dist
 /dist-*
+/flesh.cabal
