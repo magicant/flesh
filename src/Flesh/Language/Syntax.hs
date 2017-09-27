@@ -320,6 +320,8 @@ instance Show AndOrList where
   showList [l] = shows l
   showList (l:ls) = showsPrec 1 l . showSpace . showList ls
 
+-- | Shows a list of and-or lists. Unlike 'showList', the trailing separator
+-- for the last and-or list is never omitted.
 showSeparatedList :: [AndOrList] -> ShowS
 showSeparatedList [] = id
 showSeparatedList [l] = showsPrec 1 l

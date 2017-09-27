@@ -33,9 +33,6 @@ module Flesh.Source.Position (
 
 import qualified Flesh.Language.Alias.Core as Alias
 
--- | Alias definition.
-type AliasDefinition = Alias.Definition Position
-
 -- | Function definition.
 type FunctionDefinition = Position
 
@@ -61,7 +58,7 @@ data Situation =
   | Alias {
       position :: !Position,
       -- | Definition of the alias substituted.
-      aliasDefinition :: !AliasDefinition}
+      aliasDefinition :: !(Alias.Definition Position)}
   -- | Arithmetic expansion.
   | ArithmeticExpansion {
       position :: !Position}

@@ -65,6 +65,7 @@ type ContextT = ReaderT DefinitionSet
 -- successfully parsed as a non-empty non-terminal.
 newtype AliasT m a = AliasT {runAliasT :: m (Maybe a)}
 
+-- | Modifies the content of AliasT.
 mapAliasT :: (m (Maybe a) -> n (Maybe b)) -> AliasT m a -> AliasT n b
 mapAliasT f = AliasT . f . runAliasT
 

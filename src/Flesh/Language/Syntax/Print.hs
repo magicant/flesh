@@ -74,17 +74,17 @@ showSpace' = tell' $ showChar ' '
 appendHereDoc :: MonadState PrintState m => ShowS -> m ()
 appendHereDoc s = modify' (\(PrintState i h) -> PrintState i (h . s))
 
--- | Shows the current 'hereDoc' and clears it.
+-- | Shows the current hereDoc and clears it.
 printHereDoc :: (MonadState PrintState m, MonadWriter (Endo String) m) => m ()
 printHereDoc = state (\(PrintState i h) -> (Endo h, PrintState i id)) >>= tell
 
--- | Shows as many spaces as 'indent' of the current state.
+-- | Shows as many spaces as the indent of the current state.
 printIndent :: (MonadState PrintState m, MonadWriter (Endo String) m) => m ()
 printIndent = do
   s <- get
   tell' $ showString $ replicate (indent s) ' '
 
--- | Combination of @showChar '\n'@ and 'printHereDoc' and 'printIndent'.
+-- | Combination of @showChar '\n'@ and printHereDoc and printIndent.
 printNewline :: (MonadState PrintState m, MonadWriter (Endo String) m) => m ()
 printNewline = do
   tell' $ showChar '\n'
