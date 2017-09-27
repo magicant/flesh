@@ -238,6 +238,7 @@ hereDocDelimiter tabbed delim = do
   _ <- char '\n'
   return ()
 
+-- | Parses the content of a here-document, including the delimiter.
 hereDocContent :: (MonadParser m, MonadAccum m) => HereDocOp -> m ()
 hereDocContent op = do
   ls <- line `manyTill` del
@@ -295,6 +296,7 @@ simpleCommandTail t1 = toCommand . consToken t1 <$> simpleCommandArguments
         consToken t (ts, as, rs) = (t:ts, as, rs)
 -- TODO assignments
 
+-- | Parses a subshell command.
 subshell :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => HereDocAliasT m (Positioned CompoundCommand)
 subshell = HereDocT $ do
@@ -417,8 +419,8 @@ andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
 andOrList = AndOrList <$> pipeline <*> many conditionalPipeline
   --where sep = lift $ separatorOp <|> return False
 
--- | Given a separator parser, returns a pair of 'manyAndOrLists' and
--- 'someAndOrLists'.
+-- | Given a separator parser, returns a pair of manyAndOrLists and
+-- someAndOrLists.
 manySomeAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                    => HereDocAliasT m Bool
                    -> (HereDocAliasT m [AndOrList],
