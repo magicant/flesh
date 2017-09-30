@@ -72,13 +72,24 @@ newtype AliasT m a = AliasT {runAliasT :: m (Maybe a)}
 mapAliasT :: (m (Maybe a) -> n (Maybe b)) -> AliasT m a -> AliasT n b
 mapAliasT f = AliasT . f . runAliasT
 
--- | Converts a 'AliasT' monad to a 'MaybeT' monad.
-toMaybeT :: AliasT m a -> MaybeT m a
-toMaybeT = MaybeT . runAliasT
+inverse :: Functor m => m (Maybe a) -> m (Maybe ())
+inverse = fmap inverse'
+  where inverse' Nothing = Just ()
+        inverse' (Just _) = Nothing
 
--- | Converts a 'MaybeT' monad to a 'AliasT' monad.
-fromMaybeT :: MaybeT m a -> AliasT m a
-fromMaybeT = AliasT . runMaybeT
+-- | Converts an 'AliasT' monad to a 'MaybeT' monad.
+--
+-- Although 'AliasT' and 'MaybeT' share the same value type @m (Maybe a)@,
+-- they are semantically inverse: The Nothing value of 'AliasT' means the
+-- parser has been aborted due to alias substitution, while that of 'MaybeT'
+-- means alias substitution is not applicable in the current parsing state.
+-- Hence, 'toMaybeT' inverts Nothing and Just values.
+toMaybeT :: Functor m => AliasT m a -> MaybeT m ()
+toMaybeT = MaybeT . inverse . runAliasT
+
+-- | The inverse of 'toMaybeT'.
+fromMaybeT :: Functor m => MaybeT m a -> AliasT m ()
+fromMaybeT = AliasT . inverse . runMaybeT
 
 instance MonadTrans AliasT where
   lift = AliasT . fmap Just

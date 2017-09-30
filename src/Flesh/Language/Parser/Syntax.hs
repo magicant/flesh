@@ -46,7 +46,7 @@ import Control.Applicative (liftA3, many, optional, some, (<|>))
 import Control.Monad (guard, join, void, when)
 import Control.Monad.Reader (MonadReader, runReaderT)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
+import Control.Monad.Trans.Maybe (MaybeT(MaybeT))
 import Data.Foldable (sequenceA_, toList)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -168,16 +168,13 @@ reservedOrAliasOrToken = AliasT $ do
   case textOrToken of
     Left _ -> -- reserved words are not subject to alias substitution
       return $ Just textOrToken
-    Right t -> do
-      r <- runMaybeT $ do
-        tt <- MaybeT $ return $ tokenText t
-        let pos = fst $ NE.head $ tokenUnits t
-        substituteAlias pos tt
-      case r of
-        Nothing -> -- no alias substitution performed
-          return $ Just textOrToken
-        Just () -> -- alias substitution performed!
-          return $ Nothing
+    Right t ->
+      runAliasT $ do
+        fromMaybeT $ do
+          tt <- MaybeT $ return $ tokenText t
+          let pos = fst $ NE.head $ tokenUnits t
+          substituteAlias pos tt
+        return textOrToken
 -- TODO substitute the next token if the current substitute ends with a blank.
 
 -- | Parses an unquoted token that matches the given text.
