@@ -36,10 +36,10 @@ module Flesh.Language.Parser.Lex (
   reservedOpenBrace, reservedCloseBrace, isReserved) where
 
 import Control.Applicative (many, (<|>))
-import Data.Char (isDigit, isSpace, ord)
 import qualified Data.List.NonEmpty as NE
 import Data.Set (Set, fromList, member)
 import Data.Text (Text, pack)
+import Flesh.Data.Char (isBlank, isDigit)
 import Flesh.Source.Position
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -57,8 +57,6 @@ lc m = many lineContinuation *> m
 
 blank' :: MonadParser m => m (Positioned Char)
 blank' = satisfy isBlank
-  where isBlank c | ord c <= 0x7F = c == '\t' || c == ' '
-                  | otherwise     = isSpace c
 
 -- | Parses a blank character, possibly preceded by line continuations.
 --
