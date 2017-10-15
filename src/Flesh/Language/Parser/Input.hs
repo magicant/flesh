@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
@@ -32,13 +33,18 @@ module Flesh.Language.Parser.Input (
   -- * MonadInput
   MonadInput(..), followedBy,
   -- * MonadInputRecord
-  MonadInputRecord(..)) where
+  MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
+  where
 
-import Control.Monad (void)
-import Control.Monad.Except (ExceptT, mapExceptT)
-import Control.Monad.Reader (ReaderT, mapReaderT)
-import Control.Monad.State.Strict (StateT, get, modify', put)
-import Control.Monad.Trans.Class (lift)
+import Control.Applicative (Alternative, empty, many, some, (<|>))
+import Control.Monad (MonadPlus, mplus, mzero, void)
+import Control.Monad.Except (
+  ExceptT, MonadError, catchError, mapExceptT, throwError)
+import Control.Monad.Reader (
+  MonadReader, ReaderT, ask, local, mapReaderT, reader)
+import Control.Monad.State.Strict (
+  StateT, evalStateT, get, mapStateT, modify', put, runStateT)
+import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT, mapMaybeT)
 import Control.Monad.Writer.Strict (WriterT, mapWriterT)
 import Flesh.Source.Position
@@ -157,6 +163,15 @@ instance MonadInput m => MonadInput (ReaderT e m) where
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
+-- instance MonadInput m => MonadInput (StateT s m) where
+-- FIXME conflicts with: MonadInput (StateT PositionedString m)
+instance MonadInput m => MonadInput (StateT [a] m) where
+  popChar = lift popChar
+  lookahead = mapStateT lookahead
+  peekChar = lift peekChar
+  currentPosition = lift currentPosition
+  pushChars = lift . pushChars
+
 instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   popChar = lift popChar
   lookahead = mapWriterT lookahead
@@ -171,5 +186,82 @@ class MonadInput m => MonadInputRecord m where
   -- so far. The list includes characters that have been pushed by 'pushChars'
   -- and then popped by 'popChar'.
   reverseConsumedChars :: m [Positioned Char]
+
+-- | Implementation of MonadInputRecord based on the state monad.
+newtype RecordT m a = RecordT {getRecordT :: StateT [Positioned Char] m a}
+
+-- | Runs the record moand, returning the main result and the consumed input.
+runRecordT :: RecordT m a -> m (a, [Positioned Char])
+runRecordT = flip runStateT [] . getRecordT
+
+-- | Runs the record monad, returning the main result only.
+evalRecordT :: Functor m => RecordT m a -> m a
+evalRecordT = fmap fst . runRecordT
+
+-- | Maps both the main result and the consumed input.
+mapRecordT :: (m (a, [Positioned Char]) -> n (b, [Positioned Char]))
+           -> RecordT m a -> RecordT n b
+mapRecordT f = RecordT . mapStateT f . getRecordT
+
+instance (Monad m, Eq (m a)) => Eq (RecordT m a) where
+  RecordT m == RecordT n = evalStateT m [] == evalStateT n []
+
+instance (Monad m, Show (m a)) => Show (RecordT m a) where
+  showsPrec n (RecordT m) = showsPrec n $ evalStateT m []
+
+instance MonadTrans RecordT where
+  lift = RecordT . lift
+
+instance Functor m => Functor (RecordT m) where
+  fmap f = RecordT . fmap f . getRecordT
+  a <$ RecordT b = RecordT (a <$ b)
+
+instance Monad m => Applicative (RecordT m) where
+  pure = RecordT . pure
+  RecordT a <*> RecordT b = RecordT (a <*> b)
+  RecordT a  *> RecordT b = RecordT (a  *> b)
+  RecordT a <*  RecordT b = RecordT (a <*  b)
+
+instance MonadPlus m => Alternative (RecordT m) where
+  empty = RecordT empty
+  RecordT a <|> RecordT b = RecordT (a <|> b)
+  some = RecordT . some . getRecordT
+  many = RecordT . many . getRecordT
+
+instance Monad m => Monad (RecordT m) where
+  RecordT a >>= f = RecordT (a >>= getRecordT . f)
+  RecordT a >> RecordT b = RecordT (a >> b)
+
+instance MonadPlus m => MonadPlus (RecordT m) where
+  mzero = RecordT mzero
+  mplus (RecordT a) (RecordT b) = RecordT (mplus a b)
+
+instance MonadInput m => MonadInput (RecordT m) where
+  popChar = RecordT $ do
+    eofOrChar <- popChar
+    case eofOrChar of
+      Left _ -> pure ()
+      Right pc -> modify' (pc:)
+    return eofOrChar
+  lookahead (RecordT m) = RecordT $ do
+    s <- get
+    r <- lookahead m
+    put s
+    return r
+  peekChar = lift peekChar
+  currentPosition = lift currentPosition
+  pushChars = lift . pushChars
+
+instance MonadInput m => MonadInputRecord (RecordT m) where
+  reverseConsumedChars = RecordT get
+
+instance MonadError e m => MonadError e (RecordT m) where
+  throwError = RecordT . throwError
+  catchError (RecordT a) f = RecordT (catchError a (getRecordT . f))
+
+instance MonadReader r m => MonadReader r (RecordT m) where
+  ask = lift ask
+  local f = mapRecordT $ local f
+  reader = lift . reader
 
 -- vim: set et sw=2 sts=2 tw=78:
