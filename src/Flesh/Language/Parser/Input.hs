@@ -187,6 +187,26 @@ class MonadInput m => MonadInputRecord m where
   -- and then popped by 'popChar'.
   reverseConsumedChars :: m [Positioned Char]
 
+instance MonadInputRecord m => MonadInputRecord (ExceptT e m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadInputRecord m => MonadInputRecord (MaybeT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadInputRecord m => MonadInputRecord (ReaderT e m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+-- FIXME: See MonadInput (StateT [a] m) above
+instance MonadInputRecord m => MonadInputRecord (StateT [a] m) where
+  reverseConsumedChars = lift reverseConsumedChars
+instance MonadInputRecord m
+    => MonadInputRecord (StateT PositionedString m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance (MonadInputRecord m, Monoid w)
+    => MonadInputRecord (WriterT w m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
 -- | Implementation of MonadInputRecord based on the state monad.
 newtype RecordT m a = RecordT {getRecordT :: StateT [Positioned Char] m a}
 
