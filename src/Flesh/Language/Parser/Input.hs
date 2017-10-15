@@ -29,7 +29,10 @@ This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  MonadInput(..), followedBy) where
+  -- * MonadInput
+  MonadInput(..), followedBy,
+  -- * MonadInputRecord
+  MonadInputRecord(..)) where
 
 import Control.Monad (void)
 import Control.Monad.Except (ExceptT, mapExceptT)
@@ -160,5 +163,13 @@ instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+
+-- | Extension of MonadInput that provides access to input characters that
+-- have been read.
+class MonadInput m => MonadInputRecord m where
+  -- | Reverse list of characters that have already been returned by 'popChar'
+  -- so far. The list includes characters that have been pushed by 'pushChars'
+  -- and then popped by 'popChar'.
+  reverseConsumedChars :: m [Positioned Char]
 
 -- vim: set et sw=2 sts=2 tw=78:
