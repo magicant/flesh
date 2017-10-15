@@ -87,7 +87,7 @@ instance MonadInput Overrun where
     pushChars cs
     Overrun $ modify' (c :~)
 
-type TesterT m = ParserT (ReaderT Alias.DefinitionSet m)
+type TesterT m = ParserT (RecordT (ReaderT Alias.DefinitionSet m))
 type OverrunTester = TesterT Overrun
 type FullInputTester =
   TesterT (StateT PositionedString (ExceptT Failure Identity))
@@ -123,8 +123,8 @@ reservedWordAliasDefinitions = singleton n (Alias.definition n v p)
         v = pack reservedWordAliasValue
         p = dummyPosition "alias while=';;'"
 
-runTesterAliasT :: TesterT m a -> Alias.DefinitionSet -> m a
-runTesterAliasT parser defs = runReaderT (runParserT parser) defs
+runTesterAliasT :: Functor m => TesterT m a -> Alias.DefinitionSet -> m a
+runTesterAliasT parser = runReaderT $ evalRecordT $ runParserT parser
 
 runFullInputTesterAlias :: FullInputTester a
                         -> Alias.DefinitionSet -> PositionedString

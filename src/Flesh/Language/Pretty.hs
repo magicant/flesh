@@ -162,7 +162,8 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
 
 readCompleteLine :: IO (Either Failure [AndOrList])
 readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $
-  flip runReaderT empty $ runParserT $ notFollowedBy eof *> completeLine
+  flip runReaderT empty $ evalRecordT $ runParserT $
+    notFollowedBy eof *> completeLine
 
 writeCompleteLine :: Either Failure [AndOrList] -> IO ()
 writeCompleteLine (Left e) = hPutStrLn stderr (show e) >> exitFailure

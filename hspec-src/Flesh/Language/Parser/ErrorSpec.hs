@@ -26,6 +26,7 @@ import Control.Monad.Except (MonadError, ExceptT, mapExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict (State, runState)
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
@@ -60,32 +61,35 @@ instance Arbitrary a => Arbitrary (PositionedList a) where
     xs <- arbitrary
     return $ spread (dummyPosition s) xs
 
-type AE = ParserT (ExceptT Failure Identity)
-type AES = ParserT (ExceptT Failure (State PositionedString))
+type AE = ParserT (RecordT (ExceptT Failure Identity))
+type AES = ParserT (RecordT (ExceptT Failure (State PositionedString)))
+
+runAE :: AE a -> Either Failure a
+runAE = runIdentity . runExceptT . evalRecordT . runParserT
 
 isUnknownReason :: AE a -> Bool
 isUnknownReason a =
-  case runIdentity $ runExceptT $ runParserT a of
+  case runAE a of
     Left (_, Error UnknownReason _) -> True
     _                               -> False
 
 isHardError :: AE a -> Bool
 isHardError a =
-  case runIdentity $ runExceptT $ runParserT a of
+  case runAE a of
     Left (Hard, _) -> True
     _              -> False
 
 isSoftError :: AE a -> Bool
 isSoftError a =
-  case runIdentity $ runExceptT $ runParserT a of
+  case runAE a of
     Left (Soft, _) -> True
     _              -> False
 
 run :: AES a -> PositionedString -> (Either Failure a, PositionedString)
-run = runState . runExceptT . runParserT
+run = runState . runExceptT . evalRecordT . runParserT
 
 aesFromAE :: AE a -> AES a
-aesFromAE = ParserT . mapExceptT (return . runIdentity) . runParserT
+aesFromAE = mapParserT $ mapRecordT $ mapExceptT $ return . runIdentity
 
 spec :: Spec
 spec = do

@@ -162,7 +162,7 @@ require m = catchError m (throwError . handle)
 --  * 'empty' and 'mzero' are equal to 'failure'; and
 --  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
 --    failures.
-class (MonadPlus m, MonadInput m, MonadError Failure m) => MonadParser m
+class (MonadPlus m, MonadInputRecord m, MonadError Failure m) => MonadParser m
 
 -- | Failure of unknown reason at the current position.
 failure :: MonadParser m => m a
@@ -267,11 +267,14 @@ instance MonadInput m => MonadInput (ParserT m) where
   currentPosition = lift currentPosition
   pushChars = lift <$> pushChars
 
+instance MonadInputRecord m => MonadInputRecord (ParserT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
 instance MonadError e m => MonadError e (ParserT m) where
   throwError = ParserT . throwError
   catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
-instance (MonadInput m, MonadError Failure m)
+instance (MonadInputRecord m, MonadError Failure m)
     => Alternative (ParserT m) where
   empty = failure
   a <|> b =
@@ -279,9 +282,9 @@ instance (MonadInput m, MonadError Failure m)
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadInput m, MonadError Failure m) => MonadPlus (ParserT m)
+instance (MonadInputRecord m, MonadError Failure m) => MonadPlus (ParserT m)
 
-instance (MonadInput m, MonadError Failure m) => MonadParser (ParserT m)
+instance (MonadInputRecord m, MonadError Failure m) => MonadParser (ParserT m)
 
 instance MonadReader r m => MonadReader r (ParserT m) where
   ask = lift ask
