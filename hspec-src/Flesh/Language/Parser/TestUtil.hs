@@ -89,8 +89,7 @@ instance MonadInput Overrun where
 
 type TesterT m = ParserT (RecordT (ReaderT Alias.DefinitionSet m))
 type OverrunTester = TesterT Overrun
-type FullInputTester =
-  TesterT (StateT PositionedString (ExceptT Failure Identity))
+type FullInputTester = TesterT (PositionedStringT (ExceptT Failure Identity))
 
 defaultAliasName :: String
 defaultAliasName = "ls"
@@ -130,7 +129,8 @@ runFullInputTesterAlias :: FullInputTester a
                         -> Alias.DefinitionSet -> PositionedString
                         -> Either Failure (a, PositionedString)
 runFullInputTesterAlias parser defs ps =
-  runIdentity $ runExceptT $ runStateT (runTesterAliasT parser defs) ps
+  runIdentity $ runExceptT $ runStateT p ps
+    where p = runPositionedStringT $ runTesterAliasT parser defs
 
 runOverrunTesterAlias :: OverrunTester a
                       -> Alias.DefinitionSet -> PositionedString

@@ -24,7 +24,7 @@ module Flesh.Language.Parser.ErrorSpec (spec) where
 import Control.Applicative ((<|>))
 import Control.Monad.Except (MonadError, ExceptT, mapExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.State.Strict (State, runState)
+import Control.Monad.State.Strict (runState)
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
@@ -62,7 +62,7 @@ instance Arbitrary a => Arbitrary (PositionedList a) where
     return $ spread (dummyPosition s) xs
 
 type AE = ParserT (RecordT (ExceptT Failure Identity))
-type AES = ParserT (RecordT (ExceptT Failure (State PositionedString)))
+type AES = ParserT (RecordT (ExceptT Failure (PositionedStringT Identity)))
 
 runAE :: AE a -> Either Failure a
 runAE = runIdentity . runExceptT . evalRecordT . runParserT
@@ -86,7 +86,7 @@ isSoftError a =
     _              -> False
 
 run :: AES a -> PositionedString -> (Either Failure a, PositionedString)
-run = runState . runExceptT . evalRecordT . runParserT
+run = runState . runPositionedStringT . runExceptT . evalRecordT . runParserT
 
 aesFromAE :: AE a -> AES a
 aesFromAE = mapParserT $ mapRecordT $ mapExceptT $ return . runIdentity

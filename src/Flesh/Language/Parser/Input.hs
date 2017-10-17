@@ -31,7 +31,7 @@ parser.
 -}
 module Flesh.Language.Parser.Input (
   -- * MonadInput
-  MonadInput(..), followedBy,
+  MonadInput(..), followedBy, PositionedStringT(..),
   -- * MonadInputRecord
   MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
   where
@@ -112,36 +112,6 @@ class Monad m => MonadInput m where
 followedBy :: MonadInput m => m a -> m ()
 followedBy = void . lookahead
 
--- This would result in undecidable instance.
--- instance (Monad m, MonadState PositionedString m) => MonadInput m where
-instance Monad m => MonadInput (StateT PositionedString m) where
-  popChar = do
-    cs <- get
-    case cs of
-      Nil p -> return (Left p)
-      c :~ cs' -> do
-        put cs'
-        return (Right c)
-
-  lookahead m = do
-    savedstate <- get
-    result <- m
-    put savedstate
-    return result
-
-  peekChar = do
-    cs <- get
-    return $ case cs of
-      Nil p -> Left p
-      c :~ _ -> Right c
-
-  currentPosition = headPosition <$> get
-
-  pushChars [] = return ()
-  pushChars (c:cs) = do
-    pushChars cs
-    modify' (c :~)
-
 instance MonadInput m => MonadInput (ExceptT e m) where
   popChar = lift popChar
   lookahead = mapExceptT lookahead
@@ -163,9 +133,7 @@ instance MonadInput m => MonadInput (ReaderT e m) where
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
--- instance MonadInput m => MonadInput (StateT s m) where
--- FIXME conflicts with: MonadInput (StateT PositionedString m)
-instance MonadInput m => MonadInput (StateT [a] m) where
+instance MonadInput m => MonadInput (StateT s m) where
   popChar = lift popChar
   lookahead = mapStateT lookahead
   peekChar = lift peekChar
@@ -178,6 +146,79 @@ instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+
+-- | State monad of PositionedString as a MonadInput instance.
+newtype PositionedStringT m a =
+  PositionedStringT {runPositionedStringT :: StateT PositionedString m a}
+
+-- | Maps both the main result and the pending input.
+mapPositionedStringT :: (m (a, PositionedString) -> n (b, PositionedString))
+                     -> PositionedStringT m a -> PositionedStringT n b
+mapPositionedStringT f =
+  PositionedStringT . mapStateT f . runPositionedStringT
+
+instance MonadTrans PositionedStringT where
+  lift = PositionedStringT . lift
+
+instance Functor m => Functor (PositionedStringT m) where
+  fmap f = PositionedStringT . fmap f . runPositionedStringT
+  a <$ PositionedStringT b = PositionedStringT (a <$ b)
+
+instance Monad m => Applicative (PositionedStringT m) where
+  pure = PositionedStringT . pure
+  PositionedStringT a <*> PositionedStringT b = PositionedStringT (a <*> b)
+  PositionedStringT a  *> PositionedStringT b = PositionedStringT (a  *> b)
+  PositionedStringT a <*  PositionedStringT b = PositionedStringT (a <*  b)
+
+instance MonadPlus m => Alternative (PositionedStringT m) where
+  empty = PositionedStringT empty
+  PositionedStringT a <|> PositionedStringT b = PositionedStringT (a <|> b)
+  some = PositionedStringT . some . runPositionedStringT
+  many = PositionedStringT . many . runPositionedStringT
+
+instance Monad m => Monad (PositionedStringT m) where
+  PositionedStringT a >>= f =
+    PositionedStringT (a >>= runPositionedStringT . f)
+  PositionedStringT a >> PositionedStringT b = PositionedStringT (a >> b)
+
+instance MonadPlus m => MonadPlus (PositionedStringT m) where
+  mzero = PositionedStringT mzero
+  mplus (PositionedStringT a) (PositionedStringT b) =
+    PositionedStringT (mplus a b)
+
+instance Monad m => MonadInput (PositionedStringT m) where
+  popChar = PositionedStringT $ do
+    cs <- get
+    case cs of
+      Nil p -> return (Left p)
+      c :~ cs' -> do
+        put cs'
+        return (Right c)
+  lookahead (PositionedStringT m) = PositionedStringT $ do
+    savedstate <- get
+    result <- m
+    put savedstate
+    return result
+  peekChar = PositionedStringT $ do
+    cs <- get
+    return $ case cs of
+      Nil p -> Left p
+      c :~ _ -> Right c
+  currentPosition = PositionedStringT $ headPosition <$> get
+  pushChars [] = return ()
+  pushChars (c:cs) = do
+    pushChars cs
+    PositionedStringT $ modify' (c :~)
+
+instance MonadError e m => MonadError e (PositionedStringT m) where
+  throwError = PositionedStringT . throwError
+  catchError (PositionedStringT a) f =
+    PositionedStringT (catchError a (runPositionedStringT . f))
+
+instance MonadReader r m => MonadReader r (PositionedStringT m) where
+  ask = lift ask
+  local f = mapPositionedStringT $ local f
+  reader = lift . reader
 
 -- | Extension of MonadInput that provides access to input characters that
 -- have been read.
@@ -196,11 +237,7 @@ instance MonadInputRecord m => MonadInputRecord (MaybeT m) where
 instance MonadInputRecord m => MonadInputRecord (ReaderT e m) where
   reverseConsumedChars = lift reverseConsumedChars
 
--- FIXME: See MonadInput (StateT [a] m) above
-instance MonadInputRecord m => MonadInputRecord (StateT [a] m) where
-  reverseConsumedChars = lift reverseConsumedChars
-instance MonadInputRecord m
-    => MonadInputRecord (StateT PositionedString m) where
+instance MonadInputRecord m => MonadInputRecord (StateT a m) where
   reverseConsumedChars = lift reverseConsumedChars
 
 instance (MonadInputRecord m, Monoid w)
