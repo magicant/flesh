@@ -92,7 +92,7 @@ class Monad m => MonadInput m where
   peekChar = lookahead popChar
 
   -- | Returns the current position.
-  -- The default implementation is @either id fst <$> peekChar@.
+  -- The default implementation is @either id fst '<$>' peekChar@.
   --
   -- 'currentPosition' must not have any side effect on an underlying input
   -- source, which means the default implementation is not applicable if

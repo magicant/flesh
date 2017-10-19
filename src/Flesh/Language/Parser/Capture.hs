@@ -96,7 +96,7 @@ instance MonadInputRecord m => MonadInputRecord (CaptureT m) where
 
 instance MonadError e m => MonadError e (CaptureT m) where
   throwError = CaptureT . throwError
-  catchError (CaptureT a) f = CaptureT (catchError a (getCaptureT .f ))
+  catchError (CaptureT a) f = CaptureT (catchError a (getCaptureT . f))
 
 instance MonadParser m => MonadParser (CaptureT m) where
 
