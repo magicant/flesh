@@ -91,6 +91,9 @@ instance MonadInput m => MonadInput (CaptureT m) where
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
+instance MonadInputRecord m => MonadInputRecord (CaptureT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
 instance MonadError e m => MonadError e (CaptureT m) where
   throwError = CaptureT . throwError
   catchError (CaptureT a) f = CaptureT (catchError a (getCaptureT .f ))

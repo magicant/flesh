@@ -117,6 +117,9 @@ instance MonadParser m => MonadInput (AliasT m) where
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
+instance MonadParser m => MonadInputRecord (AliasT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
 instance (MonadParser m, MonadError e m) => MonadError e (AliasT m) where
   throwError = lift . throwError
   catchError m f = AliasT $ catchError (runAliasT m) (runAliasT . f)

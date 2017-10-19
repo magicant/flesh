@@ -162,6 +162,9 @@ instance MonadParser m => MonadInput (AccumT m) where
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
+instance MonadParser m => MonadInputRecord (AccumT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
 instance MonadParser m => MonadParser (AccumT m)
 
 -- | State monad that composes final parse results by filling an incomplete

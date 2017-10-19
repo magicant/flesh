@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
@@ -29,13 +30,21 @@ This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  MonadInput(..), followedBy) where
+  -- * MonadInput
+  MonadInput(..), followedBy, PositionedStringT(..),
+  -- * MonadInputRecord
+  MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
+  where
 
-import Control.Monad (void)
-import Control.Monad.Except (ExceptT, mapExceptT)
-import Control.Monad.Reader (ReaderT, mapReaderT)
-import Control.Monad.State.Strict (StateT, get, modify', put)
-import Control.Monad.Trans.Class (lift)
+import Control.Applicative (Alternative, empty, many, some, (<|>))
+import Control.Monad (MonadPlus, mplus, mzero, void)
+import Control.Monad.Except (
+  ExceptT, MonadError, catchError, mapExceptT, throwError)
+import Control.Monad.Reader (
+  MonadReader, ReaderT, ask, local, mapReaderT, reader)
+import Control.Monad.State.Strict (
+  StateT, evalStateT, get, mapStateT, modify', put, runStateT)
+import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT, mapMaybeT)
 import Control.Monad.Writer.Strict (WriterT, mapWriterT)
 import Flesh.Source.Position
@@ -103,36 +112,6 @@ class Monad m => MonadInput m where
 followedBy :: MonadInput m => m a -> m ()
 followedBy = void . lookahead
 
--- This would result in undecidable instance.
--- instance (Monad m, MonadState PositionedString m) => MonadInput m where
-instance Monad m => MonadInput (StateT PositionedString m) where
-  popChar = do
-    cs <- get
-    case cs of
-      Nil p -> return (Left p)
-      c :~ cs' -> do
-        put cs'
-        return (Right c)
-
-  lookahead m = do
-    savedstate <- get
-    result <- m
-    put savedstate
-    return result
-
-  peekChar = do
-    cs <- get
-    return $ case cs of
-      Nil p -> Left p
-      c :~ _ -> Right c
-
-  currentPosition = headPosition <$> get
-
-  pushChars [] = return ()
-  pushChars (c:cs) = do
-    pushChars cs
-    modify' (c :~)
-
 instance MonadInput m => MonadInput (ExceptT e m) where
   popChar = lift popChar
   lookahead = mapExceptT lookahead
@@ -154,11 +133,192 @@ instance MonadInput m => MonadInput (ReaderT e m) where
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
+instance MonadInput m => MonadInput (StateT s m) where
+  popChar = lift popChar
+  lookahead = mapStateT lookahead
+  peekChar = lift peekChar
+  currentPosition = lift currentPosition
+  pushChars = lift . pushChars
+
 instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   popChar = lift popChar
   lookahead = mapWriterT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+
+-- | State monad of PositionedString as a MonadInput instance.
+newtype PositionedStringT m a =
+  PositionedStringT {runPositionedStringT :: StateT PositionedString m a}
+
+-- | Maps both the main result and the pending input.
+mapPositionedStringT :: (m (a, PositionedString) -> n (b, PositionedString))
+                     -> PositionedStringT m a -> PositionedStringT n b
+mapPositionedStringT f =
+  PositionedStringT . mapStateT f . runPositionedStringT
+
+instance MonadTrans PositionedStringT where
+  lift = PositionedStringT . lift
+
+instance Functor m => Functor (PositionedStringT m) where
+  fmap f = PositionedStringT . fmap f . runPositionedStringT
+  a <$ PositionedStringT b = PositionedStringT (a <$ b)
+
+instance Monad m => Applicative (PositionedStringT m) where
+  pure = PositionedStringT . pure
+  PositionedStringT a <*> PositionedStringT b = PositionedStringT (a <*> b)
+  PositionedStringT a  *> PositionedStringT b = PositionedStringT (a  *> b)
+  PositionedStringT a <*  PositionedStringT b = PositionedStringT (a <*  b)
+
+instance MonadPlus m => Alternative (PositionedStringT m) where
+  empty = PositionedStringT empty
+  PositionedStringT a <|> PositionedStringT b = PositionedStringT (a <|> b)
+  some = PositionedStringT . some . runPositionedStringT
+  many = PositionedStringT . many . runPositionedStringT
+
+instance Monad m => Monad (PositionedStringT m) where
+  PositionedStringT a >>= f =
+    PositionedStringT (a >>= runPositionedStringT . f)
+  PositionedStringT a >> PositionedStringT b = PositionedStringT (a >> b)
+
+instance MonadPlus m => MonadPlus (PositionedStringT m) where
+  mzero = PositionedStringT mzero
+  mplus (PositionedStringT a) (PositionedStringT b) =
+    PositionedStringT (mplus a b)
+
+instance Monad m => MonadInput (PositionedStringT m) where
+  popChar = PositionedStringT $ do
+    cs <- get
+    case cs of
+      Nil p -> return (Left p)
+      c :~ cs' -> do
+        put cs'
+        return (Right c)
+  lookahead (PositionedStringT m) = PositionedStringT $ do
+    savedstate <- get
+    result <- m
+    put savedstate
+    return result
+  peekChar = PositionedStringT $ do
+    cs <- get
+    return $ case cs of
+      Nil p -> Left p
+      c :~ _ -> Right c
+  currentPosition = PositionedStringT $ headPosition <$> get
+  pushChars [] = return ()
+  pushChars (c:cs) = do
+    pushChars cs
+    PositionedStringT $ modify' (c :~)
+
+instance MonadError e m => MonadError e (PositionedStringT m) where
+  throwError = PositionedStringT . throwError
+  catchError (PositionedStringT a) f =
+    PositionedStringT (catchError a (runPositionedStringT . f))
+
+instance MonadReader r m => MonadReader r (PositionedStringT m) where
+  ask = lift ask
+  local f = mapPositionedStringT $ local f
+  reader = lift . reader
+
+-- | Extension of MonadInput that provides access to input characters that
+-- have been read.
+class MonadInput m => MonadInputRecord m where
+  -- | Reverse list of characters that have already been returned by 'popChar'
+  -- so far. The list includes characters that have been pushed by 'pushChars'
+  -- and then popped by 'popChar'.
+  reverseConsumedChars :: m [Positioned Char]
+
+instance MonadInputRecord m => MonadInputRecord (ExceptT e m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadInputRecord m => MonadInputRecord (MaybeT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadInputRecord m => MonadInputRecord (ReaderT e m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadInputRecord m => MonadInputRecord (StateT a m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance (MonadInputRecord m, Monoid w)
+    => MonadInputRecord (WriterT w m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+-- | Implementation of MonadInputRecord based on the state monad.
+newtype RecordT m a = RecordT {getRecordT :: StateT [Positioned Char] m a}
+
+-- | Runs the record moand, returning the main result and the consumed input.
+runRecordT :: RecordT m a -> m (a, [Positioned Char])
+runRecordT = flip runStateT [] . getRecordT
+
+-- | Runs the record monad, returning the main result only.
+evalRecordT :: Functor m => RecordT m a -> m a
+evalRecordT = fmap fst . runRecordT
+
+-- | Maps both the main result and the consumed input.
+mapRecordT :: (m (a, [Positioned Char]) -> n (b, [Positioned Char]))
+           -> RecordT m a -> RecordT n b
+mapRecordT f = RecordT . mapStateT f . getRecordT
+
+instance (Monad m, Eq (m a)) => Eq (RecordT m a) where
+  RecordT m == RecordT n = evalStateT m [] == evalStateT n []
+
+instance (Monad m, Show (m a)) => Show (RecordT m a) where
+  showsPrec n (RecordT m) = showsPrec n $ evalStateT m []
+
+instance MonadTrans RecordT where
+  lift = RecordT . lift
+
+instance Functor m => Functor (RecordT m) where
+  fmap f = RecordT . fmap f . getRecordT
+  a <$ RecordT b = RecordT (a <$ b)
+
+instance Monad m => Applicative (RecordT m) where
+  pure = RecordT . pure
+  RecordT a <*> RecordT b = RecordT (a <*> b)
+  RecordT a  *> RecordT b = RecordT (a  *> b)
+  RecordT a <*  RecordT b = RecordT (a <*  b)
+
+instance MonadPlus m => Alternative (RecordT m) where
+  empty = RecordT empty
+  RecordT a <|> RecordT b = RecordT (a <|> b)
+  some = RecordT . some . getRecordT
+  many = RecordT . many . getRecordT
+
+instance Monad m => Monad (RecordT m) where
+  RecordT a >>= f = RecordT (a >>= getRecordT . f)
+  RecordT a >> RecordT b = RecordT (a >> b)
+
+instance MonadPlus m => MonadPlus (RecordT m) where
+  mzero = RecordT mzero
+  mplus (RecordT a) (RecordT b) = RecordT (mplus a b)
+
+instance MonadInput m => MonadInput (RecordT m) where
+  popChar = RecordT $ do
+    eofOrChar <- popChar
+    case eofOrChar of
+      Left _ -> pure ()
+      Right pc -> modify' (pc:)
+    return eofOrChar
+  lookahead (RecordT m) = RecordT $ do
+    s <- get
+    r <- lookahead m
+    put s
+    return r
+  peekChar = lift peekChar
+  currentPosition = lift currentPosition
+  pushChars = lift . pushChars
+
+instance MonadInput m => MonadInputRecord (RecordT m) where
+  reverseConsumedChars = RecordT get
+
+instance MonadError e m => MonadError e (RecordT m) where
+  throwError = RecordT . throwError
+  catchError (RecordT a) f = RecordT (catchError a (getRecordT . f))
+
+instance MonadReader r m => MonadReader r (RecordT m) where
+  ask = lift ask
+  local f = mapRecordT $ local f
+  reader = lift . reader
 
 -- vim: set et sw=2 sts=2 tw=78:
