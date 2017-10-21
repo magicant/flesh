@@ -33,8 +33,10 @@ module Flesh.Language.Parser.Alias (
   module Flesh.Language.Alias,
   -- * Context
   ContextT,
-  -- * Alias substitution
-  AliasT(..), mapAliasT, toMaybeT, fromMaybeT, substituteAlias, reparse) where
+  -- * AliasT
+  AliasT(..), mapAliasT, toMaybeT, fromMaybeT,
+  -- * Helper functions
+  isAfterBlankEndingSubstitution, substituteAlias, reparse) where
 
 import Control.Applicative (Alternative, empty, (<|>))
 import Control.Monad (MonadPlus, guard)
@@ -43,6 +45,7 @@ import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
 import Data.Map.Strict (lookup)
 import Data.Text (Text, unpack)
+import Flesh.Data.Char
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
@@ -125,6 +128,22 @@ instance (MonadParser m, MonadError e m) => MonadError e (AliasT m) where
   catchError m f = AliasT $ catchError (runAliasT m) (runAliasT . f)
 
 instance MonadParser m => MonadParser (AliasT m)
+
+-- | Tests if the current position is after an alias substitution whose value
+-- ends with a blank.
+isAfterBlankEndingSubstitution :: MonadInputRecord m => m Bool
+isAfterBlankEndingSubstitution = do
+  rcc <- reverseConsumedChars
+  cp <- currentPosition
+  return $ test rcc cp
+    where test ((p, c) : cs) p' | isBlank c =
+            isAlias p && differentSituations p p' || test cs p
+          test _ _ = False
+          isAlias p = isAlias' (s p)
+          isAlias' (Alias _ _) = True
+          isAlias' _ = False
+          differentSituations p1 p2 = s p1 /= s p2
+          s = situation . fragment
 
 -- | Returns 'True' iff the given position is applicable for alias
 -- substitution of the given name. The name is not applicable if the current
