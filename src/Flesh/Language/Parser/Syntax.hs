@@ -31,8 +31,7 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, normalToken, reservedOrToken, reservedOrAliasOrToken,
-  literal,
+  wordUnit, tokenTill, normalToken, reservedOrAliasOrToken, literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -43,10 +42,9 @@ module Flesh.Language.Parser.Syntax (
   completeLine, program) where
 
 import Control.Applicative (liftA3, many, optional, some, (<|>))
-import Control.Monad (guard, join, void, when)
+import Control.Monad (join, void, when)
 import Control.Monad.Reader (MonadReader, runReaderT)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Maybe (MaybeT(MaybeT))
 import Data.Foldable (sequenceA_, toList)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -149,33 +147,20 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
 
--- | Returns the token text in Left if the argument word 'isReserved',
--- otherwise the argument itself in Right.
-reservedOrToken :: Token -> Either (Positioned Text) Token
-reservedOrToken t = maybe (Right t) Left $ do
-  t' <- tokenText t
-  guard $ isReserved t'
-  return (p, t')
-    where Token ((p, _) :| _) = t -- position of the first word unit
-
 -- | Parses a normal non-empty token followed by optional whitespaces.
--- Reserved words are returned in Left as by 'reservedOrToken'.
+-- Reserved words are returned in Left, normal words in Right.
 -- Non-reserved words are subject to alias substitution.
 reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                        => AliasT m (Either (Positioned Text) Token)
+-- TODO This function should return Positioned IdentifiedToken
 reservedOrAliasOrToken = AliasT $ do
-  textOrToken <- reservedOrToken <$> normalToken
-  case textOrToken of
-    Left _ -> -- reserved words are not subject to alias substitution
-      return $ Just textOrToken
-    Right t ->
-      runAliasT $ do
-        fromMaybeT $ do
-          tt <- MaybeT $ return $ tokenText t
-          let pos = fst $ NE.head $ tokenUnits t
-          substituteAlias pos tt
-        return textOrToken
--- TODO substitute the next token if the current substitute ends with a blank.
+  t <- normalToken
+  let p = fst $ NE.head $ tokenUnits t
+  runAliasT $ do
+    it <- identify isReserved True p t
+    return $ case it of
+      Reserved tt -> Left (p, tt)
+      Normal t' -> Right t'
 
 -- | Parses an unquoted token that matches the given text.
 literal :: MonadParser m => Text -> m Token
