@@ -40,7 +40,7 @@ module Flesh.Language.Parser.Alias (
 
 import Control.Applicative (Alternative, empty, (<|>))
 import Control.Monad (MonadPlus, guard)
-import Control.Monad.Reader (MonadReader, ReaderT, ask)
+import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
 import Data.Map.Strict (lookup)
@@ -137,6 +137,11 @@ instance MonadParser m => MonadInputRecord (AliasT m) where
 instance (MonadParser m, MonadError e m) => MonadError e (AliasT m) where
   throwError = lift . throwError
   catchError m f = AliasT $ catchError (runAliasT m) (runAliasT . f)
+
+instance (MonadParser m, MonadReader r m) => MonadReader r (AliasT m) where
+  ask = lift ask
+  local f = mapAliasT $ local f
+  reader f = lift $ reader f
 
 instance MonadParser m => MonadParser (AliasT m)
 
