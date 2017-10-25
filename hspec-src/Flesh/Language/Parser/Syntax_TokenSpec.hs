@@ -15,6 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Trustworthy #-}
 
 module Flesh.Language.Parser.Syntax_TokenSpec (spec) where
@@ -133,6 +134,67 @@ spec = do
 
     context "rejects empty token" $ do
       expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
+
+  describe "identifiedToken" $ do
+    let ip f a = do
+          r <- runAliasT $ fst <$> identifiedToken f a
+          case r of
+            Nothing -> failure
+            Just p -> return p
+        ik f a = runAliasT $ snd <$> identifiedToken f a
+        ik' f a = reparse $ snd <$> identifiedToken f a
+
+    context "returns current position" $ do
+      expectPosition "foo;" (ip (const True) True) 0
+
+    context "any token can be identified as reserved if accepted" $ do
+      expectShow "foo" ";" (ik (const True)  True) "Just (Reserved \"foo\")"
+      expectShow "if" ";"  (ik (const True)  True) "Just (Reserved \"if\")"
+      expectShow "w" ";"   (ik (== pack "w") True) "Just (Reserved \"w\")"
+
+    context "no token can be identified as reserved if rejected" $ do
+      expectShow "foo" ";" (ik (const False) True) "Just (Normal foo)"
+      expectShow "if" ";"  (ik (const False) True) "Just (Normal if)"
+      expectShow "w" ";"   (ik (/= pack "w") True) "Just (Normal w)"
+
+    context "quoted tokens are not identified as reserved" $ do
+      expectShow "f\\oo" ";" (ik (const True) True) "Just (Normal f\\oo)"
+      expectShow "f'o'o" ";" (ik (const True) True) "Just (Normal f'o'o)"
+      expectShow "f\"o\"o" ";" (ik (const True) True) "Just (Normal f\"o\"o)"
+
+    context "doesn't perform alias substitution on reserved words" $ do
+      expectShow defaultAliasName ";" (ik (const True) True) $
+        "Just (Reserved \"" ++ defaultAliasName ++ "\")"
+
+    context "modifies pending input on alias substitution" $ do
+      expectSuccessEof defaultAliasName "" (ik (const False) True >> readAll)
+        defaultAliasValue
+
+    it "returns nothing after alias substitution" $
+      let e = runFullInputTesterWithDummyPositions (ik (const False) True)
+                defaultAliasName
+       in fmap fst e `shouldBe` Right Nothing
+
+    it "stops alias substitution on recursion" $
+      let e = runFullInputTesterWithDummyPositions
+                ((,) <$> ik' (const False) True <*> readAll) defaultAliasName
+          f ((l, r), _) = (show l, r)
+          ex = "Normal " ++ defaultAliasName
+       in fmap f e `shouldBe` Right (ex, "--color")
+
+    it "stops alias substitution on exact recursion" $
+      let e = runFullInputTesterWithDummyPositions
+                ((,) <$> ik' (const False) True <*> readAll) recursiveAlias
+          f ((l, r), _) = (show l, r)
+          ex = "Normal " ++ recursiveAlias
+       in fmap f e `shouldBe` Right (ex, "")
+
+    context "doesn't perform alias substitution if disabled" $ do
+      expectShow recursiveAlias ";" (ik (const False) False) $
+        "Just (Normal " ++ recursiveAlias ++ ")"
+
+    context "performs alias substitution after blank-ending substitution" $ do
+      return () -- should be tested elsewhere
 
   describe "reservedOrAliasOrToken" $ do
     let ignorePosition = either (Left . snd) Right

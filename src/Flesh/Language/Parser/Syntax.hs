@@ -31,7 +31,8 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, normalToken, reservedOrAliasOrToken, literal,
+  wordUnit, tokenTill, normalToken, identifiedToken, reservedOrAliasOrToken,
+  literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -146,6 +147,24 @@ tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 -- whitespaces after the token.
 normalToken :: MonadParser m => m Token
 normalToken = tokenTill endOfToken <* whites
+
+-- | Parses a normal non-empty token followed by optional whitespaces. The
+-- token is identified by 'identify'.
+identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                => (Text -> Bool)
+                -- ^ Function that tests if a token is reserved.
+                -> Bool
+                -- ^ Whether the token should be checked for an alias. If the
+                -- current position 'isAfterBlankEndingSubstitution', this
+                -- argument is ignored.
+                -> AliasT m (Positioned IdentifiedToken)
+identifiedToken isReserved' isAliasable = do
+  iabes <- isAfterBlankEndingSubstitution
+  pos <- currentPosition
+  it <- AliasT $ do
+    t <- normalToken
+    runAliasT $ identify isReserved' (isAliasable || iabes) pos t
+  return (pos, it)
 
 -- | Parses a normal non-empty token followed by optional whitespaces.
 -- Reserved words are returned in Left, normal words in Right.
