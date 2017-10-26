@@ -31,7 +31,7 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, normalToken, identifiedToken, literal,
+  wordUnit, tokenTill, neutralToken, identifiedToken, literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -142,10 +142,10 @@ wordUnit = lc $
 tokenTill :: MonadParser m => m a -> m Token
 tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 
--- | Parses a normal non-empty token, delimited by 'endOfToken'. Skips
--- whitespaces after the token.
-normalToken :: MonadParser m => m Token
-normalToken = tokenTill endOfToken <* whites
+-- | Parses a normal non-empty token, delimited by 'endOfToken', without
+-- determining its token identifier. Skips whitespaces after the token.
+neutralToken :: MonadParser m => m Token
+neutralToken = tokenTill endOfToken <* whites
 
 -- | Parses a normal non-empty token followed by optional whitespaces. The
 -- token is identified by 'identify'.
@@ -161,20 +161,20 @@ identifiedToken isReserved' isAliasable = do
   iabes <- isAfterBlankEndingSubstitution
   pos <- currentPosition
   it <- AliasT $ do
-    t <- normalToken
+    t <- neutralToken
     runAliasT $ identify isReserved' (isAliasable || iabes) pos t
   return (pos, it)
 
 -- | Parses an unquoted token that matches the given text.
 literal :: MonadParser m => Text -> m Token
-literal w = normalToken `satisfying` (\t -> tokenText t == Just w)
+literal w = neutralToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
 redirectBody :: MonadParser m
              => m (Maybe Natural, Positioned String, Token)
 redirectBody = liftA3 (,,) (optional ioNumber) redirectOperatorToken
-  (require (setReason MissingRedirectionTarget normalToken))
+  (require (setReason MissingRedirectionTarget neutralToken))
 
 yieldHereDoc :: Monad m => HereDocOp -> AccumT m (Filler Redirection)
 yieldHereDoc op = do
@@ -263,11 +263,11 @@ linebreak = void (many (newlineHD *> whitesHD))
 simpleCommandArguments :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                        => HereDocAliasT m ([Token], [a], [Redirection])
 simpleCommandArguments = arg <*> simpleCommandArguments <|> pure ([], [], [])
-  where arg = consRedir <$> redirect' <|> consToken <$> normalToken'
+  where arg = consRedir <$> redirect' <|> consToken <$> neutralToken'
         consRedir r (ts, as, rs) = (ts, as, r:rs)
         consToken t (ts, as, rs) = (t:ts, as, rs)
         redirect' = mapHereDocT lift redirect
-        normalToken' = lift normalToken
+        neutralToken' = lift neutralToken
 -- TODO global aliases
 
 -- | Parses a simple command but the first token.
