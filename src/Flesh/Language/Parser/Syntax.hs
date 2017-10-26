@@ -31,8 +31,7 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, normalToken, identifiedToken, reservedOrAliasOrToken,
-  literal,
+  wordUnit, tokenTill, normalToken, identifiedToken, literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -165,21 +164,6 @@ identifiedToken isReserved' isAliasable = do
     t <- normalToken
     runAliasT $ identify isReserved' (isAliasable || iabes) pos t
   return (pos, it)
-
--- | Parses a normal non-empty token followed by optional whitespaces.
--- Reserved words are returned in Left, normal words in Right.
--- Non-reserved words are subject to alias substitution.
-reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                       => AliasT m (Either (Positioned Text) Token)
--- TODO This function should return Positioned IdentifiedToken
-reservedOrAliasOrToken = AliasT $ do
-  t <- normalToken
-  let p = fst $ NE.head $ tokenUnits t
-  runAliasT $ do
-    it <- identify isReserved True p t
-    return $ case it of
-      Reserved tt -> Left (p, tt)
-      Normal t' -> Right t'
 
 -- | Parses an unquoted token that matches the given text.
 literal :: MonadParser m => Text -> m Token
@@ -345,13 +329,14 @@ command =
   -- Next, if the command begins with a redirection, it is a simple command.
   toCommand <$> (consRedir <$> redirect' <*> simpleCommand') <|>
   -- Otherwise, the first token can be a reserved word or alias.
-  joinAliasHereDocAliasT (compoundOrSimple <$> reservedOrAliasOrToken)
+  joinAliasHereDocAliasT
+    (compoundOrSimple <$> identifiedToken isReserved True)
     where toCommand (ts, as, rs) = SimpleCommand ts as rs
           consRedir r (ts, as, rs) = (ts, as, r:rs)
           redirect' = mapHereDocT lift redirect
           simpleCommand' = simpleCommandArguments -- TODO parse assignments
-          compoundOrSimple = either compoundCommandTail' simpleCommandTail
-            -- :: Either (Positioned Text) Token -> HereDocAliasT m Command
+          compoundOrSimple (p, Reserved t) = compoundCommandTail' (p, t)
+          compoundOrSimple (_, Normal t) = simpleCommandTail t
           compoundCommandTail' t = CompoundCommand <$>
             mapHereDocT lift (compoundCommandTail t) <*> many redirect
             -- :: Positioned Text -> HereDocAliasT m Command
