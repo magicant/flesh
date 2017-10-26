@@ -15,12 +15,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
 {-|
 Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
-Portability : portable
+Portability : non-portable (flexible contexts)
 
 This module defines utilities for lexical parsing that are specific to the
 shell language.
@@ -33,17 +34,23 @@ module Flesh.Language.Parser.Lex (
   reservedBang, reservedCase, reservedDo, reservedDone, reservedElif,
   reservedElse, reservedEsac, reservedFi, reservedFor, reservedFunction,
   reservedIf, reservedIn, reservedThen, reservedUntil, reservedWhile,
-  reservedOpenBrace, reservedCloseBrace, isReserved) where
+  reservedOpenBrace, reservedCloseBrace, isReserved,
+  -- * Token identification
+  IdentifiedToken(..), identify) where
 
 import Control.Applicative (many, (<|>))
-import Data.Char (isDigit, isSpace, ord)
+import Control.Monad.Reader
 import qualified Data.List.NonEmpty as NE
 import Data.Set (Set, fromList, member)
 import Data.Text (Text, pack)
+import Flesh.Data.Char (isBlank, isDigit)
 import Flesh.Source.Position
+import qualified Flesh.Language.Alias as Alias
+import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
+import Flesh.Language.Syntax
 import Numeric.Natural (Natural)
 
 -- | Parses a line continuation: a backslash followed by a newline.
@@ -57,8 +64,6 @@ lc m = many lineContinuation *> m
 
 blank' :: MonadParser m => m (Positioned Char)
 blank' = satisfy isBlank
-  where isBlank c | ord c <= 0x7F = c == '\t' || c == ' '
-                  | otherwise     = isSpace c
 
 -- | Parses a blank character, possibly preceded by line continuations.
 --
@@ -185,5 +190,37 @@ reservedWords = fromList [reservedBang, reservedCase, reservedDo,
 -- | Tests if the argument text is a reserved word token.
 isReserved :: Text -> Bool
 isReserved t = member t reservedWords
+
+-- | Result of token identification.
+data IdentifiedToken =
+  Reserved Text -- ^ reserved word
+  | Normal Token -- ^ normal word token
+  deriving (Eq, Show)
+
+-- | @identify isReserved' isAliasable p t@ identifies a token.
+--
+-- First, if the token is a simple text and @isReserved'@ returns True for it,
+-- then it is identified as Reserved.
+--
+-- Next, if @isAliasable@ is true, the token is tested for an alias. If it
+-- matches a valid alias, substitution is performed.
+--
+-- Otherwise, the token is identified as Normal.
+identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+         => (Text -> Bool) -- ^ function that tests if a token is reserved
+         -> Bool -- ^ whether the token should be checked for an alias
+         -> Position -- ^ position of the token to be identified
+         -> Token -- ^ token to be identified
+         -> AliasT m IdentifiedToken
+identify isReserved' isAliasable p t =
+  case tokenText t of
+    Nothing -> return $ Normal t
+    Just tt | isReserved' tt -> return $ Reserved tt
+            | otherwise -> do
+                fromMaybeT $ do
+                  guard isAliasable
+                  substituteAlias p tt
+                return $ Normal t
+-- TODO support global aliases, possibly extending the @isAliasable@ argument
 
 -- vim: set et sw=2 sts=2 tw=78:

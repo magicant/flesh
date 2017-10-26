@@ -33,16 +33,19 @@ module Flesh.Language.Parser.Alias (
   module Flesh.Language.Alias,
   -- * Context
   ContextT,
-  -- * Alias substitution
-  AliasT(..), mapAliasT, toMaybeT, fromMaybeT, substituteAlias, reparse) where
+  -- * AliasT
+  AliasT(..), mapAliasT, toMaybeT, fromMaybeT,
+  -- * Helper functions
+  isAfterBlankEndingSubstitution, substituteAlias, reparse) where
 
 import Control.Applicative (Alternative, empty, (<|>))
 import Control.Monad (MonadPlus, guard)
-import Control.Monad.Reader (MonadReader, ReaderT, ask)
+import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
 import Data.Map.Strict (lookup)
 import Data.Text (Text, unpack)
+import Flesh.Data.Char
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
@@ -69,13 +72,24 @@ newtype AliasT m a = AliasT {runAliasT :: m (Maybe a)}
 mapAliasT :: (m (Maybe a) -> n (Maybe b)) -> AliasT m a -> AliasT n b
 mapAliasT f = AliasT . f . runAliasT
 
--- | Converts a 'AliasT' monad to a 'MaybeT' monad.
-toMaybeT :: AliasT m a -> MaybeT m a
-toMaybeT = MaybeT . runAliasT
+inverse :: Functor m => m (Maybe a) -> m (Maybe ())
+inverse = fmap inverse'
+  where inverse' Nothing = Just ()
+        inverse' (Just _) = Nothing
 
--- | Converts a 'MaybeT' monad to a 'AliasT' monad.
-fromMaybeT :: MaybeT m a -> AliasT m a
-fromMaybeT = AliasT . runMaybeT
+-- | Converts an 'AliasT' monad to a 'MaybeT' monad.
+--
+-- Although 'AliasT' and 'MaybeT' share the same value type @m (Maybe a)@,
+-- they are semantically inverse: The Nothing value of 'AliasT' means the
+-- parser has been aborted due to alias substitution, while that of 'MaybeT'
+-- means alias substitution is not applicable in the current parsing state.
+-- Hence, 'toMaybeT' inverts Nothing and Just values.
+toMaybeT :: Functor m => AliasT m a -> MaybeT m ()
+toMaybeT = MaybeT . inverse . runAliasT
+
+-- | The inverse of 'toMaybeT'.
+fromMaybeT :: Functor m => MaybeT m a -> AliasT m ()
+fromMaybeT = AliasT . inverse . runMaybeT
 
 instance MonadTrans AliasT where
   lift = AliasT . fmap Just
@@ -124,7 +138,28 @@ instance (MonadParser m, MonadError e m) => MonadError e (AliasT m) where
   throwError = lift . throwError
   catchError m f = AliasT $ catchError (runAliasT m) (runAliasT . f)
 
+instance (MonadParser m, MonadReader r m) => MonadReader r (AliasT m) where
+  ask = lift ask
+  local f = mapAliasT $ local f
+  reader f = lift $ reader f
+
 instance MonadParser m => MonadParser (AliasT m)
+
+-- | Tests if the current position is after an alias substitution whose value
+-- ends with a blank.
+isAfterBlankEndingSubstitution :: MonadInputRecord m => m Bool
+isAfterBlankEndingSubstitution = do
+  rcc <- reverseConsumedChars
+  cp <- currentPosition
+  return $ test rcc cp
+    where test ((p, c) : cs) p' | isBlank c =
+            isAlias p && differentSituations p p' || test cs p
+          test _ _ = False
+          isAlias p = isAlias' (s p)
+          isAlias' (Alias _ _) = True
+          isAlias' _ = False
+          differentSituations p1 p2 = s p1 /= s p2
+          s = situation . fragment
 
 -- | Returns 'True' iff the given position is applicable for alias
 -- substitution of the given name. The name is not applicable if the current

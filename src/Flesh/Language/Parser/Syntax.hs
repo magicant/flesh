@@ -31,8 +31,7 @@ module Flesh.Language.Parser.Syntax (
   HereDocAliasT,
   -- * Tokens
   backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, normalToken, reservedOrToken, reservedOrAliasOrToken,
-  literal,
+  wordUnit, tokenTill, neutralToken, identifiedToken, literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -43,10 +42,9 @@ module Flesh.Language.Parser.Syntax (
   completeLine, program) where
 
 import Control.Applicative (liftA3, many, optional, some, (<|>))
-import Control.Monad (guard, join, void, when)
+import Control.Monad (join, void, when)
 import Control.Monad.Reader (MonadReader, runReaderT)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
 import Data.Foldable (sequenceA_, toList)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -144,52 +142,39 @@ wordUnit = lc $
 tokenTill :: MonadParser m => m a -> m Token
 tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
 
--- | Parses a normal non-empty token, delimited by 'endOfToken'. Skips
--- whitespaces after the token.
-normalToken :: MonadParser m => m Token
-normalToken = tokenTill endOfToken <* whites
+-- | Parses a normal non-empty token, delimited by 'endOfToken', without
+-- determining its token identifier. Skips whitespaces after the token.
+neutralToken :: MonadParser m => m Token
+neutralToken = tokenTill endOfToken <* whites
 
--- | Returns the token text in Left if the argument word 'isReserved',
--- otherwise the argument itself in Right.
-reservedOrToken :: Token -> Either (Positioned Text) Token
-reservedOrToken t = maybe (Right t) Left $ do
-  t' <- tokenText t
-  guard $ isReserved t'
-  return (p, t')
-    where Token ((p, _) :| _) = t -- position of the first word unit
-
--- | Parses a normal non-empty token followed by optional whitespaces.
--- Reserved words are returned in Left as by 'reservedOrToken'.
--- Non-reserved words are subject to alias substitution.
-reservedOrAliasOrToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                       => AliasT m (Either (Positioned Text) Token)
-reservedOrAliasOrToken = AliasT $ do
-  textOrToken <- reservedOrToken <$> normalToken
-  case textOrToken of
-    Left _ -> -- reserved words are not subject to alias substitution
-      return $ Just textOrToken
-    Right t -> do
-      r <- runMaybeT $ do
-        tt <- MaybeT $ return $ tokenText t
-        let pos = fst $ NE.head $ tokenUnits t
-        substituteAlias pos tt
-      case r of
-        Nothing -> -- no alias substitution performed
-          return $ Just textOrToken
-        Just () -> -- alias substitution performed!
-          return $ Nothing
--- TODO substitute the next token if the current substitute ends with a blank.
+-- | Parses a normal non-empty token followed by optional whitespaces. The
+-- token is identified by 'identify'.
+identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                => (Text -> Bool)
+                -- ^ Function that tests if a token is reserved.
+                -> Bool
+                -- ^ Whether the token should be checked for an alias. If the
+                -- current position 'isAfterBlankEndingSubstitution', this
+                -- argument is ignored.
+                -> AliasT m (Positioned IdentifiedToken)
+identifiedToken isReserved' isAliasable = do
+  iabes <- isAfterBlankEndingSubstitution
+  pos <- currentPosition
+  it <- AliasT $ do
+    t <- neutralToken
+    runAliasT $ identify isReserved' (isAliasable || iabes) pos t
+  return (pos, it)
 
 -- | Parses an unquoted token that matches the given text.
 literal :: MonadParser m => Text -> m Token
-literal w = normalToken `satisfying` (\t -> tokenText t == Just w)
+literal w = neutralToken `satisfying` (\t -> tokenText t == Just w)
 
 -- | Parses a redirection operator (@io_redirect@) and returns the raw result.
 -- Skips trailing whitespaces.
 redirectBody :: MonadParser m
              => m (Maybe Natural, Positioned String, Token)
 redirectBody = liftA3 (,,) (optional ioNumber) redirectOperatorToken
-  (require (setReason MissingRedirectionTarget normalToken))
+  (require (setReason MissingRedirectionTarget neutralToken))
 
 yieldHereDoc :: Monad m => HereDocOp -> AccumT m (Filler Redirection)
 yieldHereDoc op = do
@@ -278,11 +263,11 @@ linebreak = void (many (newlineHD *> whitesHD))
 simpleCommandArguments :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                        => HereDocAliasT m ([Token], [a], [Redirection])
 simpleCommandArguments = arg <*> simpleCommandArguments <|> pure ([], [], [])
-  where arg = consRedir <$> redirect' <|> consToken <$> normalToken'
+  where arg = consRedir <$> redirect' <|> consToken <$> neutralToken'
         consRedir r (ts, as, rs) = (ts, as, r:rs)
         consToken t (ts, as, rs) = (t:ts, as, rs)
         redirect' = mapHereDocT lift redirect
-        normalToken' = lift normalToken
+        neutralToken' = lift neutralToken
 -- TODO global aliases
 
 -- | Parses a simple command but the first token.
@@ -344,13 +329,14 @@ command =
   -- Next, if the command begins with a redirection, it is a simple command.
   toCommand <$> (consRedir <$> redirect' <*> simpleCommand') <|>
   -- Otherwise, the first token can be a reserved word or alias.
-  joinAliasHereDocAliasT (compoundOrSimple <$> reservedOrAliasOrToken)
+  joinAliasHereDocAliasT
+    (compoundOrSimple <$> identifiedToken isReserved True)
     where toCommand (ts, as, rs) = SimpleCommand ts as rs
           consRedir r (ts, as, rs) = (ts, as, r:rs)
           redirect' = mapHereDocT lift redirect
           simpleCommand' = simpleCommandArguments -- TODO parse assignments
-          compoundOrSimple = either compoundCommandTail' simpleCommandTail
-            -- :: Either (Positioned Text) Token -> HereDocAliasT m Command
+          compoundOrSimple (p, Reserved t) = compoundCommandTail' (p, t)
+          compoundOrSimple (_, Normal t) = simpleCommandTail t
           compoundCommandTail' t = CompoundCommand <$>
             mapHereDocT lift (compoundCommandTail t) <*> many redirect
             -- :: Positioned Text -> HereDocAliasT m Command
