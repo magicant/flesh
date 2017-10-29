@@ -232,14 +232,26 @@ data CompoundCommand =
   -- TODO for command
   -- TODO case command
   -- TODO if command
-  -- TODO while/until command
+  -- | loop condition and body.
+  | While (NonEmpty AndOrList) (NonEmpty AndOrList)
+  -- | loop condition and body.
+  | Until (NonEmpty AndOrList) (NonEmpty AndOrList)
   deriving (Eq)
+
+showWhileUntilTail :: NonEmpty AndOrList -> NonEmpty AndOrList -> ShowS
+showWhileUntilTail c b =
+  showSeparatedList (toList c) . showString " do " .
+    showSeparatedList (toList b) . showString " done"
 
 instance Show CompoundCommand where
   showsPrec _ (Grouping ls) =
     showString "{ " . showSeparatedList (toList ls) . showString " }"
   showsPrec _ (Subshell ls) =
     showChar '(' . showList (toList ls) . showChar ')'
+  showsPrec _ (While c b) =
+    showString "while " . showWhileUntilTail c b
+  showsPrec _ (Until c b) =
+    showString "until " . showWhileUntilTail c b
 
 -- | Element of pipelines.
 data Command =

@@ -130,21 +130,37 @@ instance ListPrintable Redirection where
             showSpace'
             prints r'
 
+printsIndentedLists :: (MonadState PrintState m, MonadWriter (Endo String) m)
+                    => NonEmpty AndOrList -> m ()
+printsIndentedLists ls = do
+  indented $ do
+    printNewline
+    printList $ toList ls
+  printIndent
+
+printsWhileUntilTail :: (MonadState PrintState m, MonadWriter (Endo String) m)
+                     => NonEmpty AndOrList -> NonEmpty AndOrList -> m ()
+printsWhileUntilTail c b = do
+  printsIndentedLists c
+  tell' $ showString "do"
+  printsIndentedLists b
+  tell' $ showString "done"
+
 instance Printable CompoundCommand where
   prints (Grouping ls) = do
     tell' $ showString "{"
-    indented $ do
-      printNewline
-      printList $ toList ls
-    printIndent
+    printsIndentedLists ls
     tell' $ showString "}"
   prints (Subshell ls) = do
     tell' $ showChar '('
-    indented $ do
-      printNewline
-      printList $ toList ls
-    printIndent
+    printsIndentedLists ls
     tell' $ showChar ')'
+  prints (While c b) = do
+    tell' $ showString "while"
+    printsWhileUntilTail c b
+  prints (Until c b) = do
+    tell' $ showString "until"
+    printsWhileUntilTail c b
 
 instance Printable Command where
   prints (SimpleCommand [] [] []) = return ()
