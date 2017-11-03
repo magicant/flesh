@@ -66,6 +66,9 @@ data Reason =
   | MissingCommandAfter String
   | UnclosedSubshell Position -- ^ with position of the open parenthesis
   | UnclosedGrouping Position -- ^ with position of the open brace
+  | MissingDoForWhile Position -- ^ with position of the "while" keyword
+  | MissingDoForUntil Position -- ^ with position of the "until" keyword
+  | MissingDoneForDo Position -- ^ with position of the "do" keyword
   deriving (Eq, Show)
 
 -- | Parse error description.

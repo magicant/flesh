@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.Syntax_CommandSpec (spec) where
 
+import Data.Foldable (toList)
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
@@ -83,6 +84,70 @@ spec = do
       expectFailureEof "foo " g  Hard (UnclosedGrouping p) 4
       expectFailure    "foo)" g' Hard (UnclosedGrouping p) 3
 
+  describe "doGrouping" $ do
+    let p = dummyPosition "X"
+        dg = toList <$> reparse (fill (doGrouping UnclosedDoubleQuote))
+
+    context "may have one inner command" $ do
+      expectShowEof "do foo;done" "" dg "foo"
+      expectShowEof "do\n\tbar\n done" "" dg "bar"
+
+    context "may have three inner commands" $ do
+      expectShowEof "do foo; bar& baz; done" "" dg "foo; bar& baz"
+      expectShowEof "do foo& bar; baz& done" "" dg "foo& bar; baz&"
+      expectShowEof "do\nfoo\nbar&\nbaz\n \n\tdone" "" dg "foo; bar& baz"
+
+    context "cannot be empty" $ do
+      expectFailureEof "do     " dg Hard (MissingCommandAfter "do") 7
+      expectFailureEof "do esac" dg Hard (MissingCommandAfter "do") 3
+      expectFailureEof "do done" dg Hard (MissingCommandAfter "do") 3
+
+    context "must start with do" $ do
+      -- Fails with the reason given above
+      expectFailureEof "foo" dg Soft UnclosedDoubleQuote 0
+      expectFailureEof "fi" dg Soft UnclosedDoubleQuote 0
+
+    context "must be closed by done" $ do
+      expectFailureEof "do foo" dg Hard (MissingDoneForDo p) 6
+
+  describe "whileCommandTail" $ do
+    let p = dummyPosition "X"
+        w = snd <$> reparse (fill (whileCommandTail p))
+
+    context "may have one condition command" $ do
+      expectShowEof "foo;do :;done" "" w "while foo; do :; done"
+      expectShowEof "bar\ndo :;done" "" w "while bar; do :; done"
+
+    context "may have three condition commands" $ do
+      expectShowEof "foo; bar& baz; do :;done" "" w
+        "while foo; bar& baz; do :; done"
+      expectShowEof "foo& bar; baz& do :;done" "" w
+        "while foo& bar; baz& do :; done"
+      expectShowEof "foo\nbar&\nbaz\n \n\tdo :; done" "" w
+        "while foo; bar& baz; do :; done"
+
+    context "condition cannot be empty" $ do
+      expectFailureEof "    " w Soft (MissingCommandAfter "while") 0
+      expectFailureEof "do  " w Soft (MissingCommandAfter "while") 0
+      expectFailureEof "done" w Soft (MissingCommandAfter "while") 0
+
+    context "must have do...done" $ do
+      expectFailureEof "foo      " w Hard (MissingDoForWhile p) 9
+      expectFailureEof "foo; esac" w Hard (MissingDoForWhile p) 5
+      expectFailureEof "foo; done" w Hard (MissingDoForWhile p) 5
+
+  describe "untilCommandTail" $ do
+    let p = dummyPosition "X"
+        u = snd <$> reparse (fill (untilCommandTail p))
+
+    context "may have one condition command" $ do
+      expectShowEof "foo;do :;done" "" u "until foo; do :; done"
+      expectShowEof "bar\ndo :;done" "" u "until bar; do :; done"
+
+    context "must have do...done" $ do
+      expectFailureEof "foo" u Hard (MissingDoForUntil p) 3
+    -- Other tests are omitted because they are the same with whileCommandTail
+
   describe "command" $ do
     let sc = runAliasT $ fill command
         sc' = runAliasT $ fill command
@@ -121,5 +186,21 @@ spec = do
 
       context "does not start with a quoted parenthesis" $ do
         expectShowEof "\\( foo" "\n)" sc "Just \\( foo"
+
+    context "as while command" $ do
+      context "starts with a 'while'" $ do
+        expectShowEof "while foo; do bar; done" "" sc
+          "Just while foo; do bar; done"
+
+      context "does not start with a quoted 'while'" $ do
+        expectShowEof "whi\\le foo" "; do :; done" sc "Just whi\\le foo"
+
+    context "as until command" $ do
+      context "starts with a 'until'" $ do
+        expectShowEof "until foo; do bar; done" "" sc
+          "Just until foo; do bar; done"
+
+      context "does not start with a quoted 'until'" $ do
+        expectShowEof "unt\\il foo" "; do :; done" sc "Just unt\\il foo"
 
 -- vim: set et sw=2 sts=2 tw=78:
