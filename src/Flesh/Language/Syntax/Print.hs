@@ -36,10 +36,10 @@ module Flesh.Language.Syntax.Print (
 import Control.Monad (when)
 import Control.Monad.State.Strict (
   MonadState, State, evalState, get, modify', put, state)
-import Control.Monad.Writer.Lazy (
-  Endo(Endo), MonadWriter, WriterT, appEndo, execWriterT, tell)
+import Control.Monad.Writer.Lazy (Endo(Endo), MonadWriter, tell)
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
 import Flesh.Language.Syntax
+import Flesh.Text.Show
 
 -- | Intermediate state used while constructing a printer function.
 data PrintState = PrintState {
@@ -55,20 +55,12 @@ initPrintState = PrintState 0 id
 -- | Monad to construct ShowS functions.
 --
 -- The outer State monad carries PrintState, from which the ShowS function
--- results in the inner WriterT monad.
-type PrintS = WriterT (Endo String) (State PrintState)
+-- results in the inner PrintT monad.
+type PrintS = PrintT (State PrintState)
 
 -- | Runs the PrintS state with 'initPrintState'.
 runPrint :: PrintS a -> ShowS
-runPrint = appEndo . flip evalState initPrintState . execWriterT
-
--- | Utility for yielding a ShowS function
-tell' :: MonadWriter (Endo String) m => ShowS -> m ()
-tell' = tell . Endo
-
--- | Utility for Show instances
-showSpace' :: MonadWriter (Endo String) m => m ()
-showSpace' = tell' $ showChar ' '
+runPrint = flip evalState initPrintState . execPrintT
 
 -- | Appends the given here document content to the current 'hereDoc'.
 appendHereDoc :: MonadState PrintState m => ShowS -> m ()
