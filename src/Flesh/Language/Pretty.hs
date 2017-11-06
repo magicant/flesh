@@ -38,12 +38,13 @@ import Control.Monad.Trans.Class (lift)
 import Data.Map.Lazy (empty)
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Error.Print
 import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Syntax.Print
 import Flesh.Source.Position
 import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPutStr, stderr)
 import System.IO.Error (tryIOError)
 
 data InputRecord = InputRecord {
@@ -166,8 +167,9 @@ readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $
     notFollowedBy eof *> completeLine
 
 writeCompleteLine :: Either Failure [AndOrList] -> IO ()
-writeCompleteLine (Left e) = hPutStrLn stderr (show e) >> exitFailure
--- TODO print error in human-friendly format
+writeCompleteLine (Left (s, e)) = do
+  hPutStr stderr $ show s ++ " error\n" ++ showsError e ""
+  exitFailure
 writeCompleteLine (Right aols) = putStr (runPrint (printList aols) "")
 
 -- | Repeatedly reads commands from the standard input and pretty-prints them
