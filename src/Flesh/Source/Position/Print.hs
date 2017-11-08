@@ -102,15 +102,23 @@ showsBlockHead (Block {position = p, kind = k, message = m}) = do
   tell' $ showString m
   newline
 
+-- | Splits a string into lines, returning the line containing the indicated
+-- index and the index in the line.
+focusLine :: String -> Int -> (String, Int)
+focusLine s n =
+  if n <= l then (h, n) else focusLine t $! n - l - 1
+    where (h, t) = break (== '\n') s
+          l = length h
+
 -- | Prints the second and third lines of a block, optionally followed by
 -- another block that describes the situation.
 showsBlockTail :: P.Position -> Writer (Endo String) ()
 showsBlockTail p = do
   let f = P.fragment p
-      c = P.code f
+      (c, n) = focusLine (P.code f) (P.index p)
       space '\t' = '\t'
       space _    = ' '
-      spaces = map space $ take (P.index p) c
+      spaces = map space $ take n c
   tell' $ showString $ c
   newline
   tell' $ showString $ spaces ++ "^"
