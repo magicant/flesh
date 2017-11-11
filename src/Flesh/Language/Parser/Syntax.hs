@@ -86,9 +86,9 @@ dollarExpansionTail = do
     -- TODO arithmetic expansion
     -- TODO braced parameter expansion
     -- TODO unbraced parameter expansion
-    '(' -> require $ fmap Flesh.Language.Syntax.CommandSubstitution $
-      execCaptureT cmdsubstBody <* closeParan
-      where cmdsubstBody = runReaderT program empty
+    '(' -> require $ f <$> execCaptureT cmdsubstBody <* closeParan
+      where f = Flesh.Language.Syntax.CommandSubstitution . snd . unzip
+            cmdsubstBody = runReaderT program empty
             closeParan = setReason (UnclosedCommandSubstitution p) (char ')')
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
 
