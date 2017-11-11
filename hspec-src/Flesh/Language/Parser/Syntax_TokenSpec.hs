@@ -100,10 +100,10 @@ spec = do
       expectPosition "\\\n\"\\\n\"" (fst <$> doubleQuote) 2
 
     context "fails on unclosed quotes" $ do
-      expectFailureEof "\"" doubleQuote Hard UnclosedDoubleQuote 1
-      expectFailureEof "\"x" doubleQuote Hard UnclosedDoubleQuote 2
-      expectFailureEof "\"\\" doubleQuote Hard UnclosedDoubleQuote 2
-      expectFailureEof "\"\\\"" doubleQuote Hard UnclosedDoubleQuote 3
+      expectFailureEof "\"" doubleQuote Hard UnclosedDoubleQuote 0
+      expectFailureEof "\"x" doubleQuote Hard UnclosedDoubleQuote 0
+      expectFailureEof "\"\\" doubleQuote Hard UnclosedDoubleQuote 0
+      expectFailureEof "\"\\\"" doubleQuote Hard UnclosedDoubleQuote 0
 
   describe "singleQuote" $ do
     context "parses empty quotes" $ do
@@ -123,9 +123,9 @@ spec = do
       expectShow "'\\a\\n\\'" "" (snd <$> singleQuote) "'\\a\\n\\'"
 
     context "fails on unclosed quotes" $ do
-      expectFailureEof "'" singleQuote Hard UnclosedSingleQuote 1
-      expectFailureEof "'x" singleQuote Hard UnclosedSingleQuote 2
-      expectFailureEof "'\\\\" singleQuote Hard UnclosedSingleQuote 3
+      expectFailureEof "'" singleQuote Hard UnclosedSingleQuote 0
+      expectFailureEof "'x" singleQuote Hard UnclosedSingleQuote 0
+      expectFailureEof "'\\\\" singleQuote Hard UnclosedSingleQuote 0
 
   describe "tokenTill" $ do
     context "parses some word units" $ do
