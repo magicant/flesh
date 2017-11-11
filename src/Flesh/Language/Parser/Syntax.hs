@@ -118,7 +118,7 @@ doubleQuote = do
   let dq = lc (char '"')
   (p, _) <- dq
   let f units = (p, DoubleQuote units)
-      closeQuote = setReason UnclosedDoubleQuote dq
+      closeQuote = dq <|> failureOfError (Error UnclosedDoubleQuote p)
   require $ f <$> doubleQuoteUnit `manyTill` closeQuote
 
 -- | Parses a pair of single quotes containing any number of characters.
@@ -127,7 +127,7 @@ singleQuote = do
   let sq = char '\''
   (p, _) <- lc sq
   let f chars = (p, SingleQuote chars)
-      closeQuote = setReason UnclosedSingleQuote (char '\'')
+      closeQuote = sq <|> failureOfError (Error UnclosedSingleQuote p)
   require $ f <$> anyChar `manyTill` closeQuote
 
 -- | Parses a word unit.
