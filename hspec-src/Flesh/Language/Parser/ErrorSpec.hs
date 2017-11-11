@@ -34,8 +34,20 @@ import Test.QuickCheck (
   Arbitrary, Gen, arbitrary, elements, oneof, (===), (==>))
 
 instance Arbitrary Reason where
-  arbitrary =
-    elements [UnknownReason, UnclosedDoubleQuote, UnclosedSingleQuote]
+  arbitrary = oneof [
+    return UnknownReason,
+    return UnclosedDoubleQuote,
+    return UnclosedSingleQuote,
+    return MissingExpansionAfterDollar,
+    return MissingRedirectionTarget,
+    -- return UnclosedHereDocContent ...
+    -- return MissingHereDocContents ...
+    MissingCommandAfter <$> arbitrary,
+    UnclosedSubshell . dummyPosition <$> arbitrary,
+    UnclosedGrouping . dummyPosition <$> arbitrary,
+    MissingDoForWhile . dummyPosition <$> arbitrary,
+    MissingDoForUntil . dummyPosition <$> arbitrary,
+    MissingDoneForDo . dummyPosition <$> arbitrary]
 
 instance Arbitrary Error where
   arbitrary = do
