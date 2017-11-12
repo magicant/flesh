@@ -73,10 +73,10 @@ joinAliasHereDocAliasT :: MonadParser m
                        => AliasT m (HereDocAliasT m a) -> HereDocAliasT m a
 joinAliasHereDocAliasT = HereDocT . join . lift . fmap runHereDocT
 
--- | Parses a backslash-escaped character that is parsed by the given parser.
+-- | Parses a backslash-escaped character that satisfies the given predicate.
 backslashed :: MonadParser m
-            => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-backslashed m = char '\\' *> fmap (fmap Backslashed) m
+            => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
+backslashed p = char '\\' *> fmap (fmap Backslashed) (satisfy p)
 
 -- | Parses an expansion that occurs after a dollar.
 dollarExpansionTail :: MonadParser m => m DoubleQuoteUnit
@@ -101,15 +101,15 @@ dollarExpansion = do
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 --
--- The argument parser is used to parse a backslashed character.
+-- The argument predicate defines if a character can be backslash-escaped.
 doubleQuoteUnit' :: MonadParser m
-                 => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit' c = lc $ -- TODO backquote
-  backslashed c <|> dollarExpansion <|> fmap (fmap Char) anyChar
+                 => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit' p = lc $ -- TODO backquote
+  backslashed p <|> dollarExpansion <|> fmap (fmap Char) anyChar
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: MonadParser m => m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit = doubleQuoteUnit' (oneOfChars "\\\"$`")
+doubleQuoteUnit = doubleQuoteUnit' (`elem` "\\\"$`")
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
@@ -134,7 +134,7 @@ singleQuote = do
 wordUnit :: MonadParser m => m (Positioned WordUnit)
 wordUnit = lc $
   doubleQuote <|> singleQuote <|>
-    fmap (fmap Unquoted) (doubleQuoteUnit' anyChar)
+    fmap (fmap Unquoted) (doubleQuoteUnit' (const True))
 
 -- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
 --
@@ -214,7 +214,7 @@ hereDocLine tabbed isLiteral = do
   hereDocTab tabbed
   fmap NE.toList $ if isLiteral
      then fmap (fmap Char) anyChar `manyTo` nl
-     else doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` lc nl
+     else doubleQuoteUnit' (`elem` "\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
 
 hereDocDelimiter :: MonadParser m => Bool -> [DoubleQuoteUnit] -> m ()
