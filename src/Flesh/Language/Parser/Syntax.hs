@@ -101,15 +101,18 @@ dollarExpansion = do
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 --
--- The argument predicate defines if a character can be backslash-escaped.
+-- The argument predicates define if a character can be backslash-escaped.
 doubleQuoteUnit' :: MonadParser m
-                 => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit' p = lc $ -- TODO backquote
-  backslashed p <|> dollarExpansion <|> fmap (fmap Char) anyChar
+                 => (Char -> Bool) -- ^ for outside double-quotes
+                 -> (Char -> Bool) -- ^ for inside double-quotes
+                 -> m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit' pOut _pIn = lc $ -- TODO backquote
+  backslashed pOut <|> dollarExpansion <|> fmap (fmap Char) anyChar
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: MonadParser m => m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit = doubleQuoteUnit' (`elem` "\\\"$`")
+doubleQuoteUnit = doubleQuoteUnit' canEscape canEscape
+  where canEscape c = elem c "\"\\$`"
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
@@ -134,7 +137,7 @@ singleQuote = do
 wordUnit :: MonadParser m => m (Positioned WordUnit)
 wordUnit = lc $
   doubleQuote <|> singleQuote <|>
-    fmap (fmap Unquoted) (doubleQuoteUnit' (const True))
+    fmap (fmap Unquoted) (doubleQuoteUnit' (const True) (`elem` "\\$`"))
 
 -- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
 --
@@ -214,7 +217,7 @@ hereDocLine tabbed isLiteral = do
   hereDocTab tabbed
   fmap NE.toList $ if isLiteral
      then fmap (fmap Char) anyChar `manyTo` nl
-     else doubleQuoteUnit' (`elem` "\\$`") `manyTo` lc nl
+     else doubleQuoteUnit' (`elem` "\\$`") (`elem` "\"\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
 
 hereDocDelimiter :: MonadParser m => Bool -> [DoubleQuoteUnit] -> m ()
