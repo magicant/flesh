@@ -30,8 +30,9 @@ module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
   HereDocAliasT,
   -- * Tokens
-  backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, neutralToken, identifiedToken, literal,
+  backslashed, dollarExpansion, backquoteExpansion, doubleQuoteUnit,
+  doubleQuote, singleQuote, wordUnit, tokenTill, neutralToken,
+  identifiedToken, literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -99,6 +100,24 @@ dollarExpansion = do
   dqu <- dollarExpansionTail
   return (p, dqu)
 
+-- | Parses a character contained in a backquote command substitution.
+--
+-- The argument predicate defines if a character can be backslash-escaped.
+backquoteExpansionUnit :: MonadParser m => (Char -> Bool) -> m Char
+backquoteExpansionUnit canEscape = lc $ fmap snd $ escapedChar <|> anyChar
+  where escapedChar = char '\\' *> satisfy canEscape
+
+-- | Parses a command substitution surrounded with a pair of backquotes.
+--
+-- The argument predicate defines if a character can be backslash-escaped.
+backquoteExpansion :: MonadParser m
+                   => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
+backquoteExpansion canEscape = do
+  let bq = lc (char '`')
+  (p, _) <- bq
+  cs <- require $ backquoteExpansionUnit canEscape `manyTill` bq
+  return (p, Backquoted cs)
+
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 --
 -- The argument predicates define if a character can be backslash-escaped.
@@ -106,8 +125,9 @@ doubleQuoteUnit' :: MonadParser m
                  => (Char -> Bool) -- ^ for outside double-quotes
                  -> (Char -> Bool) -- ^ for inside double-quotes
                  -> m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit' pOut _pIn = lc $ -- TODO backquote
-  backslashed pOut <|> dollarExpansion <|> fmap (fmap Char) anyChar
+doubleQuoteUnit' pOut pIn = lc $
+  backslashed pOut <|> backquoteExpansion pIn <|>
+    dollarExpansion <|> fmap (fmap Char) anyChar
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: MonadParser m => m (Positioned DoubleQuoteUnit)
