@@ -115,7 +115,8 @@ backquoteExpansion :: MonadParser m
 backquoteExpansion canEscape = do
   let bq = lc (char '`')
   (p, _) <- bq
-  cs <- require $ backquoteExpansionUnit canEscape `manyTill` bq
+  let bq' = setReason (UnclosedCommandSubstitution p) bq
+  cs <- require $ backquoteExpansionUnit canEscape `manyTill` bq'
   return (p, Backquoted cs)
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.

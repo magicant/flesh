@@ -91,7 +91,14 @@ spec = do
       expectSuccess "`\\a\\\\\\b\\$\\c\\%\\d\\\n\\e\\`\\z`" "" (snd <$> bq)
         (Backquoted "\\a\\\\b$\\c\\%\\d\\e`\\z")
 
-    context "fails on unclosed quotes" $ return () -- TODO
+    context "fails on unclosed quotes" $ do
+      let p = dummyPosition ""
+          bq_' = backquoteExpansion undefined
+          bq' = backquoteExpansion (`elem` "\\\"$`")
+      expectFailureEof "`" bq_' Hard (UnclosedCommandSubstitution p) 1
+      expectFailureEof "`x" bq_' Hard (UnclosedCommandSubstitution p) 2
+      expectFailureEof "`\\" bq_' Hard (UnclosedCommandSubstitution p) 2
+      expectFailureEof "`\\`" bq' Hard (UnclosedCommandSubstitution p) 3
 
   describe "doubleQuoteUnit" $ do
     context "parses backslashed backslash" $ do
