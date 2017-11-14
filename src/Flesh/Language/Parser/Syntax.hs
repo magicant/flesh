@@ -30,8 +30,9 @@ module Flesh.Language.Parser.Syntax (
   module Flesh.Language.Syntax,
   HereDocAliasT,
   -- * Tokens
-  backslashed, dollarExpansion, doubleQuoteUnit, doubleQuote, singleQuote,
-  wordUnit, tokenTill, neutralToken, identifiedToken, literal,
+  backslashed, dollarExpansion, backquoteExpansion, doubleQuoteUnit,
+  doubleQuote, singleQuote, wordUnit, tokenTill, neutralToken,
+  identifiedToken, literal,
   -- * Redirections and here-documents
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
@@ -73,10 +74,10 @@ joinAliasHereDocAliasT :: MonadParser m
                        => AliasT m (HereDocAliasT m a) -> HereDocAliasT m a
 joinAliasHereDocAliasT = HereDocT . join . lift . fmap runHereDocT
 
--- | Parses a backslash-escaped character that is parsed by the given parser.
+-- | Parses a backslash-escaped character that satisfies the given predicate.
 backslashed :: MonadParser m
-            => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-backslashed m = char '\\' *> fmap (fmap Backslashed) m
+            => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
+backslashed p = char '\\' *> fmap (fmap Backslashed) (satisfy p)
 
 -- | Parses an expansion that occurs after a dollar.
 dollarExpansionTail :: MonadParser m => m DoubleQuoteUnit
@@ -86,9 +87,9 @@ dollarExpansionTail = do
     -- TODO arithmetic expansion
     -- TODO braced parameter expansion
     -- TODO unbraced parameter expansion
-    '(' -> require $ fmap Flesh.Language.Syntax.CommandSubstitution $
-      execCaptureT cmdsubstBody <* closeParan
-      where cmdsubstBody = runReaderT program empty
+    '(' -> require $ f <$> execCaptureT cmdsubstBody <* closeParan
+      where f = Flesh.Language.Syntax.CommandSubstitution . snd . unzip
+            cmdsubstBody = runReaderT program empty
             closeParan = setReason (UnclosedCommandSubstitution p) (char ')')
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
 
@@ -99,17 +100,40 @@ dollarExpansion = do
   dqu <- dollarExpansionTail
   return (p, dqu)
 
+-- | Parses a character contained in a backquote command substitution.
+--
+-- The argument predicate defines if a character can be backslash-escaped.
+backquoteExpansionUnit :: MonadParser m => (Char -> Bool) -> m Char
+backquoteExpansionUnit canEscape = lc $ fmap snd $ escapedChar <|> anyChar
+  where escapedChar = char '\\' *> satisfy canEscape
+
+-- | Parses a command substitution surrounded with a pair of backquotes.
+--
+-- The argument predicate defines if a character can be backslash-escaped.
+backquoteExpansion :: MonadParser m
+                   => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
+backquoteExpansion canEscape = do
+  let bq = lc (char '`')
+  (p, _) <- bq
+  let bq' = setReason (UnclosedCommandSubstitution p) bq
+  cs <- require $ backquoteExpansionUnit canEscape `manyTill` bq'
+  return (p, Backquoted cs)
+
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 --
--- The argument parser is used to parse a backslashed character.
+-- The argument predicates define if a character can be backslash-escaped.
 doubleQuoteUnit' :: MonadParser m
-                 => m (Positioned Char) -> m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit' c = lc $ -- TODO backquote
-  backslashed c <|> dollarExpansion <|> fmap (fmap Char) anyChar
+                 => (Char -> Bool) -- ^ for outside double-quotes
+                 -> (Char -> Bool) -- ^ for inside double-quotes
+                 -> m (Positioned DoubleQuoteUnit)
+doubleQuoteUnit' pOut pIn = lc $
+  backslashed pOut <|> backquoteExpansion pIn <|>
+    dollarExpansion <|> fmap (fmap Char) anyChar
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
 doubleQuoteUnit :: MonadParser m => m (Positioned DoubleQuoteUnit)
-doubleQuoteUnit = doubleQuoteUnit' (oneOfChars "\\\"$`")
+doubleQuoteUnit = doubleQuoteUnit' canEscape canEscape
+  where canEscape c = elem c "\"\\$`"
 
 -- | Parses a pair of double quotes containing any number of double-quote
 -- units.
@@ -134,7 +158,7 @@ singleQuote = do
 wordUnit :: MonadParser m => m (Positioned WordUnit)
 wordUnit = lc $
   doubleQuote <|> singleQuote <|>
-    fmap (fmap Unquoted) (doubleQuoteUnit' anyChar)
+    fmap (fmap Unquoted) (doubleQuoteUnit' (const True) (`elem` "\\$`"))
 
 -- | @tokenTill end@ parses a token, or non-empty word, until @end@ occurs.
 --
@@ -214,7 +238,7 @@ hereDocLine tabbed isLiteral = do
   hereDocTab tabbed
   fmap NE.toList $ if isLiteral
      then fmap (fmap Char) anyChar `manyTo` nl
-     else doubleQuoteUnit' (oneOfChars "\\$`") `manyTo` lc nl
+     else doubleQuoteUnit' (`elem` "\\$`") (`elem` "\"\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
 
 hereDocDelimiter :: MonadParser m => Bool -> [DoubleQuoteUnit] -> m ()

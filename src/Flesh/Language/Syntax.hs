@@ -56,8 +56,8 @@ data DoubleQuoteUnit =
     -- | Parameter expansion.
     | Parameter -- FIXME
     -- | @$(...)@
-    | CommandSubstitution [Positioned Char]
-    | Backquoted -- FIXME command substitution
+    | CommandSubstitution String
+    | Backquoted String
     | Arithmetic -- FIXME
   deriving (Eq)
 
@@ -65,9 +65,15 @@ instance Show DoubleQuoteUnit where
   showsPrec _ (Char c) = showChar c
   showsPrec _ (Backslashed c) = \s -> '\\':c:s
   showsPrec _ Parameter = id
-  showsPrec _ (CommandSubstitution pcs) =
-    showString "$(" . showString (snd (unzip pcs)) . showChar ')'
-  showsPrec _ Backquoted = id
+  showsPrec _ (CommandSubstitution cs) =
+    showString "$(" . showString cs . showChar ')'
+  showsPrec n (Backquoted cs) = bq . f (n /= 0) cs . bq
+    where bq = showChar '`'
+          f _ "" = id
+          f dq (c':cs') | c' == '`' || c' == '\\' || (dq && c' == '"') =
+                          showChar '\\' . showChar c' . f dq cs'
+                        | otherwise =
+                          showChar c' . f dq cs'
   showsPrec _ Arithmetic = id
   -- | Just joins the given units, without enclosing double quotes.
   showList [] = id
@@ -92,8 +98,8 @@ data WordUnit =
 
 instance Show WordUnit where
   showsPrec n (Unquoted unit) = showsPrec n unit
-  showsPrec n (DoubleQuote units) =
-    showChar '"' . showsPrec n (snd (unzip units)) . showChar '"'
+  showsPrec _ (DoubleQuote units) =
+    showChar '"' . (\s -> foldr (showsPrec 1 . snd) s units) . showChar '"'
   showsPrec _ (SingleQuote chars) =
     showChar '\'' . (\s -> foldr (showChar . snd) s chars) . showChar '\''
   showList [] = id

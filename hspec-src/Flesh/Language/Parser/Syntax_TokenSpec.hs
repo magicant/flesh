@@ -21,6 +21,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.Syntax_TokenSpec (spec) where
 
 import Data.Foldable (traverse_)
+import Data.List (elemIndex)
+import Data.Maybe (fromJust)
 import Data.Text (pack)
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
@@ -63,6 +65,40 @@ spec = do
         let isExpectedReason (UnclosedCommandSubstitution p) = index p == 1
             isExpectedReason _ = False
         expectFailureEof' "$(X" dollarExpansion Hard isExpectedReason  3
+
+  describe "backquoteExpansion" $ do
+    let bq_ = backquoteExpansion undefined
+        bqx = backquoteExpansion (const False)
+        bq = backquoteExpansion (`elem` "\\\"$`")
+
+    context "parses empty quotes" $ do
+      expectSuccess "``" "" (snd <$> bq_) (Backquoted "")
+      expectPosition "``" (fst <$> bq_) 0
+
+    context "parses some characters" $ do
+      expectSuccess "`a`" "" (snd <$> bq_) (Backquoted "a")
+      expectSuccess "`''`" "" (snd <$> bq_) (Backquoted "''")
+      expectSuccess "` \t\n`" "" (snd <$> bq_) (Backquoted " \t\n")
+
+    context "ignores line continuations" $ do
+      let s = "\\\n\\\n`\\\nA\\\n\\\nBC\\\n`" 
+      expectSuccess s "" (snd <$> bq_) (Backquoted "ABC")
+      expectPosition s (fst <$> bq_) (fromJust (elemIndex '`' s))
+
+    context "can contain escaped characters" $ do
+      expectSuccess "`\\a\\\\\\b\\$\\c\\%\\d\\\n\\e\\`" "\\z`" (snd <$> bqx)
+        (Backquoted "\\a\\\\\\b\\$\\c\\%\\d\\e\\")
+      expectSuccess "`\\a\\\\\\b\\$\\c\\%\\d\\\n\\e\\`\\z`" "" (snd <$> bq)
+        (Backquoted "\\a\\\\b$\\c\\%\\d\\e`\\z")
+
+    context "fails on unclosed quotes" $ do
+      let p = dummyPosition ""
+          bq_' = backquoteExpansion undefined
+          bq' = backquoteExpansion (`elem` "\\\"$`")
+      expectFailureEof "`" bq_' Hard (UnclosedCommandSubstitution p) 1
+      expectFailureEof "`x" bq_' Hard (UnclosedCommandSubstitution p) 2
+      expectFailureEof "`\\" bq_' Hard (UnclosedCommandSubstitution p) 2
+      expectFailureEof "`\\`" bq' Hard (UnclosedCommandSubstitution p) 3
 
   describe "doubleQuoteUnit" $ do
     context "parses backslashed backslash" $ do
