@@ -90,7 +90,8 @@ dollarExpansionTail = do
     '(' -> require $ f <$> execCaptureT cmdsubstBody <* closeParan
       where f = Flesh.Language.Syntax.CommandSubstitution . snd . unzip
             cmdsubstBody = runReaderT program empty
-            closeParan = setReason (UnclosedCommandSubstitution p) (char ')')
+            closeParan = char ')' <|>
+              failureOfError (Error UnclosedCommandSubstitution p)
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
 
 -- | Parses an expansion that starts with a dollar.
@@ -115,8 +116,8 @@ backquoteExpansion :: MonadParser m
 backquoteExpansion canEscape = do
   let bq = lc (char '`')
   (p, _) <- bq
-  let bq' = setReason (UnclosedCommandSubstitution p) bq
-  cs <- require $ backquoteExpansionUnit canEscape `manyTill` bq'
+  let e = failureOfError (Error UnclosedCommandSubstitution p)
+  cs <- require $ backquoteExpansionUnit canEscape `manyTill` (bq <|> e)
   return (p, Backquoted cs)
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.
@@ -141,18 +142,18 @@ doubleQuote :: MonadParser m => m (Positioned WordUnit)
 doubleQuote = do
   let dq = lc (char '"')
   (p, _) <- dq
-  let f units = (p, DoubleQuote units)
-      closeQuote = dq <|> failureOfError (Error UnclosedDoubleQuote p)
-  require $ f <$> doubleQuoteUnit `manyTill` closeQuote
+  let e = failureOfError (Error UnclosedDoubleQuote p)
+  us <- require $ doubleQuoteUnit `manyTill` (dq <|> e)
+  return (p, DoubleQuote us)
 
 -- | Parses a pair of single quotes containing any number of characters.
 singleQuote :: MonadParser m => m (Positioned WordUnit)
 singleQuote = do
   let sq = char '\''
   (p, _) <- lc sq
-  let f chars = (p, SingleQuote chars)
-      closeQuote = sq <|> failureOfError (Error UnclosedSingleQuote p)
-  require $ f <$> anyChar `manyTill` closeQuote
+  let e = failureOfError (Error UnclosedSingleQuote p)
+  cs <- require $ anyChar `manyTill` sq <|> e
+  return (p, SingleQuote cs)
 
 -- | Parses a word unit.
 wordUnit :: MonadParser m => m (Positioned WordUnit)

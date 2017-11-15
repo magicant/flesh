@@ -30,7 +30,6 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import Flesh.Source.Position
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 
 spec :: Spec
@@ -62,9 +61,8 @@ spec = do
         expectFailure "$(! )" dollarExpansion Hard (MissingCommandAfter "!") 4
 
       context "must be closed" $ do
-        let isExpectedReason (UnclosedCommandSubstitution p) = index p == 1
-            isExpectedReason _ = False
-        expectFailureEof' "$(X" dollarExpansion Hard isExpectedReason  3
+        expectFailureEof "$(X" dollarExpansion
+          Hard UnclosedCommandSubstitution 1
 
   describe "backquoteExpansion" $ do
     let bq_ = backquoteExpansion undefined
@@ -92,13 +90,12 @@ spec = do
         (Backquoted "\\a\\\\b$\\c\\%\\d\\e`\\z")
 
     context "fails on unclosed quotes" $ do
-      let p = dummyPosition ""
-          bq_' = backquoteExpansion undefined
+      let bq_' = backquoteExpansion undefined
           bq' = backquoteExpansion (`elem` "\\\"$`")
-      expectFailureEof "`" bq_' Hard (UnclosedCommandSubstitution p) 1
-      expectFailureEof "`x" bq_' Hard (UnclosedCommandSubstitution p) 2
-      expectFailureEof "`\\" bq_' Hard (UnclosedCommandSubstitution p) 2
-      expectFailureEof "`\\`" bq' Hard (UnclosedCommandSubstitution p) 3
+      expectFailureEof "`" bq_' Hard UnclosedCommandSubstitution 0
+      expectFailureEof "`x" bq_' Hard UnclosedCommandSubstitution 0
+      expectFailureEof "`\\" bq_' Hard UnclosedCommandSubstitution 0
+      expectFailureEof "`\\`" bq' Hard UnclosedCommandSubstitution 0
 
   describe "doubleQuoteUnit" $ do
     context "parses backslashed backslash" $ do

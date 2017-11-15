@@ -40,9 +40,8 @@ describe :: Reason -> (String, [Block])
 describe UnknownReason = ("unknown error", [])
 describe UnclosedDoubleQuote = ("the double quote is unclosed", [])
 describe UnclosedSingleQuote = ("the single quote is unclosed", [])
-describe (UnclosedCommandSubstitution p) =
-  ("the command substitution is unclosed", [b])
-    where b = note p "the command substitution was introduced here"
+describe UnclosedCommandSubstitution =
+  ("the command substitution is unclosed", [])
 describe MissingExpansionAfterDollar =
   ("a valid expansion is required after the \"$\"", [])
 describe MissingRedirectionTarget =
