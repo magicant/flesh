@@ -90,7 +90,8 @@ dollarExpansionTail = do
     '(' -> require $ f <$> execCaptureT cmdsubstBody <* closeParan
       where f = Flesh.Language.Syntax.CommandSubstitution . snd . unzip
             cmdsubstBody = runReaderT program empty
-            closeParan = setReason (UnclosedCommandSubstitution p) (char ')')
+            closeParan = char ')' <|>
+              failureOfError (Error UnclosedCommandSubstitution p)
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
 
 -- | Parses an expansion that starts with a dollar.
@@ -115,8 +116,8 @@ backquoteExpansion :: MonadParser m
 backquoteExpansion canEscape = do
   let bq = lc (char '`')
   (p, _) <- bq
-  let bq' = setReason (UnclosedCommandSubstitution p) bq
-  cs <- require $ backquoteExpansionUnit canEscape `manyTill` bq'
+  let e = failureOfError (Error UnclosedCommandSubstitution p)
+  cs <- require $ backquoteExpansionUnit canEscape `manyTill` (bq <|> e)
   return (p, Backquoted cs)
 
 -- | Parses a double-quote unit, possibly preceded by line continuations.

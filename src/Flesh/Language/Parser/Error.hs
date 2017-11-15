@@ -57,8 +57,7 @@ data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
-  -- | with position of the open parenthesis
-  | UnclosedCommandSubstitution Position
+  | UnclosedCommandSubstitution
   | MissingExpansionAfterDollar
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
