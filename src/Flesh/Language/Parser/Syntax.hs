@@ -142,18 +142,18 @@ doubleQuote :: MonadParser m => m (Positioned WordUnit)
 doubleQuote = do
   let dq = lc (char '"')
   (p, _) <- dq
-  let f units = (p, DoubleQuote units)
-      closeQuote = dq <|> failureOfError (Error UnclosedDoubleQuote p)
-  require $ f <$> doubleQuoteUnit `manyTill` closeQuote
+  let e = failureOfError (Error UnclosedDoubleQuote p)
+  us <- require $ doubleQuoteUnit `manyTill` (dq <|> e)
+  return (p, DoubleQuote us)
 
 -- | Parses a pair of single quotes containing any number of characters.
 singleQuote :: MonadParser m => m (Positioned WordUnit)
 singleQuote = do
   let sq = char '\''
   (p, _) <- lc sq
-  let f chars = (p, SingleQuote chars)
-      closeQuote = sq <|> failureOfError (Error UnclosedSingleQuote p)
-  require $ f <$> anyChar `manyTill` closeQuote
+  let e = failureOfError (Error UnclosedSingleQuote p)
+  cs <- require $ anyChar `manyTill` sq <|> e
+  return (p, SingleQuote cs)
 
 -- | Parses a word unit.
 wordUnit :: MonadParser m => m (Positioned WordUnit)
