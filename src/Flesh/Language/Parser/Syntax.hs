@@ -82,7 +82,7 @@ backslashed p = char '\\' *> fmap (fmap Backslashed) (satisfy p)
 -- | Parses an expansion that occurs after a dollar.
 dollarExpansionTail :: MonadParser m => m DoubleQuoteUnit
 dollarExpansionTail = do
-  ~(p, c) <- setReason MissingExpansionAfterDollar anyChar
+  ~(p, c) <- lc $ setReason MissingExpansionAfterDollar anyChar
   case c of
     -- TODO arithmetic expansion
     -- TODO braced parameter expansion

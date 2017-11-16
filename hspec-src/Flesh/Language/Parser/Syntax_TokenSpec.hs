@@ -60,6 +60,9 @@ spec = do
       context "requires valid program" $ do
         expectFailure "$(! )" dollarExpansion Hard (MissingCommandAfter "!") 4
 
+      context "can have line continuations after $" $ do
+        expectShow "$\\\n\\\n()" "" (snd <$> dollarExpansion) "$()"
+
       context "must be closed" $ do
         expectFailureEof "$(X" dollarExpansion
           Hard UnclosedCommandSubstitution 1
