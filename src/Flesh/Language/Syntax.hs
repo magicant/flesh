@@ -58,7 +58,8 @@ data DoubleQuoteUnit =
     -- | @$(...)@
     | CommandSubstitution String
     | Backquoted String
-    | Arithmetic -- FIXME
+    -- | @$((...))@ where the inner EWord is of the form @(...)@
+    | Arithmetic EWord
   deriving (Eq)
 
 instance Show DoubleQuoteUnit where
@@ -74,7 +75,9 @@ instance Show DoubleQuoteUnit where
                           showChar '\\' . showChar c' . f dq cs'
                         | otherwise =
                           showChar c' . f dq cs'
-  showsPrec _ Arithmetic = id
+  -- In (Arithmetic w), w always has an open and close parenthesis, so the
+  -- number of parentheses is correct here.
+  showsPrec _ (Arithmetic w) = showString "$(" . shows w . showChar ')'
   -- | Just joins the given units, without enclosing double quotes.
   showList [] = id
   showList (u:us) = shows u . showList us
