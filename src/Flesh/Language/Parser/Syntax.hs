@@ -79,16 +79,30 @@ backslashed :: MonadParser m
             => (Char -> Bool) -> m (Positioned DoubleQuoteUnit)
 backslashed p = char '\\' *> fmap (fmap Backslashed) (satisfy p)
 
+-- | Parses the body of an arithmetic expansion enclosed with a pair of
+-- parentheses.
+arithmeticParenthesis :: MonadParser m => m [Positioned DoubleQuoteUnit]
+arithmeticParenthesis = do
+  let singleChar c = fmap (fmap Char) $ lc $ char c
+      unit = arithmeticParenthesis <|> fmap return doubleQuoteUnit
+  h <- singleChar '('
+  t <- require $ unit `manyTo` fmap return (singleChar ')')
+  return (h : join (toList t))
+
 -- | Parses an expansion that occurs after a dollar.
 dollarExpansionTail :: MonadParser m => m DoubleQuoteUnit
 dollarExpansionTail = do
   ~(p, c) <- lc $ setReason MissingExpansionAfterDollar anyChar
   case c of
-    -- TODO arithmetic expansion
     -- TODO braced parameter expansion
     -- TODO unbraced parameter expansion
-    '(' -> require $ f <$> execCaptureT cmdsubstBody <* closeParan
-      where f = Flesh.Language.Syntax.CommandSubstitution . snd . unzip
+    '(' -> require $ arithTail <|> cmdSubstTail
+      where arithTail = arithContent <* lc closeParan
+            arithContent = Arithmetic . EWord . fmap (fmap Unquoted) <$>
+              try arithmeticParenthesis
+            cmdSubstTail = cmdSubstContent <* closeParan
+            cmdSubstContent = cs . snd . unzip <$> execCaptureT cmdsubstBody
+            cs = Flesh.Language.Syntax.CommandSubstitution
             cmdsubstBody = runReaderT program empty
             closeParan = char ')' <|>
               failureOfError (Error UnclosedCommandSubstitution p)

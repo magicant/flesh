@@ -35,9 +35,9 @@ import Test.Hspec (Spec, context, describe, it, shouldBe)
 spec :: Spec
 spec = do
   describe "dollarExpansion" $ do
-    context "command substitution" $ do
-      let reflect s = expectShow s "" (snd <$> dollarExpansion) s
+    let reflect s = expectShow s "" (snd <$> dollarExpansion) s
 
+    context "command substitution" $ do
       context "can be empty" $ do
         expectSuccess "$()" "" (snd <$> dollarExpansion) $
           Flesh.Language.Parser.Syntax.CommandSubstitution []
@@ -67,6 +67,51 @@ spec = do
       context "must be closed" $ do
         expectFailureEof "$(X" dollarExpansion
           Hard UnclosedCommandSubstitution 1
+
+    context "arithmetic expansion" $ do
+      let isArithmetic (Arithmetic _) = True
+          isArithmetic _ = False
+          expectArithmetic s b =
+            expectSuccess s "" (isArithmetic . snd <$> dollarExpansion) b
+          reflectArithmetic s = do
+            reflect s
+            expectArithmetic s True
+
+      context "can be empty" $ do
+        reflectArithmetic "$(())"
+        expectPosition "$(())" (fst <$> dollarExpansion) 0
+        reflectArithmetic "$(( \t#))"
+        reflectArithmetic "$(( \t# \t))"
+        expectPosition "$(( \t#))" (fst <$> dollarExpansion) 0
+
+      context "can contain expressions" $ do
+        reflectArithmetic "$((1))"
+        reflectArithmetic "$((1.0))"
+        reflectArithmetic "$((1.0 + 2.0 * 3.5))"
+
+      context "can contain command substitutions" $ do
+        reflectArithmetic "$(( $(:) ))"
+
+      context "can contain arithmetic expansions" $ do
+        reflectArithmetic "$(( $((1 + 2)) ))"
+
+      context "can contain parentheses" $ do
+        reflectArithmetic "$(((2 + 3)))"
+        reflectArithmetic "$((1 *(2 + 3)/ 4))"
+        reflectArithmetic "$((1 * (2 + (3 - 4))))"
+
+      context "can contain line continuations" $ do
+        let reflectArithmeticLC s t = do
+              expectShow s "" (snd <$> dollarExpansion) t
+              expectArithmetic s True
+        reflectArithmeticLC "$\\\n(\\\n(\\\n)\\\n)" "$(())"
+        reflectArithmeticLC "$((\\\n1\\\n+\\\n2))" "$((1+2))"
+        reflectArithmeticLC "$((\\\n$((1))))" "$(($((1))))"
+
+      context "falls back to command substitution" $ do
+        expectArithmetic "$((cat);)" False
+        expectArithmetic "$((cat); (cat))" False
+        expectArithmetic "$(:;(cat))" False
 
   describe "backquoteExpansion" $ do
     let bq_ = backquoteExpansion undefined
