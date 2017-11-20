@@ -41,7 +41,7 @@ spec = do
               Left (Soft, Error UnknownReason p)
 
     prop "parses up to newline" $ \s s' ->
-      not (elem '\n' s) ==>
+      notElem '\n' s ==>
         let input = '#' : s ++ '\n' : s'
             p = dummyPosition input
             input' = spread p input
@@ -50,7 +50,7 @@ spec = do
          in e === Just (Right (out, dropP (length s + 1) input'))
 
     prop "parses up to end-of-file" $ \s ->
-      not (elem '\n' s) ==>
+      notElem '\n' s ==>
         let input = '#' : s
             p = dummyPosition input
             input' = spread p input

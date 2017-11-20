@@ -56,14 +56,18 @@ char c = satisfy (c ==)
 --
 -- Returns 'UnknownReason' on failure.
 oneOfChars :: MonadParser m => [Char] -> m (Positioned Char)
-oneOfChars cs = satisfy (flip elem cs)
+oneOfChars cs = satisfy (`elem` cs)
 
 -- | Parses a sequence of characters.
 --
 -- Returns 'UnknownReason' on failure.
 string :: MonadParser m => String -> m [Positioned Char]
+{-
 string [] = return []
 string (c:cs) = (:) <$> char c <*> string cs
+-}
+string = foldr f (return [])
+  where f c t = (:) <$> char c <*> t
 
 -- | Parses the /end-of-file/.
 eof :: MonadParser m => m Position

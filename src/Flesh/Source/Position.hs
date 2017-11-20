@@ -124,7 +124,7 @@ headPosition ((p, _) :~ _) = p
 
 instance Show a => Show (PositionedList a) where
   show s = show l
-    where l = snd $ unzip $ unposition s
+    where l = map snd $ unposition s
 
 -- | Given a position for the first element of a list, returns a list of
 -- elements positioned successively.

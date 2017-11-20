@@ -76,7 +76,7 @@ describe (MissingDoneForDo p) =
 
 -- | Converts an error to a human-readable format.
 showsError :: Error -> ShowS
-showsError E.Error {E.reason = r, E.position = p} = shows $ [main] ++ sub
+showsError E.Error {E.reason = r, E.position = p} = shows $ main : sub
   where main = Block {P.position = p, P.kind = Just P.Error, P.message = mm}
         (mm, sub) = describe r
 

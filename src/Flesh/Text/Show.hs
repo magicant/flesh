@@ -36,7 +36,7 @@ type PrintT = WriterT (Endo String)
 type Print = PrintT Identity
 
 execPrintT :: Functor m => PrintT m a -> m ShowS
-execPrintT = fmap appEndo . fmap snd . runWriterT
+execPrintT = fmap (appEndo . snd) . runWriterT
 
 execPrint :: Print a -> ShowS
 execPrint = runIdentity . execPrintT
