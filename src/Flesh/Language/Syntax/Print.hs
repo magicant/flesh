@@ -106,11 +106,11 @@ class ListPrintable s where
             => [s] -> m ()
 
 instance Printable Redirection where
-  prints r@(FileRedirection _ _ _ _) = tell' $ shows r
+  prints r@FileRedirection {} = tell' $ shows r
   prints r@(HereDoc op cntnt) = do
     appendHereDoc $ showContent . showDelimiter . showChar '\n'
     tell' $ shows r
-      where showContent = showList $ snd $ unzip cntnt
+      where showContent = showList $ map snd cntnt
             showDelimiter = showList $ snd $ unquoteToken $ delimiter op
 
 instance ListPrintable Redirection where

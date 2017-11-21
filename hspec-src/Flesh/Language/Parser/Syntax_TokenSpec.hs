@@ -71,8 +71,8 @@ spec = do
     context "arithmetic expansion" $ do
       let isArithmetic (Arithmetic _) = True
           isArithmetic _ = False
-          expectArithmetic s b =
-            expectSuccess s "" (isArithmetic . snd <$> dollarExpansion) b
+          expectArithmetic s =
+            expectSuccess s "" (isArithmetic . snd <$> dollarExpansion)
           reflectArithmetic s = do
             reflect s
             expectArithmetic s True

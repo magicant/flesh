@@ -189,7 +189,7 @@ spec = do
         fmap (fmap fst) (p "<<X\nX\n") `shouldBe` Just (Right (Just []))
 
       it "fills non-empty here document content" $
-        fmap (fmap (fmap (snd . unzip) . fst)) (p "<<X\n\nX\n") `shouldBe`
+        fmap (fmap (fmap (map snd) . fst)) (p "<<X\n\nX\n") `shouldBe`
           Just (Right (Just [Char '\n']))
 
     context "fails with missing here doc contents" $ do

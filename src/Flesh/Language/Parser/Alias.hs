@@ -189,7 +189,7 @@ substituteAlias pos' t = do
       v = unpack $ value def
       frag = Fragment v a 0
       pos = Position frag 0
-      cs = unposition $ spread pos $ v
+      cs = unposition $ spread pos v
   pushChars cs
 
 -- | Modifies a parser so that it retries parsing while it is failing due to

@@ -83,7 +83,7 @@ name (P.FunctionCall _ _) = "<func>" -- TODO
 
 -- | Prints the first line of a block.
 showsBlockHead :: Block -> Writer (Endo String) ()
-showsBlockHead (Block {position = p, kind = k, message = m}) = do
+showsBlockHead Block {position = p, kind = k, message = m} = do
   let f = P.fragment p
       colon = tell' $ showChar ':'
   tell' $ showString $ name $ P.situation f

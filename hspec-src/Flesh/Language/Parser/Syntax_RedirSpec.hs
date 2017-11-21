@@ -73,7 +73,7 @@ spec = do
 
     let yieldDummyContent = HereDocT $
           return () <$ (drainOperators >> yieldContent [])
-        rTester = hereDocOp <$> (fill (redirect <* yieldDummyContent))
+        rTester = hereDocOp <$> fill (redirect <* yieldDummyContent)
 
     context "parses << operator" $ do
       expectPositionEof "12<< END"    (hereDocOpPos <$> rTester) 0
@@ -122,7 +122,7 @@ spec = do
       let t = Token $ (undefined, Unquoted (Char 'E')) :| []
           op = HereDocOp undefined 0 False t
           p = fill $ HereDocT $ fmap return $
-            hereDocContent op >> fmap (fmap (snd . unzip)) drainContents
+            hereDocContent op >> fmap (fmap (map snd)) drainContents
       expectShow           "E\n" "" p "[]"
       expectShow       "EE\nE\n" "" p "[EE\n]"
       expectShow "foo\nbar\nE\n" "" p "[foo\nbar\n]"

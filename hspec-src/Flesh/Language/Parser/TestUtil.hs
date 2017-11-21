@@ -206,7 +206,7 @@ expectPositionEof input parser expectedPositionIndex =
   let s' = spread (dummyPosition input) input
       e = runFullInputTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
-   in context input $ do
+   in context input $
      it "returns expected position" $
        fmap fst e `shouldBe` Right expectedPosition
 
@@ -219,7 +219,7 @@ expectPosition input parser expectedPositionIndex =
   let s' = spread (dummyPosition input) input
       e = runOverrunTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
-   in context input $ do
+   in context input $
      it "returns expected position" $
        fmap (fmap fst) e `shouldBe` Just (Right expectedPosition)
 
@@ -249,7 +249,7 @@ expectFailureEof input parser s r expectedPositionIndex =
   let s' = spread (dummyPosition input) input
       e = runFullInputTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
-   in context input $ do
+   in context input $
      it "fails" $
        e `shouldBe` Left (s, Error r expectedPosition)
 
@@ -261,7 +261,7 @@ expectFailure input parser s r expectedPositionIndex =
   let s' = spread (dummyPosition input) input
       e = runOverrunTester parser s'
       expectedPosition = headPosition (dropP expectedPositionIndex s')
-   in context input $ do
+   in context input $
      it "fails" $
        e `shouldBe` Just (Left (s, Error r expectedPosition))
 

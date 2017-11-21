@@ -37,8 +37,7 @@ module Flesh.Language.Syntax (
   CompoundCommand(..), Command(..), Pipeline(..), AndOrCondition(..),
   ConditionalPipeline(..), AndOrList(..), showSeparatedList) where
 
-import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.List.NonEmpty (toList)
+import Data.List.NonEmpty (NonEmpty((:|)), toList)
 import Data.Text (Text, pack)
 import Flesh.Source.Position (Position, Positioned)
 import Numeric.Natural (Natural)
@@ -79,8 +78,11 @@ instance Show DoubleQuoteUnit where
   -- number of parentheses is correct here.
   showsPrec _ (Arithmetic w) = showString "$(" . shows w . showChar ')'
   -- | Just joins the given units, without enclosing double quotes.
+  {-
   showList [] = id
   showList (u:us) = shows u . showList us
+  -}
+  showList = foldr ((.) . shows) id
 
 -- | Converts a backslashed character to a bare character. Other double-quote
 -- units are returned intact. The Boolean is True iff conversion was
@@ -105,8 +107,11 @@ instance Show WordUnit where
     showChar '"' . (\s -> foldr (showsPrec 1 . snd) s units) . showChar '"'
   showsPrec _ (SingleQuote chars) =
     showChar '\'' . (\s -> foldr (showChar . snd) s chars) . showChar '\''
+  {-
   showList [] = id
   showList (u:us) = shows u . showList us
+  -}
+  showList = foldr ((.) . shows) id
 
 -- | Removes backslash escapes, double-quotes, and single-quotes without word
 -- expansion. The Boolean is true iff quotation was removed.
@@ -127,8 +132,8 @@ wordUnits (EWord us) = us
 
 -- | If the given word consists of constant unquoted characters only, then
 -- returns the content as a text.
-wordText :: EWord -> Maybe (Text)
-wordText us = fmap pack $ sequenceA $ fmap (constChar . snd) $ wordUnits us
+wordText :: EWord -> Maybe Text
+wordText us = fmap pack $ traverse (constChar . snd) $ wordUnits us
   where constChar (Unquoted (Char c)) = Just c
         constChar _ = Nothing
 
@@ -153,7 +158,7 @@ tokenWord = EWord . toList . tokenUnits
 
 -- | If the given token consists of constant unquoted characters only, then
 -- returns the content as a text.
-tokenText :: Token -> Maybe (Text)
+tokenText :: Token -> Maybe Text
 tokenText = wordText . tokenWord
 
 -- | Removes backslash escapes, double-quotes, and single-quotes without word

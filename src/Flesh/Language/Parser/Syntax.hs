@@ -65,7 +65,6 @@ import Flesh.Language.Parser.Lex
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 import Numeric.Natural (Natural)
-import Prelude hiding (words)
 
 -- | Combination of 'HereDocT' and 'AliasT'.
 type HereDocAliasT m a = HereDocT (AliasT m) a
@@ -101,7 +100,7 @@ dollarExpansionTail = do
             arithContent = Arithmetic . EWord . fmap (fmap Unquoted) <$>
               try arithmeticParenthesis
             cmdSubstTail = cmdSubstContent <* closeParan
-            cmdSubstContent = cs . snd . unzip <$> execCaptureT cmdsubstBody
+            cmdSubstContent = cs . map snd <$> execCaptureT cmdsubstBody
             cs = Flesh.Language.Syntax.CommandSubstitution
             cmdsubstBody = runReaderT program empty
             closeParan = char ')' <|>
@@ -180,7 +179,7 @@ wordUnit = lc $
 -- Note that @end@ consumes the input. Use @'lookahead' end@ to keep @end@
 -- unconsumed.
 tokenTill :: MonadParser m => m a -> m Token
-tokenTill a = notFollowedBy a >> (require $ Token <$> wordUnit `someTill` a)
+tokenTill a = notFollowedBy a >> require (Token <$> wordUnit `someTill` a)
 
 -- | Parses a normal non-empty token, delimited by 'endOfToken', without
 -- determining its token identifier. Skips whitespaces after the token.
