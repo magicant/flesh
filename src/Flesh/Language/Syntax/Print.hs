@@ -147,6 +147,27 @@ instance Printable CompoundCommand where
     tell' $ showChar '('
     printsIndentedLists ls
     tell' $ showChar ')'
+  prints (If its me) = do
+    printsIfThenList its
+    maybePrintsElse me
+    tell' $ showString "fi"
+      where printsIfThenList (ifthen :| elifthens) = do
+              printsIfThen ifthen
+              printsElifThenList elifthens
+            printsElifThenList [] = return ()
+            printsElifThenList (h:t) = do
+              tell' $ showString "el"
+              printsIfThen h
+              printsElifThenList t
+            printsIfThen (c, t) = do
+              tell' $ showString "if"
+              printsIndentedLists c
+              tell' $ showString "then"
+              printsIndentedLists t
+            maybePrintsElse Nothing = return ()
+            maybePrintsElse (Just e) = do
+              tell' $ showString "else"
+              printsIndentedLists e
   prints (While c b) = do
     tell' $ showString "while"
     printsWhileUntilTail c b

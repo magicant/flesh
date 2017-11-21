@@ -34,8 +34,9 @@ module Flesh.Language.Syntax (
   -- * Redirections
   HereDocOp(..), FileOp(..), Redirection(..), fd,
   -- * Syntax
-  CompoundCommand(..), Command(..), Pipeline(..), AndOrCondition(..),
-  ConditionalPipeline(..), AndOrList(..), showSeparatedList) where
+  IfThenList, CompoundCommand(..), Command(..), Pipeline(..),
+  AndOrCondition(..), ConditionalPipeline(..), AndOrList(..),
+  showSeparatedList) where
 
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
 import Data.Text (Text, pack)
@@ -237,6 +238,10 @@ fd :: Redirection -> Natural
 fd (FileRedirection _ fd' _ _) = fd'
 fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 
+-- | List of (el)if-then clauses. Each pair represents a condition and
+-- corresponding statement.
+type IfThenList = NonEmpty (NonEmpty AndOrList, NonEmpty AndOrList)
+
 -- | Commands that can contain other commands.
 data CompoundCommand =
   -- | one or more and-or lists.
@@ -245,7 +250,8 @@ data CompoundCommand =
   | Subshell (NonEmpty AndOrList)
   -- TODO for command
   -- TODO case command
-  -- TODO if command
+  -- | list of (el)if-then clauses and optional else clause.
+  | If IfThenList (Maybe (NonEmpty AndOrList))
   -- | loop condition and body.
   | While (NonEmpty AndOrList) (NonEmpty AndOrList)
   -- | loop condition and body.
@@ -262,6 +268,19 @@ instance Show CompoundCommand where
     showString "{ " . showSeparatedList (toList ls) . showString " }"
   showsPrec _ (Subshell ls) =
     showChar '(' . showList (toList ls) . showChar ')'
+  showsPrec _ (If its me) =
+    showIfThenList its . maybeShowElse me . showString " fi"
+      where showIfThenList (ifthen :| elifthens) =
+              showIfThen ifthen . showElifThenList elifthens
+            showElifThenList [] = id
+            showElifThenList (h:t) =
+              showString " el" . showIfThen h . showElifThenList t
+            showIfThen (c, t) =
+              showString "if " . showSeparatedList (toList c) .
+                showString " then " . showSeparatedList (toList t)
+            maybeShowElse Nothing = id
+            maybeShowElse (Just e) =
+              showString " else " . showSeparatedList (toList e)
   showsPrec _ (While c b) =
     showString "while " . showWhileUntilTail c b
   showsPrec _ (Until c b) =
