@@ -64,6 +64,15 @@ describe (UnclosedSubshell p) =
 describe (UnclosedGrouping p) =
   ("a \"}\" is required to close the grouping command", [b])
     where b = note p "the grouping command was introduced here"
+describe (MissingThenForIf p) =
+  ("a then clause is required after the if clause", [b])
+    where b = note p "the \"if\" was here"
+describe (MissingThenForElif p) =
+  ("a then clause is required after the elif clause", [b])
+    where b = note p "the \"elif\" was here"
+describe (MissingFiForIf p) =
+  ("a \"fi\" is required to close the if command", [b])
+    where b = note p "the if command was introduced here"
 describe (MissingDoForWhile p) =
   ("a do-done clause is required to complete the while command", [b])
     where b = note p "the while command was introduced here"
