@@ -15,6 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 
@@ -337,13 +338,14 @@ subshell = HereDocT $ do
 groupingTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => Position -- ^ Position of the open brace.
              -> HereDocT m (Positioned CompoundCommand)
-groupingTail p = f <$> body <* closeBrace
-  where f ls = (p, Grouping ls)
-        body = setReasonHD (MissingCommandAfter openBraceString) $
-          mapHereDocT reparse compoundList
-        openBraceString = unpack reservedOpenBrace
-        closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
-          literal reservedCloseBrace
+groupingTail p = do
+  body <- setReasonHD (MissingCommandAfter openBraceString) $
+    mapHereDocT reparse compoundList
+  _ <- closeBrace
+  pure (p, Grouping body)
+    where openBraceString = unpack reservedOpenBrace
+          closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
+            literal reservedCloseBrace
 
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
 doGrouping :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -363,9 +365,10 @@ whileUntilCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
   -> (Position -> Reason) -- ^ Error reason in case "do" is missing
   -> Position -- ^ Position of "while" or "until"
   -> HereDocAliasT m (Positioned CompoundCommand)
-whileUntilCommandTail s r e p = f <$> cond <*> requireHD (doGrouping (e p))
-  where f c b = (p, r c b)
-        cond = setReasonHD (MissingCommandAfter s) compoundList
+whileUntilCommandTail s r e p = do
+  cond <- setReasonHD (MissingCommandAfter s) compoundList
+  body <- requireHD (doGrouping (e p))
+  return (p, r cond body)
 
 -- | Parses a "while" command except the first "while" keyword, which must
 -- have just been parsed.
@@ -400,40 +403,50 @@ compoundCommandTail (p, t)
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
         => HereDocAliasT m Command
-command =
-  -- First, check if this is a subshell.
-  CompoundCommand <$> subshell <*> many redirect' <|>
-  -- Next, if the command begins with a redirection, it is a simple command.
-  toCommand <$> (consRedir <$> redirect' <*> simpleCommand') <|>
-  -- Otherwise, the first token can be a reserved word or alias.
-  joinAliasHereDocAliasT
-    (compoundOrSimple <$> identifiedToken isReserved True)
-    where toCommand (ts, as, rs) = SimpleCommand ts as rs
-          consRedir r (ts, as, rs) = (ts, as, r:rs)
-          redirect' = mapHereDocT lift redirect
-          simpleCommand' = simpleCommandArguments -- TODO parse assignments
-          compoundOrSimple (p, Reserved t) = compoundCommandTail' (p, t)
-          compoundOrSimple (_, Normal t) = simpleCommandTail t
-          compoundCommandTail' t = CompoundCommand <$>
-            compoundCommandTail t <*> many redirect
-            -- :: Positioned Text -> HereDocAliasT m Command
+command = subshell' <|> simpleCommandStartingWithRedirection <|> other
+  where
+    subshell' = do
+      s <- subshell
+      rs <- many redirect'
+      pure $ CompoundCommand s rs
+    simpleCommandStartingWithRedirection = do
+      r <- redirect'
+      (ts, as, rs) <- simpleCommandArguments
+      pure $ SimpleCommand ts as (r:rs)
+    other = joinAliasHereDocAliasT $ do
+      t <- identifiedToken isReserved True
+      pure $ case t of
+               (p, Reserved tx) -> do
+                 cc <- compoundCommandTail (p, tx)
+                 rs <- many redirect
+                 pure $ CompoundCommand cc rs
+               (_, Normal tk) -> simpleCommandTail tk
+    redirect' = mapHereDocT lift redirect
+-- TODO parse assignments
 -- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
 pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => HereDocAliasT m (NonEmpty Command)
-pipeSequence = (:|) <$> command <*> many trailer
-  where trailer = lift (operatorToken "|") *> linebreak *> requireHD command
+pipeSequence = do
+  h <- command
+  t <- many $ lift (operatorToken "|") *> linebreak *> requireHD command
+  pure $ h :| t
 
 -- | Parses a @pipeline@, that is, a 'pipeSequence' optionally preceded by the
 -- @!@ reserved word.
 pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => HereDocAliasT m Pipeline
-pipeline =
-  lift (literal reservedBang) *> req (make True <$> pipeSequence) <|>
-  make False <$> pipeSequence
-    where req = setReasonHD (MissingCommandAfter "!") . requireHD
-          make = flip Pipeline
+pipeline = withBang <|> withoutBang
+  where withBang = do
+          _ <- lift $ literal reservedBang
+          ps <- requireHD $ setReasonHD (MissingCommandAfter bangString)
+            pipeSequence
+          pure $ Pipeline ps True
+        withoutBang = do
+          ps <- pipeSequence
+          pure $ Pipeline ps False
+        bangString = unpack reservedBang
 
 -- | Parses an and-or condition token (@&&@ or @||@).
 andOrCondition :: MonadParser m => m AndOrCondition
@@ -448,17 +461,12 @@ andOrCondition = op <* whites
 -- | Parses a conditional pipeline.
 conditionalPipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                     => HereDocAliasT m ConditionalPipeline
-conditionalPipeline =
-{-
-  make <$> lift andOrCondition <* linebreak <*> req pipeline
-    where make c p = ConditionalPipeline (c, p)
-          req = setReasonHD (MissingCommandAfter undefined) . requireHD
--}
-  HereDocT $ do
-    c <- andOrCondition
-    let req = setReasonHD (MissingCommandAfter (show c)) . requireHD
-        make p = ConditionalPipeline (c, p)
-    runHereDocT $ linebreak *> (make <$> req pipeline)
+conditionalPipeline = HereDocT $ do
+  c <- andOrCondition
+  runHereDocT $ do
+    _ <- linebreak
+    p <- requireHD $ setReasonHD (MissingCommandAfter (show c)) pipeline
+    pure $ ConditionalPipeline (c, p)
 
 -- | Parses a separator operator (@;@ or @&@). Returns True and False if the
 -- separator is @&@ and @;@, respectively.
@@ -479,8 +487,10 @@ separator = lift separatorOp <* linebreak <|> False <$ newlineList
 -- | Parses an and-or list (@and_or@), not including a trailing separator.
 andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
           => HereDocAliasT m (Bool -> AndOrList)
-andOrList = AndOrList <$> pipeline <*> many conditionalPipeline
-  --where sep = lift $ separatorOp <|> return False
+andOrList = do
+  h <- pipeline
+  t <- many conditionalPipeline
+  pure $ AndOrList h t
 
 -- | Given a separator parser, returns a pair of manyAndOrLists and
 -- someAndOrLists.
