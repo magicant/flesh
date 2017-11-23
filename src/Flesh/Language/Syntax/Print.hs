@@ -62,6 +62,14 @@ type PrintS = PrintT (State PrintState)
 runPrint :: PrintS a -> ShowS
 runPrint = flip evalState initPrintState . execPrintT
 
+-- | Shows the argument character.
+printChar :: MonadWriter (Endo String) m => Char -> m ()
+printChar = tell' . showChar
+
+-- | Shows the argument string.
+printString :: MonadWriter (Endo String) m => String -> m ()
+printString = tell' . showString
+
 -- | Appends the given here document content to the current 'hereDoc'.
 appendHereDoc :: MonadState PrintState m => ShowS -> m ()
 appendHereDoc s = modify' (\(PrintState i h) -> PrintState i (h . s))
@@ -74,12 +82,12 @@ printHereDoc = state (\(PrintState i h) -> (Endo h, PrintState i id)) >>= tell
 printIndent :: (MonadState PrintState m, MonadWriter (Endo String) m) => m ()
 printIndent = do
   s <- get
-  tell' $ showString $ replicate (indent s) ' '
+  printString $ replicate (indent s) ' '
 
 -- | Combination of @showChar '\n'@ and printHereDoc and printIndent.
 printNewline :: (MonadState PrintState m, MonadWriter (Endo String) m) => m ()
 printNewline = do
-  tell' $ showChar '\n'
+  printChar '\n'
   printHereDoc
   printIndent
 
@@ -134,24 +142,45 @@ printsWhileUntilTail :: (MonadState PrintState m, MonadWriter (Endo String) m)
                      => NonEmpty AndOrList -> NonEmpty AndOrList -> m ()
 printsWhileUntilTail c b = do
   printsIndentedLists c
-  tell' $ showString "do"
+  printString "do"
   printsIndentedLists b
-  tell' $ showString "done"
+  printString "done"
 
 instance Printable CompoundCommand where
   prints (Grouping ls) = do
-    tell' $ showString "{"
+    printString "{"
     printsIndentedLists ls
-    tell' $ showString "}"
+    printString "}"
   prints (Subshell ls) = do
-    tell' $ showChar '('
+    printChar '('
     printsIndentedLists ls
-    tell' $ showChar ')'
+    printChar ')'
+  prints (If its me) = do
+    printsIfThenList its
+    maybePrintsElse me
+    printString "fi"
+      where printsIfThenList (ifthen :| elifthens) = do
+              printsIfThen ifthen
+              printsElifThenList elifthens
+            printsElifThenList [] = return ()
+            printsElifThenList (h:t) = do
+              printString "el"
+              printsIfThen h
+              printsElifThenList t
+            printsIfThen (c, t) = do
+              printString "if"
+              printsIndentedLists c
+              printString "then"
+              printsIndentedLists t
+            maybePrintsElse Nothing = return ()
+            maybePrintsElse (Just e) = do
+              printString "else"
+              printsIndentedLists e
   prints (While c b) = do
-    tell' $ showString "while"
+    printString "while"
     printsWhileUntilTail c b
   prints (Until c b) = do
-    tell' $ showString "until"
+    printString "until"
     printsWhileUntilTail c b
 
 instance Printable Command where
@@ -171,12 +200,12 @@ instance Printable Command where
 
 instance Printable Pipeline where
   prints p = do
-    when (isNegated p) (tell' $ showString "! ")
+    when (isNegated p) (printString "! ")
     foldl printPipeAnd (prints c) cs
       where c :| cs = pipeCommands p
             printPipeAnd mcs' c' = do
               () <- mcs'
-              tell' $ showString " |"
+              printString " |"
               printNewline
               prints c'
 
@@ -205,8 +234,8 @@ printAndOrHeadTail h t = do
 instance Printable AndOrList where
   prints (AndOrList p ps asy) = do
     printAndOrHeadTail p ps
-    when asy $ tell' $ showChar '&'
-    tell' $ showChar '\n'
+    when asy $ printChar '&'
+    printChar '\n'
     printHereDoc
 
 instance ListPrintable AndOrList where

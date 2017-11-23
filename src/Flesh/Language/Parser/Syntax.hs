@@ -38,8 +38,8 @@ module Flesh.Language.Parser.Syntax (
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
   -- ** Commands
-  subshell, groupingTail, doGrouping, whileCommandTail, untilCommandTail,
-  command,
+  subshell, groupingTail, ifCommandTail, doGrouping, whileCommandTail,
+  untilCommandTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine, program) where
@@ -347,6 +347,35 @@ groupingTail p = do
           closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
             literal reservedCloseBrace
 
+-- | Parses an if command except the first "if" keyword, which must have just
+-- been parsed.
+ifCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+              => Position -- ^ Position of the first "if" keyword
+              -> HereDocAliasT m (Positioned CompoundCommand)
+ifCommandTail p = do
+  c <- setReasonHD (MissingCommandAfter ifString) compoundList
+  _ <- setReasonHD (MissingThenForIf p) $ lift $ literal reservedThen
+  t <- setReasonHD (MissingCommandAfter thenString) compoundList
+  elifthens <- many $ HereDocT $ do
+    p' <- currentPosition
+    _ <- literal reservedElif
+    ct' <- require $ runHereDocT $ do
+      c' <- setReasonHD (MissingCommandAfter elifString) compoundList
+      _ <- setReasonHD (MissingThenForElif p') $ lift $ literal reservedThen
+      t' <- setReasonHD (MissingCommandAfter thenString) compoundList
+      pure $ (c', t')
+    pure ct' -- GHC 8.0.2 wants this dummy 'pure'
+  els <- optional $ do
+    _ <- lift $ literal reservedElse
+    e <- requireHD $ setReasonHD (MissingCommandAfter elseString) compoundList
+    pure e -- GHC 8.0.2 wants this dummy 'pure'
+  _ <- setReasonHD (MissingFiForIf p) $ lift $ literal reservedFi
+  pure $ (p, If ((c, t) :| elifthens) els)
+    where ifString = unpack reservedIf
+          thenString = unpack reservedThen
+          elifString = unpack reservedElif
+          elseString = unpack reservedElse
+
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
 doGrouping :: (MonadParser m, MonadReader Alias.DefinitionSet m)
            => Reason -- ^ Error reason in case "do" is missing
@@ -395,10 +424,11 @@ compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                     -> HereDocAliasT m (Positioned CompoundCommand)
 compoundCommandTail (p, t)
   | t == reservedOpenBrace = mapHereDocT lift $ requireHD $ groupingTail p
+  | t == reservedIf = requireHD $ ifCommandTail p
   | t == reservedWhile = requireHD $ whileCommandTail p
   | t == reservedUntil = requireHD $ untilCommandTail p
   | otherwise = lift $ lift $ failureOfPosition p
-  -- TODO if, for, case
+  -- TODO for, case
 
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)

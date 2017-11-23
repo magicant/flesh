@@ -110,6 +110,81 @@ spec = do
     context "must be closed by done" $ do
       expectFailureEof "do foo" dg Hard (MissingDoneForDo p) 6
 
+  describe "ifCommandTail" $ do
+    let p = dummyPosition "X"
+        ps = iterate next p
+        i = reparse $ fill $ ifCommandTail p
+        i1 = fst <$> i
+        i2 = snd <$> i
+
+    context "minimum structure" $ do
+      expectSuccessEof "a; then b; fi" "" i1 p
+      expectShowEof "a; then b; fi" "" i2 "if a; then b; fi"
+      expectShowEof "a1; a2& then b1; b2& fi" "" i2
+        "if a1; a2& then b1; b2& fi"
+
+    context "with else" $ do
+      expectShowEof "a; then b; else z; fi" "" i2 "if a; then b; else z; fi"
+      expectShowEof "a1; a2& then b1; b2& else z1; z2& fi" "" i2
+        "if a1; a2& then b1; b2& else z1; z2& fi"
+
+    context "with 1 elif" $ do
+      expectShowEof "a; then b; elif c; then d; fi" "" i2
+        "if a; then b; elif c; then d; fi"
+      expectShowEof "a1; a2& then b1; b2& elif c1; c2& then d1; d2& fi" "" i2
+        "if a1; a2& then b1; b2& elif c1; c2& then d1; d2& fi"
+
+    context "with 3 elif" $ do
+      expectShowEof
+        "a; then b; elif c; then d; elif e; then f; elif g; then h& fi" "" i2
+        "if a; then b; elif c; then d; elif e; then f; elif g; then h& fi"
+
+    context "with elif and else" $ do
+      expectShowEof "a; then b; elif c; then d; else z& fi" "" i2
+        "if a; then b; elif c; then d; else z& fi"
+
+    context "missing command after if" $ do
+      expectFailureEof "" i2 Soft (MissingCommandAfter "if") 0
+      expectFailureEof "then b; fi" i2 Soft (MissingCommandAfter "if") 0
+
+    context "missing then after if" $ do
+      expectFailureEof ":" i2 Soft (MissingThenForIf p) 1
+      expectFailureEof ":; fi" i2 Soft (MissingThenForIf p) 3
+
+    context "missing command after then" $ do
+      expectFailureEof ":; then" i2 Soft (MissingCommandAfter "then") 7
+      expectFailureEof ":; then fi" i2 Soft (MissingCommandAfter "then") 8
+      expectFailureEof ":; then else :; fi"
+        i2 Soft (MissingCommandAfter "then") 8
+
+    context "missing command after elif" $ do
+      expectFailureEof ":; then :; elif"
+        i2 Hard (MissingCommandAfter "elif") 15
+      expectFailureEof ":; then :; elif then :; fi"
+        i2 Hard (MissingCommandAfter "elif") 16
+
+    context "missing then after elif" $ do
+      expectFailureEof ":; then :; elif :"
+        i2 Hard (MissingThenForElif (ps !! 11)) 17
+      expectFailureEof ":; then :; elif :; fi"
+        i2 Hard (MissingThenForElif (ps !! 11)) 19
+
+    context "missing command after then after elif" $ do
+      expectFailureEof ":; then :; elif :; then"
+        i2 Hard (MissingCommandAfter "then") 23
+      expectFailureEof ":; then :; elif :; then fi"
+        i2 Hard (MissingCommandAfter "then") 24
+
+    context "missing command after else" $ do
+      expectFailureEof ":; then :; else"
+        i2 Hard (MissingCommandAfter "else") 15
+      expectFailureEof ":; then :; else fi"
+        i2 Hard (MissingCommandAfter "else") 16
+
+    context "missing fi" $ do
+      expectFailureEof ":; then :" i2 Soft (MissingFiForIf p) 9
+      expectFailureEof ":; then :; }" i2 Soft (MissingFiForIf p) 11
+
   describe "whileCommandTail" $ do
     let p = dummyPosition "X"
         w = snd <$> reparse (fill (whileCommandTail p))
