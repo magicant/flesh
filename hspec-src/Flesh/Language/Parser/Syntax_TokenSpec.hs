@@ -43,11 +43,16 @@ spec = do
           Flesh.Language.Parser.Syntax.CommandSubstitution []
         expectPosition "$()" (fst <$> dollarExpansion) 0
         reflect "$( \t#\\\n)"
-        reflect "$( \t#\\\n \t)"
         expectPosition "$( \t#\\\n)" (fst <$> dollarExpansion) 0
+        reflect "$( \t#\\\n \t)"
+        reflect "$( \t\\\n\\\n)"
+        reflect "$( \t\n\\\n)"
+        reflect "$(\\\n\\\n)"
 
       context "can contain some commands" $ do
-        traverse_ reflect ["$( foo )", "$(foo ||\nbar &)", "$(\nls\n )"]
+        traverse_ reflect
+          ["$( foo )", "$(foo ||\nbar &)", "$(\nls\n )",
+           "$(:\\\n)", "$(:\n\\\n)"]
 
       context "can contain here documents" $ do
         reflect "$(<<END\n1\n2\n3\nEND\n)"
