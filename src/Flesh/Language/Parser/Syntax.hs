@@ -574,7 +574,8 @@ completeLine = do
 
 -- | Parses an entire program.
 program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
-program = reparse $ fill $ whitesHD *> linebreak *> manyAndOrLists separator
+program = reparse $ fill $
+  whitesHD *> linebreak *> manyAndOrLists separator <* lift endOfToken
 -- TODO should not return UnknownReason
 
 -- vim: set et sw=2 sts=2 tw=78:

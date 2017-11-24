@@ -38,7 +38,7 @@ module Flesh.Language.Parser.Lex (
   -- * Token identification
   IdentifiedToken(..), identify) where
 
-import Control.Applicative (many, (<|>))
+import Control.Applicative (many, optional, (<|>))
 import Control.Monad.Reader
 import qualified Data.List.NonEmpty as NE
 import Data.Set (Set, fromList, member)
@@ -93,7 +93,7 @@ comment = lc $ do
 -- | Parses any number of 'blank' characters possibly followed by a 'comment'.
 -- Returns the result of 'comment' or 'Nothing' if no comment.
 whites :: MonadParser m => m (Maybe [Positioned Char])
-whites = many blank *> (Just <$> comment <|> return Nothing)
+whites = many blank *> optional comment
 
 operatorStarters :: [Char]
 operatorStarters = ";|&<>()"
