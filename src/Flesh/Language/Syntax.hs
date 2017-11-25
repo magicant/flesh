@@ -293,7 +293,7 @@ instance Show CompoundCommand where
 -- | Element of pipelines.
 data Command =
   -- | Simple command.
-  SimpleCommand [Token] [Positioned Assignment] [Redirection]
+  SimpleCommand [Token] [Assignment] [Redirection]
   -- | Compound commands
   | CompoundCommand (Positioned CompoundCommand) [Redirection]
   -- | Function definition.
@@ -303,13 +303,11 @@ data Command =
 instance Show Command where
   showsPrec _ (SimpleCommand [] [] []) = id
   showsPrec _ (SimpleCommand ts [] []) = showList ts
-  showsPrec _ (SimpleCommand [] as []) = showList as'
-    where as' = snd <$> as
+  showsPrec _ (SimpleCommand [] as []) = showList as
   showsPrec _ (SimpleCommand [] [] rs) = showList rs
   showsPrec _ (SimpleCommand ts [] rs) = showList ts . showSpace . showList rs
   showsPrec n (SimpleCommand ts as rs) =
-    showList as' . showSpace . showsPrec n (SimpleCommand ts [] rs)
-    where as' = snd <$> as
+    showList as . showSpace . showsPrec n (SimpleCommand ts [] rs)
   showsPrec n (CompoundCommand (_, cc) []) = showsPrec n cc
   showsPrec n (CompoundCommand (_, cc) rs) =
     showsPrec n cc . showSpace . showList rs
