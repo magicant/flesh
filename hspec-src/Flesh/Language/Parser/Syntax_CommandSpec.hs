@@ -228,14 +228,41 @@ spec = do
         sc' = runAliasT $ fill command
 
     context "as simple command" $ do
-      context "is some tokens" $ do
+      context "cannot be empty" $ do
+        expectFailureEof ""   sc  Soft UnknownReason 0
+        expectFailure    "\n" sc' Soft UnknownReason 0
+
+      context "can be some tokens" $ do
         expectShowEof "foo" "" sc "Just foo"
         expectShowEof "foo bar" ";" sc "Just foo bar"
         expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
 
-      context "rejects empty command" $ do
-        expectFailureEof ""   sc  Soft UnknownReason 0
-        expectFailure    "\n" sc' Soft UnknownReason 0
+      context "can be assignments" $ do
+        expectShowEof "a=" "" sc "Just a="
+        expectShowEof "a='' b=B" "" sc "Just a='' b=B"
+        expectShowEof "a='' b=~ _=$()" "" sc "Just a='' b=~ _=$()"
+
+      context "can be some tokens following assignments" $ do
+        expectShowEof "a= foo" "" sc "Just a= foo"
+        expectShowEof "a= b=B foo bar" "" sc "Just a= b=B foo bar"
+        expectShowEof "a= b=B foo bar z=" "" sc "Just a= b=B foo bar z="
+
+      context "can be redirections" $ do
+        expectShowEof ">a" "" sc "Just 1>a"
+        expectShowEof "<a >b" "" sc "Just 0<a 1>b"
+        expectShowEof "<a 2>b >c" "" sc "Just 0<a 2>b 1>c"
+
+      context "can have redirections anywhere" $ do
+        expectShowEof ">a foo" "" sc "Just foo 1>a"
+        expectShowEof "foo <a" "" sc "Just foo 0<a"
+        expectShowEof ">a f=o" "" sc "Just f=o 1>a"
+        expectShowEof "f=o <a" "" sc "Just f=o 0<a"
+        expectShowEof "foo <a bar" "" sc "Just foo bar 0<a"
+        expectShowEof "foo bar <a" "" sc "Just foo bar 0<a"
+        expectShowEof "f=o <a bar" "" sc "Just f=o bar 0<a"
+        expectShowEof "f=o bar <a" "" sc "Just f=o bar 0<a"
+        expectShowEof "f=o <a b=r" "" sc "Just f=o b=r 0<a"
+        expectShowEof "f=o b=r <a" "" sc "Just f=o b=r 0<a"
 
       it "returns nothing after alias substitution" $
         let e = runFullInputTesterWithDummyPositions sc defaultAliasName
