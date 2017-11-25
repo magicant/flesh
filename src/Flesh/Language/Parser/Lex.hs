@@ -46,11 +46,12 @@ import Data.Text (Text, pack)
 import Flesh.Data.Char (isBlank, isDigit)
 import Flesh.Source.Position
 import qualified Flesh.Language.Alias as Alias
-import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Alias hiding (value)
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
-import Flesh.Language.Syntax
+import Flesh.Language.Syntax hiding (Assignment)
+import qualified Flesh.Language.Syntax as S
 import Numeric.Natural (Natural)
 
 -- | Parses a line continuation: a backslash followed by a newline.
@@ -194,8 +195,17 @@ isReserved t = member t reservedWords
 -- | Result of token identification.
 data IdentifiedToken =
   Reserved Text -- ^ reserved word
+  | Assignment S.Assignment -- ^ assignment word
   | Normal Token -- ^ normal word token
   deriving (Eq, Show)
+
+assignmentOrNormal :: Token -> IdentifiedToken
+assignmentOrNormal t@(Token us) =
+  let isEqual = (== Unquoted (Char '=')) . snd
+   in case break isEqual (NE.toList us) of
+        (nameH : nameT, _ : value) -> Assignment $
+          S.Assignment (Token (nameH NE.:| nameT)) (EWord value)
+        _ -> Normal t
 
 -- | @identify isReserved' isAliasable p t@ identifies a token.
 --
@@ -209,18 +219,21 @@ data IdentifiedToken =
 identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          => (Text -> Bool) -- ^ function that tests if a token is reserved
          -> Bool -- ^ whether the token should be checked for an alias
+         -> Bool -- ^ whether the token should be checked for an assignment
          -> Position -- ^ position of the token to be identified
          -> Token -- ^ token to be identified
          -> AliasT m IdentifiedToken
-identify isReserved' isAliasable p t =
+identify isReserved' isAliasable isAssignable p t =
   case tokenText t of
-    Nothing -> return $ Normal t
+    Nothing -> aon
     Just tt | isReserved' tt -> return $ Reserved tt
             | otherwise -> do
                 fromMaybeT $ do
                   guard isAliasable
                   substituteAlias p tt
-                return $ Normal t
+                aon
+    where aon = return $ aon' t
+          aon' = if isAssignable then assignmentOrNormal else Normal
 -- TODO support global aliases, possibly extending the @isAliasable@ argument
 
 -- vim: set et sw=2 sts=2 tw=78:

@@ -62,7 +62,7 @@ import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Input
-import Flesh.Language.Parser.Lex
+import Flesh.Language.Parser.Lex as L
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 import Numeric.Natural (Natural)
@@ -196,13 +196,15 @@ identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                 -- ^ Whether the token should be checked for an alias. If the
                 -- current position 'isAfterBlankEndingSubstitution', this
                 -- argument is ignored.
+                -> Bool
+                -- ^ Whether the token should be checked for an assignment.
                 -> AliasT m (Positioned IdentifiedToken)
-identifiedToken isReserved' isAliasable = do
+identifiedToken isReserved' isAliasable isAssignable = do
   iabes <- isAfterBlankEndingSubstitution
   pos <- currentPosition
   it <- AliasT $ do
     t <- neutralToken
-    runAliasT $ identify isReserved' (isAliasable || iabes) pos t
+    runAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
   return (pos, it)
 
 -- | Parses an unquoted token that matches the given text.
@@ -297,29 +299,42 @@ newlineList = void (some (newlineHD *> whitesHD))
 linebreak :: MonadParser m => HereDocT m ()
 linebreak = void (many (newlineHD *> whitesHD))
 
--- | Parses a sequence of (non-assignment) words and redirections.
---
--- Returns a triple of parsed tokens, empty list, and redirections.
-simpleCommandArguments :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                       => HereDocAliasT m ([Token], [a], [Redirection])
-simpleCommandArguments = arg <*> simpleCommandArguments <|> pure ([], [], [])
-  where arg = consRedir <$> redirect' <|> consToken <$> neutralToken'
-        consRedir r (ts, as, rs) = (ts, as, r:rs)
-        consToken t (ts, as, rs) = (t:ts, as, rs)
-        redirect' = mapHereDocT lift redirect
-        neutralToken' = lift neutralToken
--- TODO global aliases
+-- | Contents of a simple command.
+type SimpleCommand = ([Token], [Assignment], [Redirection])
 
--- | Parses a simple command but the first token.
---
--- The first token of the simple command is not parsed by this parser. It must
--- have been parsed by another parser and must be passed as the argument.
-simpleCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                  => Token -> HereDocAliasT m Command
-simpleCommandTail t1 = toCommand . consToken t1 <$> simpleCommandArguments
-  where toCommand (ts, as, rs) = SimpleCommand ts as rs
-        consToken t (ts, as, rs) = (t:ts, as, rs)
--- TODO assignments
+-- | Parses a sequence of assignment words, normal word tokens, and
+-- redirections.
+simpleCommandContents :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                      => Bool -- ^ whether to parse assignments
+                      -> HereDocAliasT m SimpleCommand
+simpleCommandContents assign = redir <|> token <|> pure ([], [], [])
+  where
+    redir = do
+      r <- mapHereDocT lift redirect
+      (ts, as, rs) <- simpleCommandContents assign
+      pure (ts, as, r:rs)
+    token = HereDocT $ do
+      tk <- lift $ identifiedToken (const False) False assign
+      case snd tk of
+        Reserved     _ -> error "unexpected reserved token"
+        L.Assignment a -> runHereDocT $ simpleCommandContentsA a
+        Normal       t -> runHereDocT $ simpleCommandContentsW t
+
+-- | Parses a sequence of assignment words, normal word tokens, and
+-- redirections and prepends the given assignment to the final result.
+simpleCommandContentsA :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => Assignment -> HereDocAliasT m SimpleCommand
+simpleCommandContentsA a = do
+  (ts, as, rs) <- simpleCommandContents True
+  pure (ts, a:as, rs)
+
+-- | Parses a sequence of assignment words, normal word tokens, and
+-- redirections and prepends the given word token to the final result.
+simpleCommandContentsW :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                       => Token -> HereDocAliasT m SimpleCommand
+simpleCommandContentsW t = do
+  (ts, as, rs) <- simpleCommandContents False
+  pure (t:ts, as, rs)
 
 -- | Parses a subshell command.
 subshell :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -441,18 +456,19 @@ command = subshell' <|> simpleCommandStartingWithRedirection <|> other
       pure $ CompoundCommand s rs
     simpleCommandStartingWithRedirection = do
       r <- redirect'
-      (ts, as, rs) <- simpleCommandArguments
+      (ts, as, rs) <- simpleCommandContents True
       pure $ SimpleCommand ts as (r:rs)
     other = joinAliasHereDocAliasT $ do
-      t <- identifiedToken isReserved True
+      t <- identifiedToken isReserved True True
       pure $ case t of
                (p, Reserved tx) -> do
                  cc <- compoundCommandTail (p, tx)
                  rs <- many redirect
                  pure $ CompoundCommand cc rs
-               (_, Normal tk) -> simpleCommandTail tk
+               (_, L.Assignment a) -> sc <$> simpleCommandContentsA a
+               (_, Normal tk) -> sc <$> simpleCommandContentsW tk
     redirect' = mapHereDocT lift redirect
--- TODO parse assignments
+    sc (ts, as, rs) = SimpleCommand ts as rs
 -- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
