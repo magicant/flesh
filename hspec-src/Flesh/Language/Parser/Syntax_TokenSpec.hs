@@ -223,65 +223,90 @@ spec = do
       expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
 
   describe "identifiedToken" $ do
-    let ip f a = do
-          r <- runAliasT $ fst <$> identifiedToken f a
+    let ip f a a' = do
+          r <- runAliasT $ fst <$> identifiedToken f a a'
           case r of
             Nothing -> failure
             Just p -> return p
-        ik f a = runAliasT $ snd <$> identifiedToken f a
-        ik' f a = reparse $ snd <$> identifiedToken f a
+        ik f a a' = runAliasT $ snd <$> identifiedToken f a a'
+        ikReserved r = ik r True True
+        ikAllReserved = ikReserved (const True)
+        ikNoReserved = ikReserved (const False)
+        ikNoReserved' = ikReserved (const False)
+        ikAlias a = ik (const False) a True
+        ikAssignment a = ik (const False) True a
+        ir f a a' = reparse $ snd <$> identifiedToken f a a'
+        irDefault = ir (const False) True True
 
     context "returns current position" $ do
-      expectPosition "foo;" (ip (const True) True) 0
+      expectPosition "foo;" (ip (const True) True True) 0
 
     context "any token can be identified as reserved if accepted" $ do
-      expectShow "foo" ";" (ik (const True)  True) "Just (Reserved \"foo\")"
-      expectShow "if" ";"  (ik (const True)  True) "Just (Reserved \"if\")"
-      expectShow "w" ";"   (ik (== pack "w") True) "Just (Reserved \"w\")"
+      expectShow "foo" ";" ikAllReserved "Just (Reserved \"foo\")"
+      expectShow "if" ";"  ikAllReserved "Just (Reserved \"if\")"
+      expectShow "w" ";"   (ikReserved (== pack "w")) "Just (Reserved \"w\")"
 
     context "no token can be identified as reserved if rejected" $ do
-      expectShow "foo" ";" (ik (const False) True) "Just (Normal foo)"
-      expectShow "if" ";"  (ik (const False) True) "Just (Normal if)"
-      expectShow "w" ";"   (ik (/= pack "w") True) "Just (Normal w)"
+      expectShow "foo" ";" ikNoReserved "Just (Normal foo)"
+      expectShow "if" ";"  ikNoReserved "Just (Normal if)"
+      expectShow "w" ";"   (ikReserved (/= pack "w")) "Just (Normal w)"
 
     context "quoted tokens are not identified as reserved" $ do
-      expectShow "f\\oo" ";" (ik (const True) True) "Just (Normal f\\oo)"
-      expectShow "f'o'o" ";" (ik (const True) True) "Just (Normal f'o'o)"
-      expectShow "f\"o\"o" ";" (ik (const True) True) "Just (Normal f\"o\"o)"
+      expectShow "f\\oo" ";" ikAllReserved "Just (Normal f\\oo)"
+      expectShow "f'o'o" ";" ikAllReserved "Just (Normal f'o'o)"
+      expectShow "f\"o\"o" ";" ikAllReserved "Just (Normal f\"o\"o)"
 
     context "doesn't perform alias substitution on reserved words" $ do
-      expectShow defaultAliasName ";" (ik (const True) True) $
+      expectShow defaultAliasName ";" ikAllReserved $
         "Just (Reserved \"" ++ defaultAliasName ++ "\")"
 
     context "modifies pending input on alias substitution" $ do
-      expectSuccessEof defaultAliasName "" (ik (const False) True >> readAll)
+      expectSuccessEof defaultAliasName "" (ikNoReserved' >> readAll)
         defaultAliasValue
 
     it "returns nothing after alias substitution" $
-      let e = runFullInputTesterWithDummyPositions (ik (const False) True)
+      let e = runFullInputTesterWithDummyPositions ikNoReserved'
                 defaultAliasName
        in fmap fst e `shouldBe` Right Nothing
 
     it "stops alias substitution on recursion" $
       let e = runFullInputTesterWithDummyPositions
-                ((,) <$> ik' (const False) True <*> readAll) defaultAliasName
+                ((,) <$> irDefault <*> readAll) defaultAliasName
           f ((l, r), _) = (show l, r)
           ex = "Normal " ++ defaultAliasName
        in fmap f e `shouldBe` Right (ex, "--color")
 
     it "stops alias substitution on exact recursion" $
       let e = runFullInputTesterWithDummyPositions
-                ((,) <$> ik' (const False) True <*> readAll) recursiveAlias
+                ((,) <$> irDefault <*> readAll) recursiveAlias
           f ((l, r), _) = (show l, r)
           ex = "Normal " ++ recursiveAlias
        in fmap f e `shouldBe` Right (ex, "")
 
     context "doesn't perform alias substitution if disabled" $ do
-      expectShow recursiveAlias ";" (ik (const False) False) $
+      expectShow recursiveAlias ";" (ikAlias False) $
         "Just (Normal " ++ recursiveAlias ++ ")"
 
     context "performs alias substitution after blank-ending substitution" $ do
       return () -- should be tested elsewhere
+
+    context "identifies assignment" $ do
+      expectShow "a=" ";" ikNoReserved "Just (Assignment a=)"
+      expectShow "abc=" ";" ikNoReserved "Just (Assignment abc=)"
+      expectShow "a=xyz" ";" ikNoReserved "Just (Assignment a=xyz)"
+      --expectShow "foo=b'a'r" ";" ikNoReserved "Just (Assignment foo=b'a'r)"
+      --expectShow "`a b`=" ";" ikNoReserved "Just (Assignment `a b`=)"
+
+    context "rejects empty assignment name" $ do
+      expectShow "=a" ";" ikNoReserved "Just (Normal =a)"
+
+    context "rejects quoted equal as assignment" $ do
+      expectShow "a\\=" ";" ikNoReserved "Just (Normal a\\=)"
+      expectShow "a'='" ";" ikNoReserved "Just (Normal a'=')"
+      expectShow "a\"=\"" ";" ikNoReserved "Just (Normal a\"=\")"
+
+    context "doesn't identify assignment if disabled" $ do
+      expectShow "a=" ";" (ikAssignment False) "Just (Normal a=)"
 
   describe "literal" $ do
     context "returns matching unquoted token" $ do

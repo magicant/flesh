@@ -62,7 +62,7 @@ import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Input
-import Flesh.Language.Parser.Lex
+import Flesh.Language.Parser.Lex as L
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 import Numeric.Natural (Natural)
@@ -196,13 +196,15 @@ identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                 -- ^ Whether the token should be checked for an alias. If the
                 -- current position 'isAfterBlankEndingSubstitution', this
                 -- argument is ignored.
+                -> Bool
+                -- ^ Whether the token should be checked for an assignment.
                 -> AliasT m (Positioned IdentifiedToken)
-identifiedToken isReserved' isAliasable = do
+identifiedToken isReserved' isAliasable isAssignable = do
   iabes <- isAfterBlankEndingSubstitution
   pos <- currentPosition
   it <- AliasT $ do
     t <- neutralToken
-    runAliasT $ identify isReserved' (isAliasable || iabes) pos t
+    runAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
   return (pos, it)
 
 -- | Parses an unquoted token that matches the given text.
@@ -444,15 +446,15 @@ command = subshell' <|> simpleCommandStartingWithRedirection <|> other
       (ts, as, rs) <- simpleCommandArguments
       pure $ SimpleCommand ts as (r:rs)
     other = joinAliasHereDocAliasT $ do
-      t <- identifiedToken isReserved True
+      t <- identifiedToken isReserved True True
       pure $ case t of
                (p, Reserved tx) -> do
                  cc <- compoundCommandTail (p, tx)
                  rs <- many redirect
                  pure $ CompoundCommand cc rs
+               (_, L.Assignment _) -> undefined -- TODO parse assignments
                (_, Normal tk) -> simpleCommandTail tk
     redirect' = mapHereDocT lift redirect
--- TODO parse assignments
 -- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
