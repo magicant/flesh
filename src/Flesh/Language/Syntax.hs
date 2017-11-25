@@ -174,11 +174,15 @@ instance Show Token where
   showList ts = showList (fmap tokenWord ts)
 
 -- | Assignment.
-data Assignment = Assignment () -- FIXME
+data Assignment = Assignment Token EWord
   deriving (Eq)
 
 instance Show Assignment where
-  show _ = "" -- FIXME
+  showsPrec n (Assignment name value) =
+    showsPrec n name . showChar '=' . showsPrec n value
+  showList [] = id
+  showList [a] = shows a
+  showList (a:as) = shows a . showSpace . showList as
 
 -- | Here document redirection operator.
 data HereDocOp = HereDocOp {
