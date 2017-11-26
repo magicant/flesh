@@ -58,10 +58,10 @@ spec = do
       expectFailureEof "(foo "   s  Hard (UnclosedSubshell p) 5
       expectFailure    "(foo;})" s' Hard (UnclosedSubshell p) 5
 
-  describe "groupingTail" $ do
+  describe "braceGroupTail" $ do
     let p = dummyPosition "X"
-        g = snd <$> fill (groupingTail p)
-        g' = snd <$> fill (groupingTail p)
+        g = snd <$> fill (braceGroupTail p)
+        g' = snd <$> fill (braceGroupTail p)
 
     context "may have one inner command" $ do
       expectShowEof "foo;}" "" g "{ foo; }"
@@ -84,9 +84,9 @@ spec = do
       expectFailureEof "foo " g  Hard (UnclosedGrouping p) 4
       expectFailure    "foo)" g' Hard (UnclosedGrouping p) 3
 
-  describe "doGrouping" $ do
+  describe "doGroup" $ do
     let p = dummyPosition "X"
-        dg = toList <$> reparse (fill (doGrouping UnclosedDoubleQuote))
+        dg = toList <$> reparse (fill (doGroup UnclosedDoubleQuote))
 
     context "may have one inner command" $ do
       expectShowEof "do foo;done" "" dg "foo"
@@ -110,10 +110,10 @@ spec = do
     context "must be closed by done" $ do
       expectFailureEof "do foo" dg Hard (MissingDoneForDo p) 6
 
-  describe "ifCommandTail" $ do
+  describe "ifClauseTail" $ do
     let p = dummyPosition "X"
         ps = iterate next p
-        i = reparse $ fill $ ifCommandTail p
+        i = reparse $ fill $ ifClauseTail p
         i1 = fst <$> i
         i2 = snd <$> i
 
@@ -185,9 +185,9 @@ spec = do
       expectFailureEof ":; then :" i2 Soft (MissingFiForIf p) 9
       expectFailureEof ":; then :; }" i2 Soft (MissingFiForIf p) 11
 
-  describe "whileCommandTail" $ do
+  describe "whileClauseTail" $ do
     let p = dummyPosition "X"
-        w = snd <$> reparse (fill (whileCommandTail p))
+        w = snd <$> reparse (fill (whileClauseTail p))
 
     context "may have one condition command" $ do
       expectShowEof "foo;do :;done" "" w "while foo; do :; done"
@@ -211,9 +211,9 @@ spec = do
       expectFailureEof "foo; esac" w Hard (MissingDoForWhile p) 5
       expectFailureEof "foo; done" w Hard (MissingDoForWhile p) 5
 
-  describe "untilCommandTail" $ do
+  describe "untilClauseTail" $ do
     let p = dummyPosition "X"
-        u = snd <$> reparse (fill (untilCommandTail p))
+        u = snd <$> reparse (fill (untilClauseTail p))
 
     context "may have one condition command" $ do
       expectShowEof "foo;do :;done" "" u "until foo; do :; done"
@@ -221,7 +221,7 @@ spec = do
 
     context "must have do...done" $ do
       expectFailureEof "foo" u Hard (MissingDoForUntil p) 3
-    -- Other tests are omitted because they are the same with whileCommandTail
+    -- Other tests are omitted because they are the same with whileClauseTail
 
   describe "command" $ do
     let sc = runAliasT $ fill command

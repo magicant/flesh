@@ -38,8 +38,8 @@ module Flesh.Language.Parser.Syntax (
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
   -- ** Commands
-  subshell, groupingTail, ifCommandTail, doGrouping, whileCommandTail,
-  untilCommandTail, command,
+  subshell, braceGroupTail, ifClauseTail, doGroup, whileClauseTail,
+  untilClauseTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine, program) where
@@ -348,12 +348,12 @@ subshell = HereDocT $ do
       ls <- lsFiller
       return (pos, Subshell ls)
 
--- | Parses a grouping except the first open brace, which must have just been
--- parsed.
-groupingTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => Position -- ^ Position of the open brace.
-             -> HereDocT m (Positioned CompoundCommand)
-groupingTail p = do
+-- | Parses a brace-enclosed grouping except the first open brace, which must
+-- have just been parsed.
+braceGroupTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+               => Position -- ^ Position of the open brace.
+               -> HereDocT m (Positioned CompoundCommand)
+braceGroupTail p = do
   body <- setReasonHD (MissingCommandAfter openBraceString) $
     mapHereDocT reparse compoundList
   _ <- closeBrace
@@ -364,10 +364,10 @@ groupingTail p = do
 
 -- | Parses an if command except the first "if" keyword, which must have just
 -- been parsed.
-ifCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-              => Position -- ^ Position of the first "if" keyword
-              -> HereDocAliasT m (Positioned CompoundCommand)
-ifCommandTail p = do
+ifClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+             => Position -- ^ Position of the first "if" keyword
+             -> HereDocAliasT m (Positioned CompoundCommand)
+ifClauseTail p = do
   c <- setReasonHD (MissingCommandAfter ifString) compoundList
   _ <- setReasonHD (MissingThenForIf p) $ lift $ literal reservedThen
   t <- setReasonHD (MissingCommandAfter thenString) compoundList
@@ -392,10 +392,10 @@ ifCommandTail p = do
           elseString = unpack reservedElse
 
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
-doGrouping :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-           => Reason -- ^ Error reason in case "do" is missing
-           -> HereDocAliasT m CommandList
-doGrouping r = HereDocT $ do
+doGroup :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+        => Reason -- ^ Error reason in case "do" is missing
+        -> HereDocAliasT m CommandList
+doGroup r = HereDocT $ do
   p <- currentPosition
   _ <- setReason r $ literal reservedDo
   require $ do
@@ -403,30 +403,30 @@ doGrouping r = HereDocT $ do
     _ <- setReason (MissingDoneForDo p) $ literal reservedDone
     return body
 
-whileUntilCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+whileUntilClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
   => String -- ^ "while" or "until"
   -> (CommandList -> CommandList -> CompoundCommand)
   -> (Position -> Reason) -- ^ Error reason in case "do" is missing
   -> Position -- ^ Position of "while" or "until"
   -> HereDocAliasT m (Positioned CompoundCommand)
-whileUntilCommandTail s r e p = do
+whileUntilClauseTail s r e p = do
   cond <- setReasonHD (MissingCommandAfter s) compoundList
-  body <- requireHD (doGrouping (e p))
+  body <- requireHD (doGroup (e p))
   return (p, r cond body)
 
 -- | Parses a "while" command except the first "while" keyword, which must
 -- have just been parsed.
-whileCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                 => Position -- ^ Position of the "while" keyword.
-                 -> HereDocAliasT m (Positioned CompoundCommand)
-whileCommandTail = whileUntilCommandTail "while" While MissingDoForWhile
+whileClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+                => Position -- ^ Position of the "while" keyword.
+                -> HereDocAliasT m (Positioned CompoundCommand)
+whileClauseTail = whileUntilClauseTail "while" While MissingDoForWhile
 
 -- | Parses a "until" command except the first "until" keyword, which must
 -- have just been parsed.
-untilCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+untilClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                  => Position -- ^ Position of the "until" keyword.
                  -> HereDocAliasT m (Positioned CompoundCommand)
-untilCommandTail = whileUntilCommandTail "until" Until MissingDoForUntil
+untilClauseTail = whileUntilClauseTail "until" Until MissingDoForUntil
 
 -- | Parses a compound command except the first token that determines the type
 -- of the compound command.
@@ -438,10 +438,10 @@ compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                     => Positioned Text
                     -> HereDocAliasT m (Positioned CompoundCommand)
 compoundCommandTail (p, t)
-  | t == reservedOpenBrace = mapHereDocT lift $ requireHD $ groupingTail p
-  | t == reservedIf = requireHD $ ifCommandTail p
-  | t == reservedWhile = requireHD $ whileCommandTail p
-  | t == reservedUntil = requireHD $ untilCommandTail p
+  | t == reservedOpenBrace = mapHereDocT lift $ requireHD $ braceGroupTail p
+  | t == reservedIf = requireHD $ ifClauseTail p
+  | t == reservedWhile = requireHD $ whileClauseTail p
+  | t == reservedUntil = requireHD $ untilClauseTail p
   | otherwise = lift $ lift $ failureOfPosition p
   -- TODO for, case
 
