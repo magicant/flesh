@@ -131,7 +131,7 @@ instance ListPrintable Redirection where
             prints r'
 
 printsIndentedLists :: (MonadState PrintState m, MonadWriter (Endo String) m)
-                    => NonEmpty AndOrList -> m ()
+                    => CommandList -> m ()
 printsIndentedLists ls = do
   indented $ do
     printNewline
@@ -139,7 +139,7 @@ printsIndentedLists ls = do
   printIndent
 
 printsWhileUntilTail :: (MonadState PrintState m, MonadWriter (Endo String) m)
-                     => NonEmpty AndOrList -> NonEmpty AndOrList -> m ()
+                     => CommandList -> CommandList -> m ()
 printsWhileUntilTail c b = do
   printsIndentedLists c
   printString "do"

@@ -394,7 +394,7 @@ ifCommandTail p = do
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
 doGrouping :: (MonadParser m, MonadReader Alias.DefinitionSet m)
            => Reason -- ^ Error reason in case "do" is missing
-           -> HereDocAliasT m (NonEmpty AndOrList)
+           -> HereDocAliasT m CommandList
 doGrouping r = HereDocT $ do
   p <- currentPosition
   _ <- setReason r $ literal reservedDo
@@ -405,7 +405,7 @@ doGrouping r = HereDocT $ do
 
 whileUntilCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
   => String -- ^ "while" or "until"
-  -> (NonEmpty AndOrList -> NonEmpty AndOrList -> CompoundCommand)
+  -> (CommandList -> CommandList -> CompoundCommand)
   -> (Position -> Reason) -- ^ Error reason in case "do" is missing
   -> Position -- ^ Position of "while" or "until"
   -> HereDocAliasT m (Positioned CompoundCommand)
@@ -567,7 +567,7 @@ someAndOrLists = snd . manySomeAndOrLists
 -- | Parses a sequence of one or more and-or lists surrounded by optional
 -- linebreaks.
 compoundList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => HereDocAliasT m (NonEmpty AndOrList)
+             => HereDocAliasT m CommandList
 compoundList = linebreak *> someAndOrLists separator
 
 completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)

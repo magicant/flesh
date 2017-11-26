@@ -36,7 +36,7 @@ module Flesh.Language.Syntax (
   -- * Syntax
   IfThenList, CompoundCommand(..), Command(..), Pipeline(..),
   AndOrCondition(..), ConditionalPipeline(..), AndOrList(..),
-  showSeparatedList) where
+  showSeparatedList, CommandList) where
 
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
 import Data.Text (Text, pack)
@@ -244,25 +244,25 @@ fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 
 -- | List of (el)if-then clauses. Each pair represents a condition and
 -- corresponding statement.
-type IfThenList = NonEmpty (NonEmpty AndOrList, NonEmpty AndOrList)
+type IfThenList = NonEmpty (CommandList, CommandList)
 
 -- | Commands that can contain other commands.
 data CompoundCommand =
   -- | one or more and-or lists.
-  Grouping (NonEmpty AndOrList)
+  Grouping CommandList
   -- | one or more and-or lists.
-  | Subshell (NonEmpty AndOrList)
+  | Subshell CommandList
   -- TODO for command
   -- TODO case command
   -- | list of (el)if-then clauses and optional else clause.
-  | If IfThenList (Maybe (NonEmpty AndOrList))
+  | If IfThenList (Maybe CommandList)
   -- | loop condition and body.
-  | While (NonEmpty AndOrList) (NonEmpty AndOrList)
+  | While CommandList CommandList
   -- | loop condition and body.
-  | Until (NonEmpty AndOrList) (NonEmpty AndOrList)
+  | Until CommandList CommandList
   deriving (Eq)
 
-showWhileUntilTail :: NonEmpty AndOrList -> NonEmpty AndOrList -> ShowS
+showWhileUntilTail :: CommandList -> CommandList -> ShowS
 showWhileUntilTail c b =
   showSeparatedList (toList c) . showString " do " .
     showSeparatedList (toList b) . showString " done"
@@ -373,5 +373,9 @@ showSeparatedList :: [AndOrList] -> ShowS
 showSeparatedList [] = id
 showSeparatedList [l] = showsPrec 1 l
 showSeparatedList (l:ls) = showsPrec 1 l . showSpace . showSeparatedList ls
+
+-- | Sequence of one or more and-or lists. In POSIX, CommandList is simply
+-- referred to as "list".
+type CommandList = NonEmpty AndOrList
 
 -- vim: set et sw=2 sts=2 tw=78:
