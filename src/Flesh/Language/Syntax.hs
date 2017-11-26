@@ -252,7 +252,8 @@ data CompoundCommand =
   Grouping CommandList
   -- | one or more and-or lists.
   | Subshell CommandList
-  -- TODO for command
+  -- | name, optional words, and loop body.
+  | For Token (Maybe [Token]) CommandList
   -- TODO case command
   -- | list of (el)if-then clauses and optional else clause.
   | If IfThenList (Maybe CommandList)
@@ -262,16 +263,23 @@ data CompoundCommand =
   | Until CommandList CommandList
   deriving (Eq)
 
+showDoGroup :: CommandList -> ShowS
+showDoGroup c =
+  showString " do " . showSeparatedList (toList c) . showString " done"
+
 showWhileUntilTail :: CommandList -> CommandList -> ShowS
-showWhileUntilTail c b =
-  showSeparatedList (toList c) . showString " do " .
-    showSeparatedList (toList b) . showString " done"
+showWhileUntilTail c b = showSeparatedList (toList c) . showDoGroup b
 
 instance Show CompoundCommand where
   showsPrec _ (Grouping ls) =
     showString "{ " . showSeparatedList (toList ls) . showString " }"
   showsPrec _ (Subshell ls) =
     showChar '(' . showList (toList ls) . showChar ')'
+  showsPrec _ (For name optwords ls) =
+    showString "for " . shows name . showForWords optwords . showDoGroup ls
+      where showForWords Nothing = id
+            showForWords (Just ws) =
+              showString " in " . shows ws . showChar ';'
   showsPrec _ (If its me) =
     showIfThenList its . maybeShowElse me . showString " fi"
       where showIfThenList (ifthen :| elifthens) =
