@@ -378,14 +378,14 @@ ifCommandTail p = do
       c' <- setReasonHD (MissingCommandAfter elifString) compoundList
       _ <- setReasonHD (MissingThenForElif p') $ lift $ literal reservedThen
       t' <- setReasonHD (MissingCommandAfter thenString) compoundList
-      pure $ (c', t')
+      pure (c', t')
     pure ct' -- GHC 8.0.2 wants this dummy 'pure'
   els <- optional $ do
     _ <- lift $ literal reservedElse
     e <- requireHD $ setReasonHD (MissingCommandAfter elseString) compoundList
     pure e -- GHC 8.0.2 wants this dummy 'pure'
   _ <- setReasonHD (MissingFiForIf p) $ lift $ literal reservedFi
-  pure $ (p, If ((c, t) :| elifthens) els)
+  pure (p, If ((c, t) :| elifthens) els)
     where ifString = unpack reservedIf
           thenString = unpack reservedThen
           elifString = unpack reservedElif
