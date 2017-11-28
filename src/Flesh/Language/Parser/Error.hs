@@ -55,6 +55,7 @@ import Flesh.Source.Position
 -- | Reason of a parse error.
 data Reason =
   UnknownReason -- ^ Default reason that should be replaced by 'setReason'.
+  | LineBeginningWithSemicolon
   | UnclosedDoubleQuote
   | UnclosedSingleQuote
   | UnclosedCommandSubstitution
@@ -68,6 +69,9 @@ data Reason =
   | MissingThenForIf Position -- ^ with position of the "if" keyword
   | MissingThenForElif Position -- ^ with position of the "elif" keyword
   | MissingFiForIf Position -- ^ with position of the "if" keyword
+  | MissingNameAfterFor
+  | SemicolonBeforeIn
+  | MissingDoForFor Position -- ^ with position of the "for" keyword
   | MissingDoForWhile Position -- ^ with position of the "while" keyword
   | MissingDoForUntil Position -- ^ with position of the "until" keyword
   | MissingDoneForDo Position -- ^ with position of the "do" keyword
