@@ -38,8 +38,8 @@ module Flesh.Language.Parser.Syntax (
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
   -- ** Commands
-  subshell, braceGroupTail, ifClauseTail, doGroup, whileClauseTail,
-  untilClauseTail, command,
+  subshell, braceGroupTail, doGroup, forClauseTail, ifClauseTail,
+  whileClauseTail, untilClauseTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine, program) where
@@ -56,7 +56,7 @@ import Data.Map.Strict (empty)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text, unpack)
 import qualified Flesh.Language.Alias as Alias
-import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Alias hiding (name)
 import Flesh.Language.Parser.Capture
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -206,6 +206,14 @@ identifiedToken isReserved' isAliasable isAssignable = do
     t <- neutralToken
     runAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
   return (pos, it)
+
+aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+               => AliasT m Token
+aliasableToken = do
+  t <- identifiedToken (const False) True False
+  case snd t of
+    Normal t' -> return t'
+    _ -> error "unexpected abnormal token"
 
 -- | Parses an unquoted token that matches the given text.
 literal :: MonadParser m => Text -> m Token
@@ -362,6 +370,60 @@ braceGroupTail p = do
           closeBrace = lift $ require $ setReason (UnclosedGrouping p) $
             literal reservedCloseBrace
 
+-- | Parses an "in" clause of a for loop.
+inClause :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+         => AliasT m [Token]
+inClause = lift (literal reservedIn) *> many aliasableToken
+
+-- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
+doGroup :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+        => Reason -- ^ Error reason in case "do" is missing
+        -> HereDocAliasT m CommandList
+doGroup r = HereDocT $ do
+  p <- currentPosition
+  _ <- setReason r $ literal reservedDo
+  require $ do
+    body <- setReason (MissingCommandAfter "do") $ runHereDocT compoundList
+    _ <- setReason (MissingDoneForDo p) $ literal reservedDone
+    return body
+
+-- | Parses a for loop except the first "for" keyword, which must have just
+-- been parsed.
+forClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+              => Position -- ^ Position of the first "for" keyword
+              -> HereDocAliasT m (Positioned CompoundCommand)
+{-
+  The for clause parser is more complex than you might think because
+  1. We want to provide an intuitive reason on a syntax error.
+  2. We want to avoid back-tracking on 'linebreak' which may require
+     re-parsing long here-document contents.
+-}
+forClauseTail p = do
+  name <- lift $ setReason MissingNameAfterFor aliasableToken
+  (ws, ls) <- a <|> b
+  pure (p, For name ws ls)
+    where a = HereDocT $ do
+            (p', _) <- lift semicolon
+            runHereDocT $ do
+              _ <- linebreak
+              _ <- noInClause p'
+              ls <- doGroup'
+              pure (Nothing, ls)
+          b = do
+            _ <- optional $ newlineList <* noSemicolon
+            ws <- lift $ optional $ inClause <* optional semicolon
+            _ <- linebreak
+            ls <- doGroup'
+            pure (ws, ls)
+          semicolon = operatorToken ";"
+          linebreakDo = requireHD $ linebreak *> doGroup'
+          doGroup' = requireHD $ doGroup $ MissingDoForFor p
+          noInClause p' = lift $ optional $ do
+            followedBy inClause
+            require $ failureOfError $ Error SemicolonBeforeIn p'
+          noSemicolon = lift $ require $
+            setReason LineBeginningWithSemicolon $ notFollowedBy semicolon
+
 -- | Parses an if command except the first "if" keyword, which must have just
 -- been parsed.
 ifClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -390,18 +452,6 @@ ifClauseTail p = do
           thenString = unpack reservedThen
           elifString = unpack reservedElif
           elseString = unpack reservedElse
-
--- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
-doGroup :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-        => Reason -- ^ Error reason in case "do" is missing
-        -> HereDocAliasT m CommandList
-doGroup r = HereDocT $ do
-  p <- currentPosition
-  _ <- setReason r $ literal reservedDo
-  require $ do
-    body <- setReason (MissingCommandAfter "do") $ runHereDocT compoundList
-    _ <- setReason (MissingDoneForDo p) $ literal reservedDone
-    return body
 
 whileUntilClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
   => String -- ^ "while" or "until"
@@ -439,11 +489,12 @@ compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                     -> HereDocAliasT m (Positioned CompoundCommand)
 compoundCommandTail (p, t)
   | t == reservedOpenBrace = mapHereDocT lift $ requireHD $ braceGroupTail p
+  | t == reservedFor = requireHD $ forClauseTail p
   | t == reservedIf = requireHD $ ifClauseTail p
   | t == reservedWhile = requireHD $ whileClauseTail p
   | t == reservedUntil = requireHD $ untilClauseTail p
   | otherwise = lift $ lift $ failureOfPosition p
-  -- TODO for, case
+  -- TODO case
 
 -- | Parses a command.
 command :: (MonadParser m, MonadReader Alias.DefinitionSet m)

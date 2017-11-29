@@ -110,6 +110,64 @@ spec = do
     context "must be closed by done" $ do
       expectFailureEof "do foo" dg Hard (MissingDoneForDo p) 6
 
+  describe "forClauseTail" $ do
+    let p = dummyPosition "X"
+        f = snd <$> reparse (fill (forClauseTail p))
+
+    context "simplest form" $ do
+      expectShowEof "var do :; done" "" f "for var do :; done"
+
+    context "with separator and newlines" $ do
+      expectShowEof "foo \t\ndo :; done" "" f "for foo do :; done"
+      expectShowEof "foo ; do :; done" "" f "for foo do :; done"
+      expectShowEof "foo ; \n \n do :; done" "" f "for foo do :; done"
+
+    context "with words followed by semicolon" $ do
+      expectShowEof "v in;do :; done" "" f "for v in ; do :; done"
+      expectShowEof "v in a; do :; done" "" f "for v in a; do :; done"
+      expectShowEof "v in a b c;do :; done" "" f "for v in a b c; do :; done"
+      expectShowEof "v in do;do :; done" "" f "for v in do; do :; done"
+
+    context "with words followed by newlines" $ do
+      expectShowEof "v in\n\n\tdo :; done" "" f "for v in ; do :; done"
+      expectShowEof "v in a\n  do :; done" "" f "for v in a; do :; done"
+
+    context "with words followed by semicolon and newlines" $ do
+      expectShowEof "v in a; \n\n do :; done" "" f "for v in a; do :; done"
+
+    context "with words preceded by newlines" $ do
+      expectShowEof "x\nin;do :; done" "" f "for x in ; do :; done"
+      expectShowEof "x \n\n in a;do :; done" "" f "for x in a; do :; done"
+
+    context "must have name" $ do
+      expectFailureEof "" f Soft MissingNameAfterFor 0
+
+    context "must have do...done; without semicolon or in" $ do
+      expectFailureEof "x" f Hard (MissingDoForFor p) 1
+      expectFailureEof "x \n" f Hard (MissingDoForFor p) 3
+
+    context "must have do...done; after semicolon" $ do
+      expectFailureEof "x;" f Hard (MissingDoForFor p) 2
+      expectFailureEof "x; ?" f Hard (MissingDoForFor p) 3
+      expectFailureEof "x;\n ?" f Hard (MissingDoForFor p) 4
+
+    context "must have do...done; after in" $ do
+      expectFailureEof "x in" f Hard (MissingDoForFor p) 4
+      expectFailureEof "x in a " f Hard (MissingDoForFor p) 7
+      expectFailureEof "x in a\n " f Hard (MissingDoForFor p) 8
+
+    context "must have do...done; after in and semicolon" $ do
+      expectFailureEof "x in;" f Hard (MissingDoForFor p) 5
+      expectFailureEof "x in a; " f Hard (MissingDoForFor p) 8
+      expectFailureEof "x in a;\n " f Hard (MissingDoForFor p) 9
+
+    context "cannot have semicolon before in" $ do
+      expectFailureEof "x; in;do :;done" f Hard SemicolonBeforeIn 1
+      expectFailureEof "x;\nin;do :;done" f Hard SemicolonBeforeIn 1
+
+    context "cannot have semicolon after newline" $ do
+      expectFailureEof "x\n;do :;done" f Hard LineBeginningWithSemicolon 2
+
   describe "ifClauseTail" $ do
     let p = dummyPosition "X"
         ps = iterate next p
