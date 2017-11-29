@@ -142,13 +142,18 @@ printsIndentedLists ls = do
     printList $ toList ls
   printIndent
 
+printDoGroup :: (MonadState PrintState m, MonadWriter (Endo String) m)
+             => CommandList -> m ()
+printDoGroup c = do
+  printString "do"
+  printsIndentedLists c
+  printString "done"
+
 printsWhileUntilTail :: (MonadState PrintState m, MonadWriter (Endo String) m)
                      => CommandList -> CommandList -> m ()
 printsWhileUntilTail c b = do
   printsIndentedLists c
-  printString "do"
-  printsIndentedLists b
-  printString "done"
+  printDoGroup b
 
 instance Printable CompoundCommand where
   prints (Grouping ls) = do
@@ -159,6 +164,17 @@ instance Printable CompoundCommand where
     printChar '('
     printsIndentedLists ls
     printChar ')'
+  prints (For name optwords ls) = do
+    printString "for "
+    printShows name
+    printForWords optwords
+    printNewline
+    printIndent
+    printDoGroup ls
+      where printForWords Nothing = return ()
+            printForWords (Just ws) = do
+              printString " in "
+              printShows ws
   prints (If its me) = do
     printsIfThenList its
     maybePrintsElse me

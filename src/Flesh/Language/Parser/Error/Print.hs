@@ -38,6 +38,8 @@ note p m = P.Block {P.position = p, P.kind = Just P.Note, P.message = m}
 
 describe :: Reason -> (String, [Block])
 describe UnknownReason = ("unknown error", [])
+describe LineBeginningWithSemicolon =
+  ("a line cannot start with a semicolon", [])
 describe UnclosedDoubleQuote = ("the double quote is unclosed", [])
 describe UnclosedSingleQuote = ("the single quote is unclosed", [])
 describe UnclosedCommandSubstitution =
@@ -73,6 +75,13 @@ describe (MissingThenForElif p) =
 describe (MissingFiForIf p) =
   ("a \"fi\" is required to close the if command", [b])
     where b = note p "the if command was introduced here"
+describe MissingNameAfterFor =
+  ("a variable name is required after the \"for\"", [])
+describe SemicolonBeforeIn =
+  ("no semicolon is allowed before \"in\"", [])
+describe (MissingDoForFor p) =
+  ("a do-done clause is required to complete the for loop", [b])
+    where b = note p "the for loop was introduced here"
 describe (MissingDoForWhile p) =
   ("a do-done clause is required to complete the while command", [b])
     where b = note p "the while command was introduced here"
