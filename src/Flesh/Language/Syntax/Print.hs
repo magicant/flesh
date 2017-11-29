@@ -62,6 +62,10 @@ type PrintS = PrintT (State PrintState)
 runPrint :: PrintS a -> ShowS
 runPrint = flip evalState initPrintState . execPrintT
 
+-- | Shows the argument.
+printShows :: (MonadWriter (Endo String) m, Show a) => a -> m ()
+printShows = tell' . shows
+
 -- | Shows the argument character.
 printChar :: MonadWriter (Endo String) m => Char -> m ()
 printChar = tell' . showChar
@@ -114,10 +118,10 @@ class ListPrintable s where
             => [s] -> m ()
 
 instance Printable Redirection where
-  prints r@FileRedirection {} = tell' $ shows r
+  prints r@FileRedirection {} = printShows r
   prints r@(HereDoc op cntnt) = do
     appendHereDoc $ showContent . showDelimiter . showChar '\n'
-    tell' $ shows r
+    printShows r
       where showContent = showList $ map snd cntnt
             showDelimiter = showList $ snd $ unquoteToken $ delimiter op
 
@@ -131,7 +135,7 @@ instance ListPrintable Redirection where
             prints r'
 
 printsIndentedLists :: (MonadState PrintState m, MonadWriter (Endo String) m)
-                    => NonEmpty AndOrList -> m ()
+                    => CommandList -> m ()
 printsIndentedLists ls = do
   indented $ do
     printNewline
@@ -139,7 +143,7 @@ printsIndentedLists ls = do
   printIndent
 
 printsWhileUntilTail :: (MonadState PrintState m, MonadWriter (Endo String) m)
-                     => NonEmpty AndOrList -> NonEmpty AndOrList -> m ()
+                     => CommandList -> CommandList -> m ()
 printsWhileUntilTail c b = do
   printsIndentedLists c
   printString "do"
@@ -185,7 +189,7 @@ instance Printable CompoundCommand where
 
 instance Printable Command where
   prints (SimpleCommand [] [] []) = return ()
-  prints c@(SimpleCommand _ _ []) = tell' $ shows c
+  prints c@(SimpleCommand _ _ []) = printShows c
   prints (SimpleCommand [] [] rs) = printList rs
   prints (SimpleCommand ts as rs) = do
     prints (SimpleCommand ts as [])
@@ -211,7 +215,7 @@ instance Printable Pipeline where
 
 instance Printable ConditionalPipeline where
   prints (ConditionalPipeline (c, p)) = do
-    tell' $ shows c
+    printShows c
     printNewline
     prints p
 
