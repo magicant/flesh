@@ -32,8 +32,8 @@ spec :: Spec
 spec = do
   describe "subshell" $ do
     let p = dummyPosition "X"
-        s = runAliasT (fill (snd <$> subshell))
-        s' = runAliasT (fill (snd <$> subshell))
+        s = runAliasT' (fill (snd <$> subshell))
+        s' = runAliasT' (fill (snd <$> subshell))
 
     context "may have one inner command" $ do
       expectShowEof "(foo)" "" s "Just (foo)"
@@ -282,8 +282,8 @@ spec = do
     -- Other tests are omitted because they are the same with whileClauseTail
 
   describe "command" $ do
-    let sc = runAliasT $ fill command
-        sc' = runAliasT $ fill command
+    let sc = runAliasT' $ fill command
+        sc' = runAliasT' $ fill command
 
     context "as simple command" $ do
       context "cannot be empty" $ do

@@ -34,7 +34,7 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * AliasT
-  AliasT(..), mapAliasT, toMaybeT, fromMaybeT,
+  AliasT'(..), mapAliasT', toMaybeT', fromMaybeT',
   -- * Helper functions
   isAfterBlankEndingSubstitution, substituteAlias, reparse) where
 
@@ -66,11 +66,11 @@ type ContextT = ReaderT DefinitionSet
 -- and the left hand side consumed any input characters. In other words, the
 -- right hand side is implicitly re-parsed if the left hand side was
 -- successfully parsed as a non-empty non-terminal.
-newtype AliasT m a = AliasT {runAliasT :: m (Maybe a)}
+newtype AliasT' m a = AliasT' {runAliasT' :: m (Maybe a)}
 
 -- | Modifies the content of AliasT.
-mapAliasT :: (m (Maybe a) -> n (Maybe b)) -> AliasT m a -> AliasT n b
-mapAliasT f = AliasT . f . runAliasT
+mapAliasT' :: (m (Maybe a) -> n (Maybe b)) -> AliasT' m a -> AliasT' n b
+mapAliasT' f = AliasT' . f . runAliasT'
 
 inverse :: Functor m => m (Maybe a) -> m (Maybe ())
 inverse = fmap inverse'
@@ -84,66 +84,66 @@ inverse = fmap inverse'
 -- parser has been aborted due to alias substitution, while that of 'MaybeT'
 -- means alias substitution is not applicable in the current parsing state.
 -- Hence, 'toMaybeT' inverts Nothing and Just values.
-toMaybeT :: Functor m => AliasT m a -> MaybeT m ()
-toMaybeT = MaybeT . inverse . runAliasT
+toMaybeT' :: Functor m => AliasT' m a -> MaybeT m ()
+toMaybeT' = MaybeT . inverse . runAliasT'
 
 -- | The inverse of 'toMaybeT'.
-fromMaybeT :: Functor m => MaybeT m a -> AliasT m ()
-fromMaybeT = AliasT . inverse . runMaybeT
+fromMaybeT' :: Functor m => MaybeT m a -> AliasT' m ()
+fromMaybeT' = AliasT' . inverse . runMaybeT
 
-instance MonadTrans AliasT where
-  lift = AliasT . fmap Just
+instance MonadTrans AliasT' where
+  lift = AliasT' . fmap Just
 
-instance Functor m => Functor (AliasT m) where
-  fmap f = mapAliasT $ fmap $ fmap f
-  (<$) x = mapAliasT (Just x <$)
+instance Functor m => Functor (AliasT' m) where
+  fmap f = mapAliasT' $ fmap $ fmap f
+  (<$) x = mapAliasT' (Just x <$)
 
-instance MonadParser m => Applicative (AliasT m) where
-  pure = AliasT . pure . Just
+instance MonadParser m => Applicative (AliasT' m) where
+  pure = AliasT' . pure . Just
   af <*> ax = af >>= (<$> ax)
 
-instance MonadParser m => Alternative (AliasT m) where
+instance MonadParser m => Alternative (AliasT' m) where
   empty = lift empty
-  a <|> b = AliasT $ runAliasT a <|> runAliasT b
+  a <|> b = AliasT' $ runAliasT' a <|> runAliasT' b
 
-instance MonadParser m => Monad (AliasT m) where
+instance MonadParser m => Monad (AliasT' m) where
   return = pure
-  ax >>= af = AliasT $ do
+  ax >>= af = AliasT' $ do
     p1 <- currentPosition
-    mx <- runAliasT ax
+    mx <- runAliasT' ax
     case mx of
       Nothing -> return Nothing
       Just x -> do
         p2 <- currentPosition
         let parseRhs = do
-              mb <- runAliasT $ af x
+              mb <- runAliasT' $ af x
               case mb of
                 Nothing -> if p1 == p2 then pure Nothing else parseRhs
                 Just b -> pure $ Just b
          in parseRhs
 
-instance MonadParser m => MonadPlus (AliasT m)
+instance MonadParser m => MonadPlus (AliasT' m)
 
-instance MonadParser m => MonadInput (AliasT m) where
+instance MonadParser m => MonadInput (AliasT' m) where
   popChar = lift popChar
-  lookahead = mapAliasT lookahead
+  lookahead = mapAliasT' lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
 
-instance MonadParser m => MonadInputRecord (AliasT m) where
+instance MonadParser m => MonadInputRecord (AliasT' m) where
   reverseConsumedChars = lift reverseConsumedChars
 
-instance (MonadParser m, MonadError e m) => MonadError e (AliasT m) where
+instance (MonadParser m, MonadError e m) => MonadError e (AliasT' m) where
   throwError = lift . throwError
-  catchError m f = AliasT $ catchError (runAliasT m) (runAliasT . f)
+  catchError m f = AliasT' $ catchError (runAliasT' m) (runAliasT' . f)
 
-instance (MonadParser m, MonadReader r m) => MonadReader r (AliasT m) where
+instance (MonadParser m, MonadReader r m) => MonadReader r (AliasT' m) where
   ask = lift ask
-  local f = mapAliasT $ local f
+  local f = mapAliasT' $ local f
   reader f = lift $ reader f
 
-instance MonadParser m => MonadParser (AliasT m)
+instance MonadParser m => MonadParser (AliasT' m)
 
 -- | Tests if the current position is after an alias substitution whose value
 -- ends with a blank.
@@ -194,10 +194,10 @@ substituteAlias pos' t = do
 
 -- | Modifies a parser so that it retries parsing while it is failing due to
 -- alias substitution.
-reparse :: Monad m => AliasT m a -> m a
+reparse :: Monad m => AliasT' m a -> m a
 reparse a = reparse_a
   where reparse_a = do
-          m <- runAliasT a
+          m <- runAliasT' a
           case m of
             Nothing -> reparse_a
             Just v -> return v

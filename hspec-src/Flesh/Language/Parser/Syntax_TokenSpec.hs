@@ -224,11 +224,11 @@ spec = do
 
   describe "identifiedToken" $ do
     let ip f a a' = do
-          r <- runAliasT $ fst <$> identifiedToken f a a'
+          r <- runAliasT' $ fst <$> identifiedToken f a a'
           case r of
             Nothing -> failure
             Just p -> return p
-        ik f a a' = runAliasT $ snd <$> identifiedToken f a a'
+        ik f a a' = runAliasT' $ snd <$> identifiedToken f a a'
         ikReserved r = ik r True True
         ikAllReserved = ikReserved (const True)
         ikNoReserved = ikReserved (const False)
