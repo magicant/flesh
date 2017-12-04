@@ -416,7 +416,6 @@ forClauseTail p = do
             ls <- doGroup'
             pure (ws, ls)
           semicolon = operatorToken ";"
-          linebreakDo = requireHD $ linebreak *> doGroup'
           doGroup' = requireHD $ doGroup $ MissingDoForFor p
           noInClause p' = lift $ optional $ do
             followedBy inClause
