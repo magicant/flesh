@@ -68,10 +68,10 @@ import Flesh.Source.Position
 import Numeric.Natural (Natural)
 
 -- | Combination of 'HereDocT' and 'AliasT'.
-type HereDocAliasT m a = HereDocT (AliasT' m) a
+type HereDocAliasT m a = HereDocT (AliasT m) a
 
 joinAliasHereDocAliasT :: MonadParser m
-                       => AliasT' m (HereDocAliasT m a) -> HereDocAliasT m a
+                       => AliasT m (HereDocAliasT m a) -> HereDocAliasT m a
 joinAliasHereDocAliasT = HereDocT . join . lift . fmap runHereDocT
 
 -- | Parses a backslash-escaped character that satisfies the given predicate.
@@ -198,17 +198,17 @@ identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                 -- argument is ignored.
                 -> Bool
                 -- ^ Whether the token should be checked for an assignment.
-                -> AliasT' m (Positioned IdentifiedToken)
+                -> AliasT m (Positioned IdentifiedToken)
 identifiedToken isReserved' isAliasable isAssignable = do
   iabes <- isAfterBlankEndingSubstitution
   pos <- currentPosition
-  it <- AliasT' $ do
+  it <- AliasT $ do
     t <- neutralToken
-    runAliasT' $ identify isReserved' (isAliasable || iabes) isAssignable pos t
+    getAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
   return (pos, it)
 
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => AliasT' m Token
+               => AliasT m Token
 aliasableToken = do
   t <- identifiedToken (const False) True False
   case snd t of
@@ -363,7 +363,7 @@ braceGroupTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                -> HereDocT m (Positioned CompoundCommand)
 braceGroupTail p = do
   body <- setReasonHD (MissingCommandAfter openBraceString) $
-    mapHereDocT reparse compoundList
+    mapHereDocT evalAliasT compoundList
   _ <- closeBrace
   pure (p, Grouping body)
     where openBraceString = unpack reservedOpenBrace
@@ -372,7 +372,7 @@ braceGroupTail p = do
 
 -- | Parses an "in" clause of a for loop.
 inClause :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-         => AliasT' m [Token]
+         => AliasT m [Token]
 inClause = lift (literal reservedIn) *> many aliasableToken
 
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
@@ -636,11 +636,11 @@ completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => m [AndOrList]
 completeLine = do
   _ <- whites
-  reparse $ fill completeLineBody
+  evalAliasT $ fill completeLineBody
 
 -- | Parses an entire program.
 program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
-program = reparse $ fill $
+program = evalAliasT $ fill $
   whitesHD *> linebreak *> manyAndOrLists separator <* lift endOfToken
 -- TODO should not return UnknownReason
 

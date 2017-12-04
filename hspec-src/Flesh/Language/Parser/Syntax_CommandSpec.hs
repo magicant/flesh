@@ -32,8 +32,8 @@ spec :: Spec
 spec = do
   describe "subshell" $ do
     let p = dummyPosition "X"
-        s = runAliasT' (fill (snd <$> subshell))
-        s' = runAliasT' (fill (snd <$> subshell))
+        s = runAliasT (fill (snd <$> subshell))
+        s' = runAliasT (fill (snd <$> subshell))
 
     context "may have one inner command" $ do
       expectShowEof "(foo)" "" s "Just (foo)"
@@ -86,7 +86,7 @@ spec = do
 
   describe "doGroup" $ do
     let p = dummyPosition "X"
-        dg = toList <$> reparse (fill (doGroup UnclosedDoubleQuote))
+        dg = toList <$> evalAliasT (fill (doGroup UnclosedDoubleQuote))
 
     context "may have one inner command" $ do
       expectShowEof "do foo;done" "" dg "foo"
@@ -112,7 +112,7 @@ spec = do
 
   describe "forClauseTail" $ do
     let p = dummyPosition "X"
-        f = snd <$> reparse (fill (forClauseTail p))
+        f = snd <$> evalAliasT (fill (forClauseTail p))
 
     context "simplest form" $ do
       expectShowEof "var do :; done" "" f "for var do :; done"
@@ -171,7 +171,7 @@ spec = do
   describe "ifClauseTail" $ do
     let p = dummyPosition "X"
         ps = iterate next p
-        i = reparse $ fill $ ifClauseTail p
+        i = evalAliasT $ fill $ ifClauseTail p
         i1 = fst <$> i
         i2 = snd <$> i
 
@@ -245,7 +245,7 @@ spec = do
 
   describe "whileClauseTail" $ do
     let p = dummyPosition "X"
-        w = snd <$> reparse (fill (whileClauseTail p))
+        w = snd <$> evalAliasT (fill (whileClauseTail p))
 
     context "may have one condition command" $ do
       expectShowEof "foo;do :;done" "" w "while foo; do :; done"
@@ -271,7 +271,7 @@ spec = do
 
   describe "untilClauseTail" $ do
     let p = dummyPosition "X"
-        u = snd <$> reparse (fill (untilClauseTail p))
+        u = snd <$> evalAliasT (fill (untilClauseTail p))
 
     context "may have one condition command" $ do
       expectShowEof "foo;do :;done" "" u "until foo; do :; done"
@@ -282,8 +282,8 @@ spec = do
     -- Other tests are omitted because they are the same with whileClauseTail
 
   describe "command" $ do
-    let sc = runAliasT' $ fill command
-        sc' = runAliasT' $ fill command
+    let sc = runAliasT $ fill command
+        sc' = runAliasT $ fill command
 
     context "as simple command" $ do
       context "cannot be empty" $ do

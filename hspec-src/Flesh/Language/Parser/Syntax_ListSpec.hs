@@ -31,8 +31,8 @@ import Test.Hspec (Spec, context, describe, it, shouldBe)
 spec :: Spec
 spec = do
   describe "pipeSequence" $ do
-    let ps = runAliasT' $ fill $ toList <$> pipeSequence
-        ps' = runAliasT' $ fill $ toList <$> pipeSequence
+    let ps = runAliasT $ fill $ toList <$> pipeSequence
+        ps' = runAliasT $ fill $ toList <$> pipeSequence
 
     context "can be one simple command" $ do
       expectShowEof "foo bar" "" ps "Just [foo bar]"
@@ -50,8 +50,8 @@ spec = do
       expectShow "a " "\n|b" ps' "Just [a]"
 
   describe "pipeline" $ do
-    let p = runAliasT' $ fill pipeline
-        p' = runAliasT' $ fill pipeline
+    let p = runAliasT $ fill pipeline
+        p' = runAliasT $ fill pipeline
 
     context "can start with !" $ do
       expectShowEof "! foo bar " "\n" p "Just ! foo bar"
@@ -66,8 +66,8 @@ spec = do
       expectFailure    "! )" p' Hard (MissingCommandAfter "!") 2
 
   describe "conditionalPipeline" $ do
-    let cp = runAliasT' $ fill conditionalPipeline
-        cp' = runAliasT' $ fill conditionalPipeline
+    let cp = runAliasT $ fill conditionalPipeline
+        cp' = runAliasT $ fill conditionalPipeline
 
     context "can start with && followed by pipeline" $ do
       expectShowEof "&&foo" "" cp "Just && foo"
@@ -91,9 +91,9 @@ spec = do
       expectFailureEof ";"     cp  Soft UnknownReason 0
 
   describe "andOrList" $ do
-    let aol = fmap (fmap ($ False)) $ runAliasT' $ fill andOrList
-        aol' = fmap (fmap ($ False)) $ runAliasT' $ fill andOrList
-        aol'' = fmap (fmap ($ True)) $ runAliasT' $ fill andOrList
+    let aol = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
+        aol' = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
+        aol'' = fmap (fmap ($ True)) $ runAliasT $ fill andOrList
 
     context "consists of pipelines" $ do
       expectShowEof "foo" ";" aol "Just foo;"
@@ -114,8 +114,8 @@ spec = do
       expectShowEof "foo && bar" "" aol "Just foo && bar;"
 
   describe "compoundList" $ do
-    let cl = runAliasT' $ fill $ toList <$> compoundList
-        cl' = runAliasT' $ fill $ toList <$> compoundList
+    let cl = runAliasT $ fill $ toList <$> compoundList
+        cl' = runAliasT $ fill $ toList <$> compoundList
 
     context "is not empty" $ do
       expectShow "foo" ";;" cl' "Just foo"
