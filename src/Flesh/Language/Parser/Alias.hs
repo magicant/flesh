@@ -34,12 +34,13 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * AliasT
+  AliasT(..), mapAliasT, runAliasT, evalAliasT, fromMaybeT,
   AliasT'(..), mapAliasT', toMaybeT', fromMaybeT',
   -- * Helper functions
   isAfterBlankEndingSubstitution, substituteAlias, reparse) where
 
 import Control.Applicative (Alternative, empty, (<|>))
-import Control.Monad (MonadPlus, guard)
+import Control.Monad (MonadPlus, ap, guard)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
@@ -54,6 +55,115 @@ import Prelude hiding (lookup)
 
 -- | Monad transformer that makes parse results depend on alias definitions.
 type ContextT = ReaderT DefinitionSet
+
+-- | Monad transformer that represents results of parse that may be
+-- interrupted by alias substitution.
+--
+-- The result of an @AliasT m a@ instance contains a value of type @a@ if
+-- alias substitution did not occur, or nothing otherwise.
+--
+-- After alias substitution, the new input text must be parsed using the same
+-- parser that caused the substitution. This process may include kind of
+-- backtracking because the substitution may have been preceded by parsers
+-- that consumed no text. Those parsers must be re-invoked because, after the
+-- substitution, their result may be different from the previous parse. A
+-- successful result of an @AliasT m a@ parser may include another parser of
+-- the same type, which must be used for re-parsing after alias substitution.
+-- if the result does not contain a parser, the whole of the original parser
+-- must be reused, in which case even the preceding parser is subject to
+-- backtracking.
+newtype AliasT m a = AliasT {getAliasT :: m (Maybe (Maybe (AliasT m a), a))}
+
+-- | Directly modifies the result of AliasT.
+mapAliasT :: (m (Maybe (Maybe (AliasT m a), a))
+           -> n (Maybe (Maybe (AliasT n b), b)))
+          -> AliasT m a -> AliasT n b
+mapAliasT f = AliasT . f . getAliasT
+
+-- | Executes the AliasT monad, only returning the optional final result. The
+-- result is Nothing if alias substitution occurred.
+runAliasT :: Functor m => AliasT m a -> m (Maybe a)
+runAliasT (AliasT m) = fmap (fmap snd) m
+
+-- | Executes the AliasT monad, automatically re-parsing the input text after
+-- alias substitution, if any.
+evalAliasT :: Monad m => AliasT m a -> m a
+evalAliasT (AliasT m) = m' where
+  m' = do
+       y <- m
+       case y of
+         Nothing -> m'
+         Just (_, a) -> return a
+
+-- | Converts MaybeT to AliasT.
+--
+-- If the value of the MaybeT monad is Nothing, the result is @return ()@.
+-- Otherwise, the result is nothing (as if alias substitution occurred).
+fromMaybeT :: Functor m => MaybeT m a -> AliasT m ()
+fromMaybeT = AliasT . fmap f . runMaybeT
+  where f Nothing  = Just (Nothing, ())
+        f (Just _) = Nothing
+
+instance MonadTrans AliasT where
+  lift = AliasT . fmap f
+    where f a = Just (Nothing, a)
+
+instance Functor m => Functor (AliasT m) where
+  fmap f = ff
+    where ff = mapAliasT $ fmap $ fmap f'
+          f' (y, a) = (fmap ff y, f a)
+
+instance Monad m => Applicative (AliasT m) where
+  pure a = AliasT $ pure $ Just (Nothing, a)
+  (<*>) = ap
+
+instance (Monad m, Alternative m) => Alternative (AliasT m) where
+  empty = AliasT empty
+  a <|> b = AliasT $ getAliasT a <|> getAliasT b
+
+instance Monad m => Monad (AliasT m) where
+  aa >>= fab = AliasT $ do
+    ya <- getAliasT aa
+    case ya of
+      Nothing -> return Nothing
+      Just (yaa', a) -> do
+        yb <- getAliasT $ fab a
+        case yb of
+          Nothing ->
+            case yaa' of
+              Nothing -> return Nothing
+              Just aa' -> getAliasT $ aa' >>= fab
+          Just (yab', b) -> return $
+            case (yaa', yab') of
+              (Just aa', Nothing) ->       Just (Just (aa' >>= fab), b)
+              _                   -> yb -- Just (yab',               b)
+
+instance MonadPlus m => MonadPlus (AliasT m)
+
+instance MonadInput m => MonadInput (AliasT m) where
+  popChar = AliasT $ do
+    c <- popChar
+    let mc = return $ Just (Just (AliasT mc), c)
+    mc
+  lookahead = mapAliasT $ fmap (fmap f) . lookahead
+    where f (_, a) = (Nothing, a)
+  peekChar = lift peekChar
+  currentPosition = lift currentPosition
+  pushChars cs = AliasT $ Nothing <$ pushChars cs
+
+instance MonadInputRecord m => MonadInputRecord (AliasT m) where
+  reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadError e m => MonadError e (AliasT m) where
+  throwError = lift . throwError
+  catchError m f = AliasT $ catchError (getAliasT m) (getAliasT . f)
+
+instance MonadReader r m => MonadReader r (AliasT m) where
+  ask = lift ask
+  local f = mapAliasT $ local f
+  reader f = lift $ reader f
+
+instance MonadParser m => MonadParser (AliasT m)
 
 -- | Monad transformer that represents results of parse that may be
 -- interrupted by alias substitution.
