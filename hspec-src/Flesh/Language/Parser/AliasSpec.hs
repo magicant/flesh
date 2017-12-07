@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.AliasSpec (spec) where
 
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Map.Strict (singleton)
 import Data.Text (pack)
 import Flesh.Language.Alias
@@ -29,35 +28,33 @@ import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
 import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Property, (===), (==>), (.&&.))
+import Test.QuickCheck (Property, (===), (==>))
 
-testSubstituteAlias :: Maybe () -- ^ expected result
-                    -> String -- ^ expected remaining input
+testSubstituteAlias :: String -- ^ expected remaining input
                     -> String -- ^ arbitrary lookahead of source code
                     -> String -- ^ arbitrary name of alias
                     -> String -- ^ arbitrary source code to be substituted
                     -> String -- ^ arbitrary value of alias
                     -> Property
-testSubstituteAlias result remainder l s t v =
+testSubstituteAlias remainder l s t v =
   let pos = dummyPosition l
       l' = spread pos l
       [s', t', v'] = pack <$> [s, t, v]
       pos' = dummyPosition ""
       def = definition s' v' pos'
       defs = singleton s' def
-      run m = fmap fst (runFullInputTesterAlias m defs l')
-      subst = ParserT $ runMaybeT $ substituteAlias pos' t'
-   in run subst === Right result .&&.
-        run (subst >> readAll) === Right remainder
+      run m = fst <$> runFullInputTesterAlias m defs l'
+      subst = ParserT $ substituteAlias pos' t'
+   in run (subst >> readAll) === Right remainder
 
 spec :: Spec
 spec = do
   describe "substituteAlias" $ do
     prop "substitutes matching alias" $ \l s v ->
-      testSubstituteAlias (Just ()) (v ++ l) l s s v
+      testSubstituteAlias (v ++ l) l s s v
 
     prop "fails for unmatching alias" $ \l s t ->
-      s /= t ==> testSubstituteAlias Nothing l l s t
+      s /= t ==> testSubstituteAlias l l s t
 
     prop "prevents recursion" $ \l n v ->
       let lPos = dummyPosition l
@@ -70,7 +67,7 @@ spec = do
           sFrag = Fragment "" sSit 0
           sPos = Position sFrag 0
           run m = fmap fst (runFullInputTesterAlias m defs pl)
-          subst = ParserT $ runMaybeT $ substituteAlias sPos n'
-       in run subst === Right Nothing .&&. run (subst >> readAll) === Right l
+          subst = ParserT $ substituteAlias sPos n'
+       in run (subst >> readAll) === Right l
 
 -- vim: set et sw=2 sts=2 tw=78:

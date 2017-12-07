@@ -222,15 +222,13 @@ identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          -> Bool -- ^ whether the token should be checked for an assignment
          -> Position -- ^ position of the token to be identified
          -> Token -- ^ token to be identified
-         -> AliasT m IdentifiedToken
+         -> m IdentifiedToken
 identify isReserved' isAliasable isAssignable p t =
   case tokenText t of
     Nothing -> aon
     Just tt | isReserved' tt -> return $ Reserved tt
             | otherwise -> do
-                fromMaybeT $ do
-                  guard isAliasable
-                  substituteAlias p tt
+                when isAliasable $ substituteAlias p tt
                 aon
     where aon = return $ aon' t
           aon' = if isAssignable then assignmentOrNormal else Normal

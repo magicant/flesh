@@ -39,7 +39,7 @@ module Flesh.Language.Parser.Alias (
   isAfterBlankEndingSubstitution, substituteAlias) where
 
 import Control.Applicative (Alternative, empty, (<|>))
-import Control.Monad (MonadPlus, ap, guard)
+import Control.Monad (MonadPlus, ap, guard, void)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
@@ -190,17 +190,14 @@ applicable t (Position (Fragment _ (Alias pos def) _) _)
 applicable _ _ = True
 
 -- | Performs alias substitution if the text is an alias defined in the
--- context.
+-- context. The substitution is inserted into the input text by 'pushChars'.
 --
 -- This function substitutes a single alias only. It does not substitute
 -- recursively nor substitute the next token (for an alias value ending with a
 -- blank).
---
--- Returns @'return' ()@ if substitution was performed; returns 'Nothing'
--- otherwise.
 substituteAlias :: (MonadReader DefinitionSet m, MonadInput m)
-                => Position -> Text -> MaybeT m ()
-substituteAlias pos' t = do
+                => Position -> Text -> m ()
+substituteAlias pos' t = void $ runMaybeT $ do
   defs <- ask
   def <- MaybeT $ return $ lookup t defs
   guard $ applicable t pos'
