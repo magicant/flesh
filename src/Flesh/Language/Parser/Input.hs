@@ -108,6 +108,18 @@ class Monad m => MonadInput m where
   -- 'pushChars' must not have any side effect on an underlying input source.
   pushChars :: [Positioned Char] -> m ()
 
+  -- | Returns the result of the given monad but if 'pushChars' occurs
+  -- immediately after this parser, it is used again to continue parsing the
+  -- pushed characters.
+  --
+  -- This method is intended to modify a token parser whose result is subject
+  -- to alias substitution. If substitution occurs, the parser has to be used
+  -- again to parse the substitute.
+  --
+  -- The default implementation of this method is 'id'.
+  reparsing :: m a -> m a
+  reparsing = id
+
 -- | Like 'lookahead', but ignores the result.
 followedBy :: MonadInput m => m a -> m ()
 followedBy = void . lookahead
