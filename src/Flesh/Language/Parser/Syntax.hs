@@ -204,7 +204,7 @@ identifiedToken isReserved' isAliasable isAssignable = do
   pos <- currentPosition
   it <- AliasT $ do
     t <- neutralToken
-    runAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
+    getAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
   return (pos, it)
 
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -363,7 +363,7 @@ braceGroupTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                -> HereDocT m (Positioned CompoundCommand)
 braceGroupTail p = do
   body <- setReasonHD (MissingCommandAfter openBraceString) $
-    mapHereDocT reparse compoundList
+    mapHereDocT evalAliasT compoundList
   _ <- closeBrace
   pure (p, Grouping body)
     where openBraceString = unpack reservedOpenBrace
@@ -636,11 +636,11 @@ completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => m [AndOrList]
 completeLine = do
   _ <- whites
-  reparse $ fill completeLineBody
+  evalAliasT $ fill completeLineBody
 
 -- | Parses an entire program.
 program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
-program = reparse $ fill $
+program = evalAliasT $ fill $
   whitesHD *> linebreak *> manyAndOrLists separator <* lift endOfToken
 -- TODO should not return UnknownReason
 

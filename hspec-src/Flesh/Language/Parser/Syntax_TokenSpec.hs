@@ -235,7 +235,7 @@ spec = do
         ikNoReserved' = ikReserved (const False)
         ikAlias a = ik (const False) a True
         ikAssignment a = ik (const False) True a
-        ir f a a' = reparse $ snd <$> identifiedToken f a a'
+        ir f a a' = evalAliasT $ snd <$> identifiedToken f a a'
         irDefault = ir (const False) True True
 
     context "returns current position" $ do
