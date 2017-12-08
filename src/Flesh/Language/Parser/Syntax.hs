@@ -198,7 +198,7 @@ identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                 -- argument is ignored.
                 -> Bool
                 -- ^ Whether the token should be checked for an assignment.
-                -> AliasT m (Positioned IdentifiedToken)
+                -> m (Positioned IdentifiedToken)
 identifiedToken isReserved' isAliasable isAssignable = do
   iabes <- isAfterBlankEndingSubstitution
   pos <- currentPosition
@@ -208,7 +208,7 @@ identifiedToken isReserved' isAliasable isAssignable = do
   return (pos, it)
 
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => AliasT m Token
+               => m Token
 aliasableToken = do
   t <- identifiedToken (const False) True False
   case snd t of
@@ -371,9 +371,8 @@ braceGroupTail p = do
             literal reservedCloseBrace
 
 -- | Parses an "in" clause of a for loop.
-inClause :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-         => AliasT m [Token]
-inClause = lift (literal reservedIn) *> many aliasableToken
+inClause :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [Token]
+inClause = literal reservedIn *> many aliasableToken
 
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
 doGroup :: (MonadParser m, MonadReader Alias.DefinitionSet m)
