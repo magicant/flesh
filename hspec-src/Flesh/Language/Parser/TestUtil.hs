@@ -87,6 +87,8 @@ instance MonadInput Overrun where
     pushChars cs
     Overrun $ modify' (c :~)
 
+  reparsing = id
+
 type TesterT m = ParserT (RecordT (ReaderT Alias.DefinitionSet m))
 type OverrunTester = TesterT Overrun
 type FullInputTester = TesterT (PositionedStringT (ExceptT Failure Identity))

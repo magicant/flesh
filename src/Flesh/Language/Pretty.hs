@@ -161,6 +161,8 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
     InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
     put InputPosition {underlyingIndex = i, pushedChars = cs ++ pcs}
 
+  reparsing = id
+
 readCompleteLine :: IO (Either Failure [AndOrList])
 readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $
   flip runReaderT empty $ evalRecordT $ runParserT $

@@ -275,6 +275,7 @@ instance MonadInput m => MonadInput (ParserT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift <$> pushChars
+  reparsing = mapParserT reparsing
 
 instance MonadInputRecord m => MonadInputRecord (ParserT m) where
   reverseConsumedChars = lift reverseConsumedChars

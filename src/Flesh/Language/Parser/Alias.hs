@@ -34,7 +34,7 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * AliasT
-  AliasT(..), mapAliasT, runAliasT, evalAliasT, fromMaybeT,
+  AliasT, mapAliasT, runAliasT, evalAliasT, fromMaybeT,
   -- * Helper functions
   isAfterBlankEndingSubstitution, substituteAlias) where
 
@@ -144,11 +144,12 @@ instance MonadInput m => MonadInput (AliasT m) where
     c <- popChar
     let mc = return $ Just (Just (AliasT mc), c)
     mc
-  lookahead = mapAliasT $ fmap (fmap f) . lookahead
-    where f (_, a) = (Nothing, a)
+  lookahead = reparsing . mapAliasT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars cs = AliasT $ Nothing <$ pushChars cs
+  reparsing = mapAliasT $ fmap (fmap f)
+    where f (_, a) = (Nothing, a)
 
 instance MonadInputRecord m => MonadInputRecord (AliasT m) where
   reverseConsumedChars = lift reverseConsumedChars
