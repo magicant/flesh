@@ -353,8 +353,7 @@ braceGroupTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
                => Position -- ^ Position of the open brace.
                -> HereDocT m (Positioned CompoundCommand)
 braceGroupTail p = do
-  body <- setReasonHD (MissingCommandAfter openBraceString) $
-    mapHereDocT evalAliasT compoundList
+  body <- setReasonHD (MissingCommandAfter openBraceString) compoundList
   _ <- closeBrace
   pure (p, Grouping body)
     where openBraceString = unpack reservedOpenBrace
