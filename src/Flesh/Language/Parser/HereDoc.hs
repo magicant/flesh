@@ -161,6 +161,7 @@ instance MonadParser m => MonadInput (AccumT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapAccumT reparsing
 
 instance MonadParser m => MonadInputRecord (AccumT m) where
   reverseConsumedChars = lift reverseConsumedChars

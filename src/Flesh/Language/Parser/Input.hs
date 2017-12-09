@@ -115,10 +115,7 @@ class Monad m => MonadInput m where
   -- This method is intended to modify a token parser whose result is subject
   -- to alias substitution. If substitution occurs, the parser has to be used
   -- again to parse the substitute.
-  --
-  -- The default implementation of this method is 'id'.
   reparsing :: m a -> m a
-  reparsing = id
 
 -- | Like 'lookahead', but ignores the result.
 followedBy :: MonadInput m => m a -> m ()
@@ -130,6 +127,7 @@ instance MonadInput m => MonadInput (ExceptT e m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapExceptT reparsing
 
 instance MonadInput m => MonadInput (MaybeT m) where
   popChar = lift popChar
@@ -137,6 +135,7 @@ instance MonadInput m => MonadInput (MaybeT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapMaybeT reparsing
 
 instance MonadInput m => MonadInput (ReaderT e m) where
   popChar = lift popChar
@@ -144,6 +143,7 @@ instance MonadInput m => MonadInput (ReaderT e m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapReaderT reparsing
 
 instance MonadInput m => MonadInput (StateT s m) where
   popChar = lift popChar
@@ -151,6 +151,7 @@ instance MonadInput m => MonadInput (StateT s m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapStateT reparsing
 
 instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   popChar = lift popChar
@@ -158,6 +159,7 @@ instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapWriterT reparsing
 
 -- | State monad of PositionedString as a MonadInput instance.
 newtype PositionedStringT m a =
@@ -221,6 +223,7 @@ instance Monad m => MonadInput (PositionedStringT m) where
   pushChars (c:cs) = do
     pushChars cs
     PositionedStringT $ modify' (c :~)
+  reparsing = id
 
 instance MonadError e m => MonadError e (PositionedStringT m) where
   throwError = PositionedStringT . throwError
@@ -320,6 +323,7 @@ instance MonadInput m => MonadInput (RecordT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = mapRecordT reparsing
 
 instance MonadInput m => MonadInputRecord (RecordT m) where
   reverseConsumedChars = RecordT get

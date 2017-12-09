@@ -90,6 +90,7 @@ instance MonadInput m => MonadInput (CaptureT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  reparsing = CaptureT . reparsing . getCaptureT
 
 instance MonadInputRecord m => MonadInputRecord (CaptureT m) where
   reverseConsumedChars = lift reverseConsumedChars
