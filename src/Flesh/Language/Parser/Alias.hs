@@ -34,7 +34,7 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * AliasT
-  AliasT(..), mapAliasT, runAliasT, evalAliasT, fromMaybeT,
+  AliasT, mapAliasT, runAliasT, evalAliasT, fromMaybeT,
   -- * Helper functions
   isAfterBlankEndingSubstitution, substituteAlias) where
 
