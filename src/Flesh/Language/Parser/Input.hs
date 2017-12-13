@@ -31,13 +31,13 @@ parser.
 -}
 module Flesh.Language.Parser.Input (
   -- * MonadInput
-  MonadInput(..), followedBy, PositionedStringT(..),
+  MonadInput(..), followedBy, maybeReparse', PositionedStringT(..),
   -- * MonadInputRecord
   MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
   where
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
-import Control.Monad (MonadPlus, mplus, mzero, void)
+import Control.Monad (MonadPlus, mplus, mzero, void, when)
 import Control.Monad.Except (
   ExceptT, MonadError, catchError, mapExceptT, throwError)
 import Control.Monad.Reader (
@@ -47,6 +47,7 @@ import Control.Monad.State.Strict (
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT, mapMaybeT)
 import Control.Monad.Writer.Strict (WriterT, mapWriterT)
+import Data.Foldable (for_)
 import Flesh.Source.Position
 
 -- | Monad for character input operations.
@@ -106,11 +107,28 @@ class Monad m => MonadInput m where
   -- if 'pushChars' was not used.
   --
   -- 'pushChars' must not have any side effect on an underlying input source.
-  pushChars :: [Positioned Char] -> m ()
+  pushChars :: [Positioned Char] -> m () -- FIXME remove this
+
+  -- | Executes the given monad and examines the 'fst' part of the result. If
+  -- it is Nothing, 'maybeReparse' has no additional effect. Otherwise, the
+  -- positioned character string replaces the input text that was parsed by
+  -- the argument parser. Parsing continues at the position before the
+  -- replacement string.
+  --
+  -- 'maybeReparse' must not impose any additional side effect on an
+  -- underlying input source.
+  maybeReparse :: m (Maybe [Positioned Char], a) -> m a
 
 -- | Like 'lookahead', but ignores the result.
 followedBy :: MonadInput m => m a -> m ()
 followedBy = void . lookahead
+
+-- | Like 'maybeReparse', but returns the @Maybe [Positioned Char]@ as well.
+maybeReparse' :: MonadInput m
+              => m (Maybe [Positioned Char], a)
+              -> m (Maybe [Positioned Char], a)
+maybeReparse' = maybeReparse . fmap f
+  where f (mpcs, a) = (mpcs, (mpcs, a))
 
 instance MonadInput m => MonadInput (ExceptT e m) where
   popChar = lift popChar
@@ -118,6 +136,9 @@ instance MonadInput m => MonadInput (ExceptT e m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse = mapExceptT $ maybeReparse . fmap f
+    where f (Left e)          = (Nothing, Left e)
+          f (Right (mpcs, a)) = (mpcs, Right a)
 
 instance MonadInput m => MonadInput (MaybeT m) where
   popChar = lift popChar
@@ -125,6 +146,9 @@ instance MonadInput m => MonadInput (MaybeT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse = mapMaybeT $ maybeReparse . fmap f
+    where f Nothing          = (Nothing, Nothing)
+          f (Just (mpcs, a)) = (mpcs, Just a)
 
 instance MonadInput m => MonadInput (ReaderT e m) where
   popChar = lift popChar
@@ -132,6 +156,7 @@ instance MonadInput m => MonadInput (ReaderT e m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse = mapReaderT maybeReparse
 
 instance MonadInput m => MonadInput (StateT s m) where
   popChar = lift popChar
@@ -139,6 +164,8 @@ instance MonadInput m => MonadInput (StateT s m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse = mapStateT $ maybeReparse . fmap f
+    where f ((mpcs, a), s) = (mpcs, (a, s))
 
 instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   popChar = lift popChar
@@ -146,6 +173,8 @@ instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse = mapWriterT $ maybeReparse . fmap f
+    where f ((mpcs, a), w) = (mpcs, (a, w))
 
 -- | State monad of PositionedString as a MonadInput instance.
 newtype PositionedStringT m a =
@@ -194,21 +223,30 @@ instance Monad m => MonadInput (PositionedStringT m) where
       c :~ cs' -> do
         put cs'
         return (Right c)
+
   lookahead (PositionedStringT m) = PositionedStringT $ do
     savedstate <- get
     result <- m
     put savedstate
     return result
+
   peekChar = PositionedStringT $ do
     cs <- get
     return $ case cs of
       Nil p -> Left p
       c :~ _ -> Right c
+
   currentPosition = PositionedStringT $ headPosition <$> get
+
   pushChars [] = return ()
   pushChars (c:cs) = do
     pushChars cs
     PositionedStringT $ modify' (c :~)
+
+  maybeReparse (PositionedStringT m) = PositionedStringT $ do
+    (mpcs, a) <- m
+    for_ mpcs $ runPositionedStringT . pushChars
+    return a
 
 instance MonadError e m => MonadError e (PositionedStringT m) where
   throwError = PositionedStringT . throwError
@@ -308,6 +346,11 @@ instance MonadInput m => MonadInput (RecordT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse (RecordT m) = RecordT $ do
+    s <- get
+    (mpcs, a) <- maybeReparse' m
+    when (mpcs /= Nothing) (put s)
+    return a
 
 instance MonadInput m => MonadInputRecord (RecordT m) where
   reverseConsumedChars = RecordT get

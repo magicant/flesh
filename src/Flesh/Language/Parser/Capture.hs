@@ -34,7 +34,7 @@ module Flesh.Language.Parser.Capture (
 import Control.Applicative (Alternative, empty, many, some, (<|>))
 import Control.Monad (MonadPlus, mplus, mzero)
 import Control.Monad.Trans.Class (MonadTrans, lift)
-import Control.Monad.Writer.Strict (WriterT, censor, runWriterT, tell)
+import Control.Monad.Writer.Strict (WriterT, censor, pass, runWriterT, tell)
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
@@ -90,6 +90,9 @@ instance MonadInput m => MonadInput (CaptureT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars = lift . pushChars
+  maybeReparse = CaptureT . pass . fmap f . maybeReparse' . getCaptureT
+    where f (Nothing, a) = (a, id)
+          f (Just _,  a) = (a, const [])
 
 instance MonadInputRecord m => MonadInputRecord (CaptureT m) where
   reverseConsumedChars = lift reverseConsumedChars

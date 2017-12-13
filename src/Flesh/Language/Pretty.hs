@@ -35,6 +35,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (runReaderT)
 import Control.Monad.State.Strict (MonadState, StateT, get, put, runStateT)
 import Control.Monad.Trans.Class (lift)
+import Data.Foldable (for_)
 import Data.Map.Lazy (empty)
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
@@ -160,6 +161,11 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
   pushChars cs = CursorT $ do
     InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
     put InputPosition {underlyingIndex = i, pushedChars = cs ++ pcs}
+
+  maybeReparse (CursorT m) = CursorT $ do
+    (mpcs, v) <- m
+    for_ mpcs $ runCursorT . pushChars
+    return v
 
 readCompleteLine :: IO (Either Failure [AndOrList])
 readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $

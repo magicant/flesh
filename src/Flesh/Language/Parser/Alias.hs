@@ -149,6 +149,11 @@ instance MonadInput m => MonadInput (AliasT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
   pushChars cs = AliasT $ Nothing <$ pushChars cs
+  maybeReparse = mapAliasT $ maybeReparse . fmap f
+    where f Nothing                         = (Nothing, Nothing)
+          f (Just (_,  (mpcs@(Just _), _))) = (mpcs,    Nothing)
+          f (Just (ma, (Nothing,       a))) = (Nothing, Just (ma', a))
+            where ma' = fmap maybeReparse ma
 
 instance MonadInputRecord m => MonadInputRecord (AliasT m) where
   reverseConsumedChars = lift reverseConsumedChars
