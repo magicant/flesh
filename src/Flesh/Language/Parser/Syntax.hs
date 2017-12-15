@@ -202,9 +202,9 @@ identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
 identifiedToken isReserved' isAliasable isAssignable = do
   iabes <- isAfterBlankEndingSubstitution
   pos <- currentPosition
-  it <- AliasT $ do
+  it <- maybeReparse $ do
     t <- neutralToken
-    getAliasT $ identify isReserved' (isAliasable || iabes) isAssignable pos t
+    identify isReserved' (isAliasable || iabes) isAssignable pos t
   return (pos, it)
 
 aliasableToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
