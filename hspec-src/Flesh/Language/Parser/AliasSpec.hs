@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.AliasSpec (spec) where
 
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Map.Strict (singleton)
 import Data.Text (pack)
 import Flesh.Language.Alias
@@ -47,6 +48,17 @@ testSubstituteAlias remainder l s t v =
       subst = ParserT $ substituteAlias pos' t'
    in run (subst >> readAll) === Right remainder
 
+testMaybeAliasValue :: String -- ^ alias name in the definition set
+                    -> String -- ^ alias value in the definition set
+                    -> String -- ^ text passed to maybeAliasValue
+                    -> Maybe [Positioned Char]
+testMaybeAliasValue s v t =
+  let [s', t', v'] = pack <$> [s, t, v]
+      pos = dummyPosition ""
+      def = definition s' v' pos
+      defs = singleton s' def
+   in runMaybeT (maybeAliasValue pos t') defs
+
 spec :: Spec
 spec = do
   describe "substituteAlias" $ do
@@ -69,5 +81,12 @@ spec = do
           run m = fmap fst (runFullInputTesterAlias m defs pl)
           subst = ParserT $ substituteAlias sPos n'
        in run (subst >> readAll) === Right l
+
+  describe "maybeAliasValue" $ do
+    prop "returns matching alias value" $ \s v ->
+      fmap (fmap snd) (testMaybeAliasValue s v s) === Just v
+
+    prop "returns nothing for unmatched name" $ \s v t ->
+      s /= t ==> testMaybeAliasValue s v t === Nothing
 
 -- vim: set et sw=2 sts=2 tw=78:

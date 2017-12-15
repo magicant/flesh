@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Alias (
   -- * AliasT
   AliasT(..), mapAliasT, runAliasT, evalAliasT, fromMaybeT,
   -- * Helper functions
-  isAfterBlankEndingSubstitution, substituteAlias) where
+  isAfterBlankEndingSubstitution, substituteAlias, maybeAliasValue) where
 
 import Control.Applicative (Alternative, empty, (<|>))
 import Control.Monad (MonadPlus, ap, guard, void)
@@ -202,7 +202,14 @@ applicable _ _ = True
 -- blank).
 substituteAlias :: (MonadReader DefinitionSet m, MonadInput m)
                 => Position -> Text -> m ()
-substituteAlias pos' t = void $ runMaybeT $ do
+substituteAlias pos' t = void $ runMaybeT $
+  maybeAliasValue pos' t >>= pushChars
+
+-- | Returns the alias value if the position and text match an alias in the
+-- current context.
+maybeAliasValue :: MonadReader DefinitionSet m
+                => Position -> Text -> MaybeT m [Positioned Char]
+maybeAliasValue pos' t = do
   defs <- ask
   def <- MaybeT $ return $ lookup t defs
   guard $ applicable t pos'
@@ -210,7 +217,6 @@ substituteAlias pos' t = void $ runMaybeT $ do
       v = unpack $ value def
       frag = Fragment v a 0
       pos = Position frag 0
-      cs = unposition $ spread pos v
-  pushChars cs
+  return $ unposition $ spread pos v
 
 -- vim: set et sw=2 sts=2 tw=78:
