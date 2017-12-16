@@ -158,14 +158,14 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
       [] -> lift (inputCharPosition i)
       ((p, _):_) -> return p
 
-  pushChars cs = CursorT $ do
-    InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
-    put InputPosition {underlyingIndex = i, pushedChars = cs ++ pcs}
-
   maybeReparse (CursorT m) = CursorT $ do
     (mpcs, v) <- m
-    for_ mpcs $ runCursorT . pushChars
+    for_ mpcs push
     return v
+      where push cs = do
+              -- TODO: Use Lens
+              InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
+              put InputPosition {underlyingIndex = i, pushedChars = cs ++ pcs}
 
 readCompleteLine :: IO (Either Failure [AndOrList])
 readCompleteLine = runStandardInputT $ runExceptT $ runCursorT' $

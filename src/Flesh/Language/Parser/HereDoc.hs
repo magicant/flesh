@@ -160,7 +160,6 @@ instance MonadParser m => MonadInput (AccumT m) where
   lookahead = mapAccumT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = mapAccumT $ maybeReparse . fmap f
     where f ((mpcs, a), s) = (mpcs, (a, s))
 

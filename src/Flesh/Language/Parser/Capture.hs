@@ -89,7 +89,6 @@ instance MonadInput m => MonadInput (CaptureT m) where
   lookahead = CaptureT . censor (const []) . lookahead . getCaptureT
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = CaptureT . pass . fmap f . maybeReparse' . getCaptureT
     where f (Nothing, a) = (a, id)
           f (Just _,  a) = (a, const [])

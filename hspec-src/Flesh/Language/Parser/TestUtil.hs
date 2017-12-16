@@ -15,6 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Trustworthy #-}
@@ -83,15 +84,11 @@ instance MonadInput Overrun where
 
   currentPosition = Overrun $ headPosition <$> get
 
-  pushChars [] = return ()
-  pushChars (c:cs) = do
-    pushChars cs
-    Overrun $ modify' (c :~)
-
   maybeReparse m = Overrun $ do
     (maybeChars, result) <- runOverrun m
-    for_ maybeChars $ runOverrun . pushChars
+    for_ maybeChars $ modify' . push
     return result
+      where push newcs oldcs = foldr (:~) oldcs newcs
 
 type TesterT m = ParserT (RecordT (ReaderT Alias.DefinitionSet m))
 type OverrunTester = TesterT Overrun

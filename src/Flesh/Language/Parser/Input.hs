@@ -101,14 +101,6 @@ class Monad m => MonadInput m where
   currentPosition :: m Position
   currentPosition = either id fst <$> peekChar
 
-  -- | Pushes the given characters into the current position. Subsequent reads
-  -- must first return the inserted characters and then return to the original
-  -- position, continuing to characters that would have been immediately read
-  -- if 'pushChars' was not used.
-  --
-  -- 'pushChars' must not have any side effect on an underlying input source.
-  pushChars :: [Positioned Char] -> m () -- FIXME remove this
-
   -- | Executes the given monad and examines the 'fst' part of the result. If
   -- it is Nothing, 'maybeReparse' has no additional effect. Otherwise, the
   -- positioned character string replaces the input text that was parsed by
@@ -135,7 +127,6 @@ instance MonadInput m => MonadInput (ExceptT e m) where
   lookahead = mapExceptT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = mapExceptT $ maybeReparse . fmap f
     where f (Left e)          = (Nothing, Left e)
           f (Right (mpcs, a)) = (mpcs, Right a)
@@ -145,7 +136,6 @@ instance MonadInput m => MonadInput (MaybeT m) where
   lookahead = mapMaybeT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = mapMaybeT $ maybeReparse . fmap f
     where f Nothing          = (Nothing, Nothing)
           f (Just (mpcs, a)) = (mpcs, Just a)
@@ -155,7 +145,6 @@ instance MonadInput m => MonadInput (ReaderT e m) where
   lookahead = mapReaderT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = mapReaderT maybeReparse
 
 instance MonadInput m => MonadInput (StateT s m) where
@@ -163,7 +152,6 @@ instance MonadInput m => MonadInput (StateT s m) where
   lookahead = mapStateT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = mapStateT $ maybeReparse . fmap f
     where f ((mpcs, a), s) = (mpcs, (a, s))
 
@@ -172,7 +160,6 @@ instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
   lookahead = mapWriterT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse = mapWriterT $ maybeReparse . fmap f
     where f ((mpcs, a), w) = (mpcs, (a, w))
 
@@ -238,15 +225,11 @@ instance Monad m => MonadInput (PositionedStringT m) where
 
   currentPosition = PositionedStringT $ headPosition <$> get
 
-  pushChars [] = return ()
-  pushChars (c:cs) = do
-    pushChars cs
-    PositionedStringT $ modify' (c :~)
-
   maybeReparse (PositionedStringT m) = PositionedStringT $ do
     (mpcs, a) <- m
-    for_ mpcs $ runPositionedStringT . pushChars
+    for_ mpcs $ modify' . push
     return a
+      where push newcs oldcs = foldr (:~) oldcs newcs
 
 instance MonadError e m => MonadError e (PositionedStringT m) where
   throwError = PositionedStringT . throwError
@@ -262,8 +245,8 @@ instance MonadReader r m => MonadReader r (PositionedStringT m) where
 -- have been read.
 class MonadInput m => MonadInputRecord m where
   -- | Reverse list of characters that have already been returned by 'popChar'
-  -- so far. The list includes characters that have been pushed by 'pushChars'
-  -- and then popped by 'popChar'.
+  -- so far. The list includes characters that have been inserted by
+  -- 'maybeReparse' and then popped by 'popChar'.
   reverseConsumedChars :: m [Positioned Char]
 
 instance MonadInputRecord m => MonadInputRecord (ExceptT e m) where
@@ -345,7 +328,6 @@ instance MonadInput m => MonadInput (RecordT m) where
     return r
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
   maybeReparse (RecordT m) = RecordT $ do
     s <- get
     (mpcs, a) <- maybeReparse' m
