@@ -625,11 +625,11 @@ completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
              => m [AndOrList]
 completeLine = do
   _ <- whites
-  evalAliasT $ fill completeLineBody
+  evalReparseT $ fill completeLineBody
 
 -- | Parses an entire program.
 program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
-program = evalAliasT $ fill $
+program = evalReparseT $ fill $
   whitesHD *> linebreak *> manyAndOrLists separator <* lift endOfToken
 -- TODO should not return UnknownReason
 

@@ -284,7 +284,7 @@ spec = do
   describe "command" $ do
     let sc = fill command
         sc' = fill command
-        asc = runAliasT $ fill command
+        asc = runReparseT $ fill command
 
     context "as simple command" $ do
       context "cannot be empty" $ do
