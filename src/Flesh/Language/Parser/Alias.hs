@@ -33,8 +33,8 @@ module Flesh.Language.Parser.Alias (
   module Flesh.Language.Alias,
   -- * Context
   ContextT,
-  -- * AliasT
-  AliasT, mapAliasT, runAliasT, evalAliasT, fromMaybeT,
+  -- * ReparseT
+  ReparseT, mapReparseT, runReparseT, evalReparseT, fromMaybeT,
   -- * Helper functions
   isAfterBlankEndingSubstitution, maybeAliasValue) where
 
@@ -58,7 +58,7 @@ type ContextT = ReaderT DefinitionSet
 -- | Monad transformer that represents results of parse that may be
 -- interrupted by alias substitution.
 --
--- The result of an @AliasT m a@ instance contains a value of type @a@ if
+-- The result of a @ReparseT m a@ instance contains a value of type @a@ if
 -- alias substitution did not occur, or nothing otherwise.
 --
 -- After alias substitution, the new input text must be parsed using the same
@@ -66,107 +66,108 @@ type ContextT = ReaderT DefinitionSet
 -- backtracking because the substitution may have been preceded by parsers
 -- that consumed no text. Those parsers must be re-invoked because, after the
 -- substitution, their result may be different from the previous parse. A
--- successful result of an @AliasT m a@ parser may include another parser of
+-- successful result of a @ReparseT m a@ parser may include another parser of
 -- the same type, which must be used for re-parsing after alias substitution.
--- if the result does not contain a parser, the whole of the original parser
+-- If the result does not contain a parser, the whole of the original parser
 -- must be reused, in which case even the preceding parser is subject to
 -- backtracking.
-newtype AliasT m a = AliasT {getAliasT :: m (Maybe (Maybe (AliasT m a), a))}
+newtype ReparseT m a =
+  ReparseT {getReparseT :: m (Maybe (Maybe (ReparseT m a), a))}
 
--- | Directly modifies the result of AliasT.
-mapAliasT :: (m (Maybe (Maybe (AliasT m a), a))
-           -> n (Maybe (Maybe (AliasT n b), b)))
-          -> AliasT m a -> AliasT n b
-mapAliasT f = AliasT . f . getAliasT
+-- | Directly modifies the result of ReparseT.
+mapReparseT :: (m (Maybe (Maybe (ReparseT m a), a))
+             -> n (Maybe (Maybe (ReparseT n b), b)))
+            -> ReparseT m a -> ReparseT n b
+mapReparseT f = ReparseT . f . getReparseT
 
--- | Executes the AliasT monad, only returning the optional final result. The
--- result is Nothing if alias substitution occurred.
-runAliasT :: Functor m => AliasT m a -> m (Maybe a)
-runAliasT (AliasT m) = fmap (fmap snd) m
+-- | Executes the ReparseT monad, only returning the optional final result.
+-- The result is Nothing if alias substitution occurred.
+runReparseT :: Functor m => ReparseT m a -> m (Maybe a)
+runReparseT (ReparseT m) = fmap (fmap snd) m
 
--- | Executes the AliasT monad, automatically re-parsing the input text after
--- alias substitution, if any.
-evalAliasT :: Monad m => AliasT m a -> m a
-evalAliasT (AliasT m) = m' where
+-- | Executes the ReparseT monad, automatically re-parsing the input text
+-- after alias substitution, if any.
+evalReparseT :: Monad m => ReparseT m a -> m a
+evalReparseT (ReparseT m) = m' where
   m' = do
        y <- m
        case y of
          Nothing -> m'
          Just (_, a) -> return a
 
--- | Converts MaybeT to AliasT.
+-- | Converts MaybeT to ReparseT.
 --
 -- If the value of the MaybeT monad is Nothing, the result is @return ()@.
 -- Otherwise, the result is nothing (as if alias substitution occurred).
-fromMaybeT :: Functor m => MaybeT m a -> AliasT m ()
-fromMaybeT = AliasT . fmap f . runMaybeT
+fromMaybeT :: Functor m => MaybeT m a -> ReparseT m ()
+fromMaybeT = ReparseT . fmap f . runMaybeT
   where f Nothing  = Just (Nothing, ())
         f (Just _) = Nothing
 
-instance MonadTrans AliasT where
-  lift = AliasT . fmap f
+instance MonadTrans ReparseT where
+  lift = ReparseT . fmap f
     where f a = Just (Nothing, a)
 
-instance Functor m => Functor (AliasT m) where
+instance Functor m => Functor (ReparseT m) where
   fmap f = ff
-    where ff = mapAliasT $ fmap $ fmap f'
+    where ff = mapReparseT $ fmap $ fmap f'
           f' (y, a) = (fmap ff y, f a)
 
-instance Monad m => Applicative (AliasT m) where
-  pure a = AliasT $ pure $ Just (Nothing, a)
+instance Monad m => Applicative (ReparseT m) where
+  pure a = ReparseT $ pure $ Just (Nothing, a)
   (<*>) = ap
 
-instance (Monad m, Alternative m) => Alternative (AliasT m) where
-  empty = AliasT empty
-  a <|> b = AliasT $ getAliasT a <|> getAliasT b
+instance (Monad m, Alternative m) => Alternative (ReparseT m) where
+  empty = ReparseT empty
+  a <|> b = ReparseT $ getReparseT a <|> getReparseT b
 
-instance Monad m => Monad (AliasT m) where
-  aa >>= fab = AliasT $ do
-    ya <- getAliasT aa
+instance Monad m => Monad (ReparseT m) where
+  aa >>= fab = ReparseT $ do
+    ya <- getReparseT aa
     case ya of
       Nothing -> return Nothing
       Just (yaa', a) -> do
-        yb <- getAliasT $ fab a
+        yb <- getReparseT $ fab a
         case yb of
           Nothing ->
             case yaa' of
               Nothing -> return Nothing
-              Just aa' -> getAliasT $ aa' >>= fab
+              Just aa' -> getReparseT $ aa' >>= fab
           Just (yab', b) -> return $
             case (yaa', yab') of
               (Just aa', Nothing) ->       Just (Just (aa' >>= fab), b)
               _                   -> yb -- Just (yab',               b)
 
-instance MonadPlus m => MonadPlus (AliasT m)
+instance MonadPlus m => MonadPlus (ReparseT m)
 
-instance MonadInput m => MonadInput (AliasT m) where
-  popChar = AliasT $ do
+instance MonadInput m => MonadInput (ReparseT m) where
+  popChar = ReparseT $ do
     c <- popChar
-    let mc = return $ Just (Just (AliasT mc), c)
+    let mc = return $ Just (Just (ReparseT mc), c)
     mc
-  lookahead = mapAliasT $ fmap (fmap f) . lookahead
+  lookahead = mapReparseT $ fmap (fmap f) . lookahead
     where f (_, a) = (Nothing, a)
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = mapAliasT $ maybeReparse . fmap f
+  maybeReparse = mapReparseT $ maybeReparse . fmap f
     where f Nothing                         = (Nothing, Nothing)
           f (Just (_,  (mpcs@(Just _), _))) = (mpcs,    Nothing)
           f (Just (ma, (Nothing,       a))) = (Nothing, Just (ma', a))
             where ma' = fmap maybeReparse ma
 
-instance MonadInputRecord m => MonadInputRecord (AliasT m) where
+instance MonadInputRecord m => MonadInputRecord (ReparseT m) where
   reverseConsumedChars = lift reverseConsumedChars
 
-instance MonadError e m => MonadError e (AliasT m) where
+instance MonadError e m => MonadError e (ReparseT m) where
   throwError = lift . throwError
-  catchError m f = AliasT $ catchError (getAliasT m) (getAliasT . f)
+  catchError m f = ReparseT $ catchError (getReparseT m) (getReparseT . f)
 
-instance MonadReader r m => MonadReader r (AliasT m) where
+instance MonadReader r m => MonadReader r (ReparseT m) where
   ask = lift ask
-  local f = mapAliasT $ local f
+  local f = mapReparseT $ local f
   reader f = lift $ reader f
 
-instance MonadParser m => MonadParser (AliasT m)
+instance MonadParser m => MonadParser (ReparseT m)
 
 -- | Tests if the current position is after an alias substitution whose value
 -- ends with a blank.

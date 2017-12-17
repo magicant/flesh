@@ -224,18 +224,18 @@ spec = do
 
   describe "identifiedToken" $ do
     let ip f a a' = do
-          r <- runAliasT $ fst <$> identifiedToken f a a'
+          r <- runReparseT $ fst <$> identifiedToken f a a'
           case r of
             Nothing -> failure
             Just p -> return p
-        ik f a a' = runAliasT $ snd <$> identifiedToken f a a'
+        ik f a a' = runReparseT $ snd <$> identifiedToken f a a'
         ikReserved r = ik r True True
         ikAllReserved = ikReserved (const True)
         ikNoReserved = ikReserved (const False)
         ikNoReserved' = ikReserved (const False)
         ikAlias a = ik (const False) a True
         ikAssignment a = ik (const False) True a
-        ir f a a' = evalAliasT $ snd <$> identifiedToken f a a'
+        ir f a a' = evalReparseT $ snd <$> identifiedToken f a a'
         irDefault = ir (const False) True True
 
     context "returns current position" $ do

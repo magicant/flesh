@@ -125,22 +125,22 @@ reservedWordAliasDefinitions = singleton n (Alias.definition n v p)
         v = pack reservedWordAliasValue
         p = dummyPosition "alias while=';;'"
 
-runTesterAliasT :: Functor m => TesterT m a -> Alias.DefinitionSet -> m a
-runTesterAliasT parser = runReaderT $ evalRecordT $ runParserT parser
+runTesterReparseT :: Functor m => TesterT m a -> Alias.DefinitionSet -> m a
+runTesterReparseT parser = runReaderT $ evalRecordT $ runParserT parser
 
 runFullInputTesterAlias :: FullInputTester a
                         -> Alias.DefinitionSet -> PositionedString
                         -> Either Failure (a, PositionedString)
 runFullInputTesterAlias parser defs ps =
   runIdentity $ runExceptT $ runStateT p ps
-    where p = runPositionedStringT $ runTesterAliasT parser defs
+    where p = runPositionedStringT $ runTesterReparseT parser defs
 
 runOverrunTesterAlias :: OverrunTester a
                       -> Alias.DefinitionSet -> PositionedString
                       -> Maybe (Either Failure (a, PositionedString))
 runOverrunTesterAlias parser defs ps =
   runExceptT $ runStateT m ps
-    where m = runOverrun $ runTesterAliasT parser defs
+    where m = runOverrun $ runTesterReparseT parser defs
 
 runFullInputTester :: FullInputTester a -> PositionedString
                    -> Either Failure (a, PositionedString)
