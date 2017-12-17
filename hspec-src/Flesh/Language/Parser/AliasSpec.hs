@@ -19,55 +19,34 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.AliasSpec (spec) where
 
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Map.Strict (singleton)
 import Data.Text (pack)
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Alias
-import Flesh.Language.Parser.Error
-import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
 import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Property, (===), (==>))
+import Test.QuickCheck ((===), (==>))
 
-testSubstituteAlias :: String -- ^ expected remaining input
-                    -> String -- ^ arbitrary lookahead of source code
-                    -> String -- ^ arbitrary name of alias
-                    -> String -- ^ arbitrary source code to be substituted
-                    -> String -- ^ arbitrary value of alias
-                    -> Property
-testSubstituteAlias remainder l s t v =
-  let pos = dummyPosition l
-      l' = spread pos l
-      [s', t', v'] = pack <$> [s, t, v]
-      pos' = dummyPosition ""
-      def = definition s' v' pos'
+testMaybeAliasValue :: String -- ^ alias name in the definition set
+                    -> String -- ^ alias value in the definition set
+                    -> String -- ^ text passed to maybeAliasValue
+                    -> Maybe [Positioned Char]
+testMaybeAliasValue s v t =
+  let [s', t', v'] = pack <$> [s, t, v]
+      pos = dummyPosition ""
+      def = definition s' v' pos
       defs = singleton s' def
-      run m = fst <$> runFullInputTesterAlias m defs l'
-      subst = ParserT $ substituteAlias pos' t'
-   in run (subst >> readAll) === Right remainder
+   in runMaybeT (maybeAliasValue pos t') defs
 
 spec :: Spec
 spec = do
-  describe "substituteAlias" $ do
-    prop "substitutes matching alias" $ \l s v ->
-      testSubstituteAlias (v ++ l) l s s v
+  describe "maybeAliasValue" $ do
+    prop "returns matching alias value" $ \s v ->
+      fmap (fmap snd) (testMaybeAliasValue s v s) === Just v
 
-    prop "fails for unmatching alias" $ \l s t ->
-      s /= t ==> testSubstituteAlias l l s t
-
-    prop "prevents recursion" $ \l n v ->
-      let lPos = dummyPosition l
-          pl = spread lPos l
-          [n', v'] = pack <$> [n, v]
-          dPos = dummyPosition ""
-          def = definition n' v' dPos
-          defs = singleton n' def
-          sSit = Alias lPos def
-          sFrag = Fragment "" sSit 0
-          sPos = Position sFrag 0
-          run m = fmap fst (runFullInputTesterAlias m defs pl)
-          subst = ParserT $ substituteAlias sPos n'
-       in run (subst >> readAll) === Right l
+    prop "returns nothing for unmatched name" $ \s v t ->
+      s /= t ==> testMaybeAliasValue s v t === Nothing
 
 -- vim: set et sw=2 sts=2 tw=78:

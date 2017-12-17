@@ -49,10 +49,10 @@ module Flesh.Language.Parser.HereDoc (
   Filler, popContent,
   -- * HereDocT
   HereDocT(..), runHereDocT, mapHereDocT, hereDocTAccumT, runHereDocTAccumT,
-  fill, setReasonHD, requireHD) where
+  joinHereDocT, fill, setReasonHD, requireHD) where
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
-import Control.Monad (MonadPlus)
+import Control.Monad (MonadPlus, join)
 import Control.Monad.State.Strict (
   MonadState, State, StateT, evalStateT, get, mapStateT, put, runState, state)
 import Control.Monad.Trans.Class (MonadTrans, lift)
@@ -160,7 +160,8 @@ instance MonadParser m => MonadInput (AccumT m) where
   lookahead = mapAccumT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift . pushChars
+  maybeReparse = mapAccumT $ maybeReparse . fmap f
+    where f ((mpcs, a), s) = (mpcs, (a, s))
 
 instance MonadParser m => MonadInputRecord (AccumT m) where
   reverseConsumedChars = lift reverseConsumedChars
@@ -218,6 +219,9 @@ instance MonadPlus m => Alternative (HereDocT m) where
 
 instance MonadTrans HereDocT where
   lift = HereDocT . lift . fmap return
+
+joinHereDocT :: MonadParser m => m (HereDocT m a) -> HereDocT m a
+joinHereDocT = HereDocT . join . lift . fmap runHereDocT
 
 -- | Fills the accumulated contents into the filler monad, producing the final
 -- parse result.

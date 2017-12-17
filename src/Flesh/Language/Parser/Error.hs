@@ -274,7 +274,7 @@ instance MonadInput m => MonadInput (ParserT m) where
   lookahead = mapParserT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars = lift <$> pushChars
+  maybeReparse = mapParserT maybeReparse
 
 instance MonadInputRecord m => MonadInputRecord (ParserT m) where
   reverseConsumedChars = lift reverseConsumedChars

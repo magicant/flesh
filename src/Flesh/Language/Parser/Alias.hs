@@ -34,12 +34,12 @@ module Flesh.Language.Parser.Alias (
   -- * Context
   ContextT,
   -- * AliasT
-  AliasT(..), mapAliasT, runAliasT, evalAliasT, fromMaybeT,
+  AliasT, mapAliasT, runAliasT, evalAliasT, fromMaybeT,
   -- * Helper functions
-  isAfterBlankEndingSubstitution, substituteAlias) where
+  isAfterBlankEndingSubstitution, maybeAliasValue) where
 
 import Control.Applicative (Alternative, empty, (<|>))
-import Control.Monad (MonadPlus, ap, guard, void)
+import Control.Monad (MonadPlus, ap, guard)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
@@ -148,7 +148,11 @@ instance MonadInput m => MonadInput (AliasT m) where
     where f (_, a) = (Nothing, a)
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  pushChars cs = AliasT $ Nothing <$ pushChars cs
+  maybeReparse = mapAliasT $ maybeReparse . fmap f
+    where f Nothing                         = (Nothing, Nothing)
+          f (Just (_,  (mpcs@(Just _), _))) = (mpcs,    Nothing)
+          f (Just (ma, (Nothing,       a))) = (Nothing, Just (ma', a))
+            where ma' = fmap maybeReparse ma
 
 instance MonadInputRecord m => MonadInputRecord (AliasT m) where
   reverseConsumedChars = lift reverseConsumedChars
@@ -189,15 +193,11 @@ applicable t (Position (Fragment _ (Alias pos def) _) _)
   | otherwise     = applicable t pos
 applicable _ _ = True
 
--- | Performs alias substitution if the text is an alias defined in the
--- context. The substitution is inserted into the input text by 'pushChars'.
---
--- This function substitutes a single alias only. It does not substitute
--- recursively nor substitute the next token (for an alias value ending with a
--- blank).
-substituteAlias :: (MonadReader DefinitionSet m, MonadInput m)
-                => Position -> Text -> m ()
-substituteAlias pos' t = void $ runMaybeT $ do
+-- | Returns the alias value if the position and text match an alias in the
+-- current context.
+maybeAliasValue :: MonadReader DefinitionSet m
+                => Position -> Text -> MaybeT m [Positioned Char]
+maybeAliasValue pos' t = do
   defs <- ask
   def <- MaybeT $ return $ lookup t defs
   guard $ applicable t pos'
@@ -205,7 +205,6 @@ substituteAlias pos' t = void $ runMaybeT $ do
       v = unpack $ value def
       frag = Fragment v a 0
       pos = Position frag 0
-      cs = unposition $ spread pos v
-  pushChars cs
+  return $ unposition $ spread pos v
 
 -- vim: set et sw=2 sts=2 tw=78:

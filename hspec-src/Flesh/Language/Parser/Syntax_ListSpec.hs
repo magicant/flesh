@@ -21,7 +21,6 @@ module Flesh.Language.Parser.Syntax_ListSpec (spec) where
 
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
@@ -31,55 +30,55 @@ import Test.Hspec (Spec, context, describe, it, shouldBe)
 spec :: Spec
 spec = do
   describe "pipeSequence" $ do
-    let ps = runAliasT $ fill $ toList <$> pipeSequence
-        ps' = runAliasT $ fill $ toList <$> pipeSequence
+    let ps = fill $ toList <$> pipeSequence
+        ps' = fill $ toList <$> pipeSequence
 
     context "can be one simple command" $ do
-      expectShowEof "foo bar" "" ps "Just [foo bar]"
+      expectShowEof "foo bar" "" ps "[foo bar]"
 
     context "can be two simple commands" $ do
-      expectShowEof "foo  |  bar" "" ps "Just [foo,bar]"
+      expectShowEof "foo  |  bar" "" ps "[foo,bar]"
 
     context "can be four simple commands" $ do
-      expectShowEof "foo|bar|baz|qux" "" ps "Just [foo,bar,baz,qux]"
+      expectShowEof "foo|bar|baz|qux" "" ps "[foo,bar,baz,qux]"
 
     context "can have newlines after |" $ do
-      expectShowEof "a| \n\\\n \n b" "" ps "Just [a,b]"
+      expectShowEof "a| \n\\\n \n b" "" ps "[a,b]"
 
     context "cannot have newlines before |" $ do
-      expectShow "a " "\n|b" ps' "Just [a]"
+      expectShow "a " "\n|b" ps' "[a]"
 
   describe "pipeline" $ do
-    let p = runAliasT $ fill pipeline
-        p' = runAliasT $ fill pipeline
+    let p = fill pipeline
+        p' = fill pipeline
 
     context "can start with !" $ do
-      expectShowEof "! foo bar " "\n" p "Just ! foo bar"
-      expectShowEof "!\t\\\nnew" "" p "Just ! new"
+      expectShowEof "! foo bar " "\n" p "! foo bar"
+      expectShowEof "!\t\\\nnew" "" p "! new"
 
     context "can start without !" $ do
-      expectShowEof "foo bar " "\n" p "Just foo bar"
-      expectShowEof "\\\nnew" "" p "Just new"
+      expectShowEof "foo bar " "\n" p "foo bar"
+      expectShowEof "\\\nnew" "" p "new"
 
     context "requires command after !" $ do
       expectFailureEof "!"   p  Hard (MissingCommandAfter "!") 1
       expectFailure    "! )" p' Hard (MissingCommandAfter "!") 2
 
   describe "conditionalPipeline" $ do
-    let cp = runAliasT $ fill conditionalPipeline
-        cp' = runAliasT $ fill conditionalPipeline
+    let cp = fill conditionalPipeline
+        cp' = fill conditionalPipeline
 
     context "can start with && followed by pipeline" $ do
-      expectShowEof "&&foo" "" cp "Just && foo"
-      expectShowEof "&\\\n& ! foo bar |\nbaz" "" cp "Just && ! foo bar | baz"
+      expectShowEof "&&foo" "" cp "&& foo"
+      expectShowEof "&\\\n& ! foo bar |\nbaz" "" cp "&& ! foo bar | baz"
 
     context "can start with || followed by pipeline" $ do
-      expectShowEof "||foo" "" cp "Just || foo"
-      expectShowEof "|\\\n| ! foo bar |\nbaz" "" cp "Just || ! foo bar | baz"
+      expectShowEof "||foo" "" cp "|| foo"
+      expectShowEof "|\\\n| ! foo bar |\nbaz" "" cp "|| ! foo bar | baz"
 
     context "allows linebreak after operator" $ do
-      expectShow    "&& \n\n ! foo" "\n" cp' "Just && ! foo"
-      expectShowEof "|| \n \n foo" ";" cp "Just || foo"
+      expectShow    "&& \n\n ! foo" "\n" cp' "&& ! foo"
+      expectShowEof "|| \n \n foo" ";" cp "|| foo"
 
     context "requires pipeline after operator" $ do
       expectFailureEof "&&"    cp  Hard (MissingCommandAfter "&&") 2
@@ -91,60 +90,59 @@ spec = do
       expectFailureEof ";"     cp  Soft UnknownReason 0
 
   describe "andOrList" $ do
-    let aol = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
-        aol' = fmap (fmap ($ False)) $ runAliasT $ fill andOrList
-        aol'' = fmap (fmap ($ True)) $ runAliasT $ fill andOrList
+    let aol = ($ False) <$> fill andOrList
+        aol' = ($ False) <$> fill andOrList
+        aol'' = ($ True) <$> fill andOrList
 
     context "consists of pipelines" $ do
-      expectShowEof "foo" ";" aol "Just foo;"
-      expectShowEof "foo&&bar||baz" ";" aol "Just foo && bar || baz;"
-      expectShowEof "foo \\\n&&! bar ||\nbaz" "&" aol
-        "Just foo && ! bar || baz;"
+      expectShowEof "foo" ";" aol "foo"
+      expectShowEof "foo&&bar||baz" ";" aol "foo && bar || baz"
+      expectShowEof "foo \\\n&&! bar ||\nbaz" "&" aol "foo && ! bar || baz"
 
     context "takes asynchronicity parameter" $ do
-      expectShowEof "foo" ";" aol'' "Just foo&"
+      expectShowEof "foo" ";" aol'' "foo&"
 
     context "can end before operators" $ do
-      expectShow "foo" ";;" aol' "Just foo;"
-      expectShow "foo" "("  aol' "Just foo;"
-      expectShow "foo" ")"  aol' "Just foo;"
+      expectShow "foo" ";;" aol' "foo"
+      expectShow "foo" "("  aol' "foo"
+      expectShow "foo" ")"  aol' "foo"
 
     context "can end at end of input" $ do
-      expectShowEof "foo" "" aol "Just foo;"
-      expectShowEof "foo && bar" "" aol "Just foo && bar;"
+      expectShowEof "foo" "" aol "foo"
+      expectShowEof "foo && bar" "" aol "foo && bar"
 
   describe "compoundList" $ do
-    let cl = runAliasT $ fill $ toList <$> compoundList
-        cl' = runAliasT $ fill $ toList <$> compoundList
+    let cl = fill $ toList <$> compoundList
+        cl' = fill $ toList <$> compoundList
 
     context "is not empty" $ do
-      expectShow "foo" ";;" cl' "Just foo"
+      expectShow "foo" ";;" cl' "foo"
       expectFailure    ";;" cl' Soft UnknownReason 0
       expectFailureEof ""   cl  Soft UnknownReason 0
       expectFailureEof "  " cl  Soft UnknownReason 0
 
     context "is some and-or lists" $ do
-      expectShowEof "foo; bar"       "" cl "Just foo; bar"
-      expectShowEof "foo; bar& baz;" "" cl "Just foo; bar& baz"
+      expectShowEof "foo; bar"       "" cl "foo; bar"
+      expectShowEof "foo; bar& baz;" "" cl "foo; bar& baz"
 
     context "spans multiple lines" $ do
-      expectShowEof "foo\nbar"                 "" cl "Just foo; bar"
-      expectShowEof "foo&\nbar"                "" cl "Just foo& bar"
-      expectShowEof "foo #X\n #comment\n\tbar" "" cl "Just foo; bar"
-      expectShowEof "a;b\nc&d"                 "" cl "Just a; b; c& d"
+      expectShowEof "foo\nbar"                 "" cl "foo; bar"
+      expectShowEof "foo&\nbar"                "" cl "foo& bar"
+      expectShowEof "foo #X\n #comment\n\tbar" "" cl "foo; bar"
+      expectShowEof "a;b\nc&d"                 "" cl "a; b; c& d"
 
     context "can have preceding newlines and whites" $ do
-      expectShowEof "\nfoo"              "" cl "Just foo"
-      expectShowEof "\n \tfoo"           "" cl "Just foo"
-      expectShowEof "\n \t#comment\nfoo" "" cl "Just foo"
-      expectShowEof "\n\n\nfoo"          "" cl "Just foo"
+      expectShowEof "\nfoo"              "" cl "foo"
+      expectShowEof "\n \tfoo"           "" cl "foo"
+      expectShowEof "\n \t#comment\nfoo" "" cl "foo"
+      expectShowEof "\n\n\nfoo"          "" cl "foo"
 
     context "can have trailing newlines and whites" $ do
-      expectShowEof "foo\n"              ""   cl  "Just foo"
-      expectShow    "foo\n"              ";;" cl' "Just foo"
-      expectShowEof "foo\n\t "           ""   cl  "Just foo"
-      expectShowEof "foo\n\t #comment\n" ""   cl  "Just foo"
-      expectShow    "foo\n\n\n"          ";;" cl' "Just foo"
+      expectShowEof "foo\n"              ""   cl  "foo"
+      expectShow    "foo\n"              ";;" cl' "foo"
+      expectShowEof "foo\n\t "           ""   cl  "foo"
+      expectShowEof "foo\n\t #comment\n" ""   cl  "foo"
+      expectShow    "foo\n\n\n"          ";;" cl' "foo"
 
   describe "completeLine" $ do
     context "can be empty" $ do

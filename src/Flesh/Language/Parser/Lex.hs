@@ -40,6 +40,7 @@ module Flesh.Language.Parser.Lex (
 
 import Control.Applicative (many, optional, (<|>))
 import Control.Monad.Reader
+import Control.Monad.Trans.Maybe (runMaybeT)
 import qualified Data.List.NonEmpty as NE
 import Data.Set (Set, fromList, member)
 import Data.Text (Text, pack)
@@ -213,7 +214,13 @@ assignmentOrNormal t@(Token us) =
 -- then it is identified as Reserved.
 --
 -- Next, if @isAliasable@ is true, the token is tested for an alias. If it
--- matches a valid alias, substitution is performed.
+-- matches a valid alias, its value is returned. (This is the only case where
+-- 'fst' of the result is not Nothing. 'snd' has an identified token as if it
+-- were not an alias.)
+--
+-- If @isAssignable@ is true, the token is tested for an assignment. If it
+-- contains an equal sign that precedes a non-empty name, it is identified as
+-- an assignment.
 --
 -- Otherwise, the token is identified as Normal.
 identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
@@ -222,15 +229,17 @@ identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
          -> Bool -- ^ whether the token should be checked for an assignment
          -> Position -- ^ position of the token to be identified
          -> Token -- ^ token to be identified
-         -> m IdentifiedToken
+         -> m (Maybe [Positioned Char], IdentifiedToken)
 identify isReserved' isAliasable isAssignable p t =
   case tokenText t of
-    Nothing -> aon
-    Just tt | isReserved' tt -> return $ Reserved tt
+    Nothing -> aon Nothing
+    Just tt | isReserved' tt -> return (Nothing, Reserved tt)
             | otherwise -> do
-                when isAliasable $ substituteAlias p tt
-                aon
-    where aon = return $ aon' t
+                a <- runMaybeT $ do
+                  guard isAliasable
+                  maybeAliasValue p tt
+                aon a
+    where aon a = return (a, aon' t)
           aon' = if isAssignable then assignmentOrNormal else Normal
 -- TODO support global aliases, possibly extending the @isAliasable@ argument
 
