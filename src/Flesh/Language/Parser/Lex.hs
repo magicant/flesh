@@ -223,7 +223,7 @@ assignmentOrNormal t@(Token us) =
 -- an assignment.
 --
 -- Otherwise, the token is identified as Normal.
-identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+identify :: MonadReader Alias.DefinitionSet m
          => (Text -> Bool) -- ^ function that tests if a token is reserved
          -> Bool -- ^ whether the token should be checked for an alias
          -> Bool -- ^ whether the token should be checked for an assignment
