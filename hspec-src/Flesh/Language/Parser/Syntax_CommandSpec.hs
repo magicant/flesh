@@ -32,22 +32,22 @@ spec :: Spec
 spec = do
   describe "subshell" $ do
     let p = dummyPosition "X"
-        s = runAliasT (fill (snd <$> subshell))
-        s' = runAliasT (fill (snd <$> subshell))
+        s = fill (snd <$> subshell)
+        s' = fill (snd <$> subshell)
 
     context "may have one inner command" $ do
-      expectShowEof "(foo)" "" s "Just (foo)"
-      expectShowEof "(foo;)" "" s "Just (foo)"
-      expectShowEof "(foo\n)" "" s "Just (foo)"
+      expectShowEof "(foo)" "" s "(foo)"
+      expectShowEof "(foo;)" "" s "(foo)"
+      expectShowEof "(foo\n)" "" s "(foo)"
 
     context "may have three inner commands" $ do
-      expectShowEof "(foo;bar&baz)" "" s "Just (foo; bar& baz)"
-      expectShowEof "(foo&bar;baz&)" "" s "Just (foo& bar; baz&)"
-      expectShowEof "(foo\nbar&\nbaz\n \n )" "" s "Just (foo; bar& baz)"
+      expectShowEof "(foo;bar&baz)" "" s "(foo; bar& baz)"
+      expectShowEof "(foo&bar;baz&)" "" s "(foo& bar; baz&)"
+      expectShowEof "(foo\nbar&\nbaz\n \n )" "" s "(foo; bar& baz)"
 
     context "body can have preceding newlines and whiles" $ do
-      expectShowEof "(\nfoo)" "" s "Just (foo)"
-      expectShowEof "(\n # \n \n \tfoo)" "" s "Just (foo)"
+      expectShowEof "(\nfoo)" "" s "(foo)"
+      expectShowEof "(\n # \n \n \tfoo)" "" s "(foo)"
 
     context "cannot be empty" $ do
       expectFailureEof "("    s Hard (MissingCommandAfter "(") 1
@@ -86,7 +86,7 @@ spec = do
 
   describe "doGroup" $ do
     let p = dummyPosition "X"
-        dg = toList <$> evalAliasT (fill (doGroup UnclosedDoubleQuote))
+        dg = toList <$> fill (doGroup UnclosedDoubleQuote)
 
     context "may have one inner command" $ do
       expectShowEof "do foo;done" "" dg "foo"
@@ -112,7 +112,7 @@ spec = do
 
   describe "forClauseTail" $ do
     let p = dummyPosition "X"
-        f = snd <$> evalAliasT (fill (forClauseTail p))
+        f = snd <$> fill (forClauseTail p)
 
     context "simplest form" $ do
       expectShowEof "var do :; done" "" f "for var do :; done"
@@ -171,7 +171,7 @@ spec = do
   describe "ifClauseTail" $ do
     let p = dummyPosition "X"
         ps = iterate next p
-        i = evalAliasT $ fill $ ifClauseTail p
+        i = fill $ ifClauseTail p
         i1 = fst <$> i
         i2 = snd <$> i
 
@@ -245,7 +245,7 @@ spec = do
 
   describe "whileClauseTail" $ do
     let p = dummyPosition "X"
-        w = snd <$> evalAliasT (fill (whileClauseTail p))
+        w = snd <$> fill (whileClauseTail p)
 
     context "may have one condition command" $ do
       expectShowEof "foo;do :;done" "" w "while foo; do :; done"
@@ -271,7 +271,7 @@ spec = do
 
   describe "untilClauseTail" $ do
     let p = dummyPosition "X"
-        u = snd <$> evalAliasT (fill (untilClauseTail p))
+        u = snd <$> fill (untilClauseTail p)
 
     context "may have one condition command" $ do
       expectShowEof "foo;do :;done" "" u "until foo; do :; done"
@@ -282,8 +282,9 @@ spec = do
     -- Other tests are omitted because they are the same with whileClauseTail
 
   describe "command" $ do
-    let sc = runAliasT $ fill command
-        sc' = runAliasT $ fill command
+    let sc = fill command
+        sc' = fill command
+        asc = runAliasT $ fill command
 
     context "as simple command" $ do
       context "cannot be empty" $ do
@@ -291,76 +292,76 @@ spec = do
         expectFailure    "\n" sc' Soft UnknownReason 0
 
       context "can be some tokens" $ do
-        expectShowEof "foo" "" sc "Just foo"
-        expectShowEof "foo bar" ";" sc "Just foo bar"
-        expectShow    "foo  bar\tbaz #X" "\n" sc' "Just foo bar baz"
+        expectShowEof "foo" "" sc "foo"
+        expectShowEof "foo bar" ";" sc "foo bar"
+        expectShow    "foo  bar\tbaz #X" "\n" sc' "foo bar baz"
 
       context "can be assignments" $ do
-        expectShowEof "a=" "" sc "Just a="
-        expectShowEof "a='' b=B" "" sc "Just a='' b=B"
-        expectShowEof "a='' b=~ _=$()" "" sc "Just a='' b=~ _=$()"
+        expectShowEof "a=" "" sc "a="
+        expectShowEof "a='' b=B" "" sc "a='' b=B"
+        expectShowEof "a='' b=~ _=$()" "" sc "a='' b=~ _=$()"
 
       context "can be some tokens following assignments" $ do
-        expectShowEof "a= foo" "" sc "Just a= foo"
-        expectShowEof "a= b=B foo bar" "" sc "Just a= b=B foo bar"
-        expectShowEof "a= b=B foo bar z=" "" sc "Just a= b=B foo bar z="
+        expectShowEof "a= foo" "" sc "a= foo"
+        expectShowEof "a= b=B foo bar" "" sc "a= b=B foo bar"
+        expectShowEof "a= b=B foo bar z=" "" sc "a= b=B foo bar z="
 
       context "can be redirections" $ do
-        expectShowEof ">a" "" sc "Just 1>a"
-        expectShowEof "<a >b" "" sc "Just 0<a 1>b"
-        expectShowEof "<a 2>b >c" "" sc "Just 0<a 2>b 1>c"
+        expectShowEof ">a" "" sc "1>a"
+        expectShowEof "<a >b" "" sc "0<a 1>b"
+        expectShowEof "<a 2>b >c" "" sc "0<a 2>b 1>c"
 
       context "can have redirections anywhere" $ do
-        expectShowEof ">a foo" "" sc "Just foo 1>a"
-        expectShowEof "foo <a" "" sc "Just foo 0<a"
-        expectShowEof ">a f=o" "" sc "Just f=o 1>a"
-        expectShowEof "f=o <a" "" sc "Just f=o 0<a"
-        expectShowEof "foo <a bar" "" sc "Just foo bar 0<a"
-        expectShowEof "foo bar <a" "" sc "Just foo bar 0<a"
-        expectShowEof "f=o <a bar" "" sc "Just f=o bar 0<a"
-        expectShowEof "f=o bar <a" "" sc "Just f=o bar 0<a"
-        expectShowEof "f=o <a b=r" "" sc "Just f=o b=r 0<a"
-        expectShowEof "f=o b=r <a" "" sc "Just f=o b=r 0<a"
+        expectShowEof ">a foo" "" sc "foo 1>a"
+        expectShowEof "foo <a" "" sc "foo 0<a"
+        expectShowEof ">a f=o" "" sc "f=o 1>a"
+        expectShowEof "f=o <a" "" sc "f=o 0<a"
+        expectShowEof "foo <a bar" "" sc "foo bar 0<a"
+        expectShowEof "foo bar <a" "" sc "foo bar 0<a"
+        expectShowEof "f=o <a bar" "" sc "f=o bar 0<a"
+        expectShowEof "f=o bar <a" "" sc "f=o bar 0<a"
+        expectShowEof "f=o <a b=r" "" sc "f=o b=r 0<a"
+        expectShowEof "f=o b=r <a" "" sc "f=o b=r 0<a"
 
       it "returns nothing after alias substitution" $
-        let e = runFullInputTesterWithDummyPositions sc defaultAliasName
+        let e = runFullInputTesterWithDummyPositions asc defaultAliasName
          in fmap fst e `shouldBe` Right Nothing
 
       context "does not alias-substitute second token" $ do
-        expectShowEof ("foo " ++ defaultAliasName) "" sc $
+        expectShowEof ("foo " ++ defaultAliasName) "" asc $
           "Just foo " ++ defaultAliasName
 
     context "as grouping" $ do
       context "starts with a brace" $ do
-        expectShowEof "{ foo\n}" "" sc "Just { foo; }"
+        expectShowEof "{ foo\n}" "" sc "{ foo; }"
 
       context "does not start with a quoted brace" $ do
-        expectShowEof "\\{ foo" "\n}" sc "Just \\{ foo"
+        expectShowEof "\\{ foo" "\n}" sc "\\{ foo"
 
       context "can have some redirections" $ do
-        expectShowEof "{ foo\n}<bar >baz" "" sc "Just { foo; } 0<bar 1>baz"
+        expectShowEof "{ foo\n}<bar >baz" "" sc "{ foo; } 0<bar 1>baz"
 
     context "as subshell" $ do
       context "starts with a parenthesis" $ do
-        expectShowEof "(foo)" "" sc "Just (foo)"
+        expectShowEof "(foo)" "" sc "(foo)"
 
       context "does not start with a quoted parenthesis" $ do
-        expectShowEof "\\( foo" "\n)" sc "Just \\( foo"
+        expectShowEof "\\( foo" "\n)" sc "\\( foo"
 
     context "as while command" $ do
       context "starts with a 'while'" $ do
         expectShowEof "while foo; do bar; done" "" sc
-          "Just while foo; do bar; done"
+          "while foo; do bar; done"
 
       context "does not start with a quoted 'while'" $ do
-        expectShowEof "whi\\le foo" "; do :; done" sc "Just whi\\le foo"
+        expectShowEof "whi\\le foo" "; do :; done" sc "whi\\le foo"
 
     context "as until command" $ do
       context "starts with a 'until'" $ do
         expectShowEof "until foo; do bar; done" "" sc
-          "Just until foo; do bar; done"
+          "until foo; do bar; done"
 
       context "does not start with a quoted 'until'" $ do
-        expectShowEof "unt\\il foo" "; do :; done" sc "Just unt\\il foo"
+        expectShowEof "unt\\il foo" "; do :; done" sc "unt\\il foo"
 
 -- vim: set et sw=2 sts=2 tw=78:
