@@ -61,7 +61,7 @@ instance MonadError Failure Overrun where
   throwError = Overrun . throwError
   catchError (Overrun m) f = Overrun (catchError m (runOverrun . f))
 
-instance MonadInput Overrun where
+instance MonadBuffer Overrun where
   popChar = Overrun $ do
     cs <- get
     case cs of
@@ -84,10 +84,11 @@ instance MonadInput Overrun where
 
   currentPosition = Overrun $ headPosition <$> get
 
-  maybeReparse m = Overrun $ do
-    (maybeChars, result) <- runOverrun m
+instance MonadReparse Overrun where
+  maybeReparse' m = Overrun $ do
+    r@(maybeChars, _) <- runOverrun m
     for_ maybeChars $ modify' . push
-    return result
+    return r
       where push newcs oldcs = foldr (:~) oldcs newcs
 
 type TesterT m = ParserT (RecordT (ReaderT Alias.DefinitionSet m))

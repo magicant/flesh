@@ -171,7 +171,13 @@ require m = catchError m (throwError . handle)
 --  * 'empty' and 'mzero' are equal to 'failure'; and
 --  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
 --    failures.
-class (MonadPlus m, MonadInputRecord m, MonadError Failure m) => MonadParser m
+class (
+  MonadBuffer m,
+  MonadReparse m,
+  MonadInputRecord m,
+  MonadError Failure m,
+  MonadPlus m)
+    => MonadParser m
 
 -- | Failure of unknown reason at the current position.
 failure :: MonadParser m => m a
@@ -269,12 +275,15 @@ instance Monad m => Monad (ParserT m) where
 instance MonadTrans ParserT where
   lift = ParserT
 
-instance MonadInput m => MonadInput (ParserT m) where
+instance MonadBuffer m => MonadBuffer (ParserT m) where
   popChar = lift popChar
   lookahead = mapParserT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
+
+instance MonadReparse m => MonadReparse (ParserT m) where
   maybeReparse = mapParserT maybeReparse
+  maybeReparse' = mapParserT maybeReparse'
 
 instance MonadInputRecord m => MonadInputRecord (ParserT m) where
   reverseConsumedChars = lift reverseConsumedChars
@@ -283,7 +292,7 @@ instance MonadError e m => MonadError e (ParserT m) where
   throwError = ParserT . throwError
   catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
-instance (MonadInputRecord m, MonadError Failure m)
+instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
     => Alternative (ParserT m) where
   empty = failure
   a <|> b =
@@ -291,9 +300,11 @@ instance (MonadInputRecord m, MonadError Failure m)
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadInputRecord m, MonadError Failure m) => MonadPlus (ParserT m)
+instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
+  => MonadPlus (ParserT m)
 
-instance (MonadInputRecord m, MonadError Failure m) => MonadParser (ParserT m)
+instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
+  => MonadParser (ParserT m)
 
 instance MonadReader r m => MonadReader r (ParserT m) where
   ask = lift ask

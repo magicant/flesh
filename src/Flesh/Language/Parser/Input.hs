@@ -30,8 +30,10 @@ This module defines types and functions for reading input for the syntax
 parser.
 -}
 module Flesh.Language.Parser.Input (
-  -- * MonadInput
-  MonadInput(..), followedBy, maybeReparse', PositionedStringT(..),
+  -- * MonadBuffer
+  MonadBuffer(..), followedBy, PositionedStringT(..),
+  -- * MonadReparse
+  MonadReparse(..),
   -- * MonadInputRecord
   MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
   where
@@ -50,35 +52,32 @@ import Control.Monad.Writer.Strict (WriterT, mapWriterT)
 import Data.Foldable (for_)
 import Flesh.Source.Position
 
--- | Monad for character input operations.
+-- | Monad that provides access to the stream of characters that are to be
+-- parsed.
 --
--- Input depends on an internal state of the monad. The state must contain
--- information that is necessary to track the current input position, which
--- determines the next character to be read. The state must be updated as
--- characters are read and the position is advanced.
---
--- The 'lookahead' function may be used to rewind the position after some
--- input is read. In this function, the state must be restored to indicate the
--- position before the characters were read. Thereafter the same characters
--- must be returned in subsequent read operations.
+-- MonadBuffer is a stateful monad. It maintains a current cursor position to
+-- the input characters. Characters can be read only from the current
+-- position. The position can be advanced as the characters are read, but
+-- cannot be rewound except when the 'lookahead' operation is used.
 --
 -- Reading a character may be an operation with a side effect on an underlying
 -- (typically external) input source. Such side effects must be encoded in the
 -- monad. When re-reading characters after the position was rewound, however,
 -- characters must be read without side effects. In other words, reading
 -- operations must be idempotent in terms of side effects.
-class Monad m => MonadInput m where
+class Monad m => MonadBuffer m where
   -- | Reads one character at the current position, advancing the position to
   -- the next character. If the current position is end-of-input, the position
   -- must not be changed and @Left position@ is returned.
   --
-  -- 'popChar' may have a side effect of reading from an underlying input
+  -- 'popChar' may have a side effect of reading from the underlying input
   -- source.
   popChar :: m (Either Position (Positioned Char))
 
-  -- | Returns the result of the given monad but cancels any position update
-  -- that have occurred in the monad, i.e., the position is rewound to the
-  -- original.
+  -- | Returns the result of the given monad but cancels any position advance
+  -- that may have occurred in the monad, i.e., the position is rewound to the
+  -- original. Thereafter, the same character sequence must be read by
+  -- following 'popChar' and 'peekChar' operations.
   --
   -- Note that any side effects that occur in the monad cannot be canceled by
   -- 'lookahead'.
@@ -87,7 +86,7 @@ class Monad m => MonadInput m where
   -- | Returns the character at the current position without advancing the
   -- position. The default implementation is @lookahead popChar@.
   --
-  -- 'peekChar' may have a side effect of reading from an underlying input
+  -- 'peekChar' may have a side effect of reading from the underlying input
   -- source.
   peekChar :: m (Either Position (Positioned Char))
   peekChar = lookahead popChar
@@ -95,75 +94,47 @@ class Monad m => MonadInput m where
   -- | Returns the current position.
   -- The default implementation is @either id fst '<$>' peekChar@.
   --
-  -- 'currentPosition' must not have any side effect on an underlying input
+  -- 'currentPosition' must not have any side effect on the underlying input
   -- source, which means the default implementation is not applicable if
-  -- 'peekChar' has a side effect on an underlying input source.
+  -- 'peekChar' has one.
   currentPosition :: m Position
   currentPosition = either id fst <$> peekChar
 
-  -- | Executes the given monad and examines the 'fst' part of the result. If
-  -- it is Nothing, 'maybeReparse' has no additional effect. Otherwise, the
-  -- positioned character string replaces the input text that was parsed by
-  -- the argument parser. Parsing continues at the position before the
-  -- replacement string.
-  --
-  -- 'maybeReparse' must not impose any additional side effect on an
-  -- underlying input source.
-  maybeReparse :: m (Maybe [Positioned Char], a) -> m a
-
 -- | Like 'lookahead', but ignores the result.
-followedBy :: MonadInput m => m a -> m ()
+followedBy :: MonadBuffer m => m a -> m ()
 followedBy = void . lookahead
 
--- | Like 'maybeReparse', but returns the @Maybe [Positioned Char]@ as well.
-maybeReparse' :: MonadInput m
-              => m (Maybe [Positioned Char], a)
-              -> m (Maybe [Positioned Char], a)
-maybeReparse' = maybeReparse . fmap f
-  where f (mpcs, a) = (mpcs, (mpcs, a))
-
-instance MonadInput m => MonadInput (ExceptT e m) where
+instance MonadBuffer m => MonadBuffer (ExceptT e m) where
   popChar = lift popChar
   lookahead = mapExceptT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = mapExceptT $ maybeReparse . fmap f
-    where f (Left e)          = (Nothing, Left e)
-          f (Right (mpcs, a)) = (mpcs, Right a)
 
-instance MonadInput m => MonadInput (MaybeT m) where
+instance MonadBuffer m => MonadBuffer (MaybeT m) where
   popChar = lift popChar
   lookahead = mapMaybeT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = mapMaybeT $ maybeReparse . fmap f
-    where f Nothing          = (Nothing, Nothing)
-          f (Just (mpcs, a)) = (mpcs, Just a)
 
-instance MonadInput m => MonadInput (ReaderT e m) where
+instance MonadBuffer m => MonadBuffer (ReaderT r m) where
   popChar = lift popChar
   lookahead = mapReaderT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = mapReaderT maybeReparse
 
-instance MonadInput m => MonadInput (StateT s m) where
+instance MonadBuffer m => MonadBuffer (StateT s m) where
   popChar = lift popChar
   lookahead = mapStateT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = mapStateT $ maybeReparse . fmap f
-    where f ((mpcs, a), s) = (mpcs, (a, s))
 
-instance (MonadInput m, Monoid w) => MonadInput (WriterT w m) where
+instance (MonadBuffer m, Monoid w) => MonadBuffer (WriterT w m) where
   popChar = lift popChar
   lookahead = mapWriterT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = mapWriterT $ maybeReparse . fmap f
-    where f ((mpcs, a), w) = (mpcs, (a, w))
 
--- | State monad of PositionedString as a MonadInput instance.
+-- | State monad of PositionedString as a MonadBuffer instance.
 newtype PositionedStringT m a =
   PositionedStringT {runPositionedStringT :: StateT PositionedString m a}
 
@@ -202,7 +173,7 @@ instance MonadPlus m => MonadPlus (PositionedStringT m) where
   mplus (PositionedStringT a) (PositionedStringT b) =
     PositionedStringT (mplus a b)
 
-instance Monad m => MonadInput (PositionedStringT m) where
+instance Monad m => MonadBuffer (PositionedStringT m) where
   popChar = PositionedStringT $ do
     cs <- get
     case cs of
@@ -225,12 +196,6 @@ instance Monad m => MonadInput (PositionedStringT m) where
 
   currentPosition = PositionedStringT $ headPosition <$> get
 
-  maybeReparse (PositionedStringT m) = PositionedStringT $ do
-    (mpcs, a) <- m
-    for_ mpcs $ modify' . push
-    return a
-      where push newcs oldcs = foldr (:~) oldcs newcs
-
 instance MonadError e m => MonadError e (PositionedStringT m) where
   throwError = PositionedStringT . throwError
   catchError (PositionedStringT a) f =
@@ -241,9 +206,67 @@ instance MonadReader r m => MonadReader r (PositionedStringT m) where
   local f = mapPositionedStringT $ local f
   reader = lift . reader
 
--- | Extension of MonadInput that provides access to input characters that
+-- | Extension of MonadBuffer that provides access to input characters that
+-- | Monad that allows replacement of the input character sequence.
+class Monad m => MonadReparse m where
+  {-# MINIMAL maybeReparse | maybeReparse' #-}
+
+  -- | Executes the given monad and examines the 'fst' part of the result. If
+  -- it is Nothing, it is discarded and 'maybeReparse' has no other effect.
+  -- Otherwise, the positioned character string replaces the input character
+  -- sequence that was parsed by the argument parser. Parsing resumes with the
+  -- current position at the beginning of the replacement.
+  --
+  -- 'maybeReparse' must not impose any additional side effect on the
+  -- underlying input source.
+  maybeReparse :: m (Maybe [Positioned Char], a) -> m a
+  maybeReparse = fmap snd . maybeReparse'
+
+  -- | Like 'maybeReparse', but returns the @Maybe [Positioned Char]@ as well.
+  maybeReparse' :: m (Maybe [Positioned Char], a)
+                -> m (Maybe [Positioned Char], a)
+  maybeReparse' = maybeReparse . fmap f
+    where f (mpcs, a) = (mpcs, (mpcs, a))
+
+instance MonadReparse m => MonadReparse (ExceptT e m) where
+  maybeReparse = mapExceptT $ maybeReparse . fmap f
+    where f (Left e)          = (Nothing, Left e)
+          f (Right (mpcs, a)) = (mpcs, Right a)
+
+instance MonadReparse m => MonadReparse (MaybeT m) where
+  maybeReparse = mapMaybeT $ maybeReparse . fmap f
+    where f Nothing          = (Nothing, Nothing)
+          f (Just (mpcs, a)) = (mpcs, Just a)
+
+instance MonadReparse m => MonadReparse (ReaderT r m) where
+  maybeReparse = mapReaderT maybeReparse
+  maybeReparse' = mapReaderT maybeReparse'
+
+instance MonadReparse m => MonadReparse (StateT s m) where
+  maybeReparse = mapStateT $ maybeReparse . fmap f
+    where f ((mpcs, a), s) = (mpcs, (a, s))
+
+instance (MonadReparse m, Monoid w) => MonadReparse (WriterT w m) where
+  maybeReparse = mapWriterT $ maybeReparse . fmap f
+    where f ((mpcs, a), w) = (mpcs, (a, w))
+
+instance Monad m => MonadReparse (PositionedStringT m) where
+  maybeReparse' (PositionedStringT m) = PositionedStringT $ do
+    r@(mpcs, _) <- m
+    for_ mpcs $ modify' . push
+    return r
+      where push newcs oldcs = foldr (:~) oldcs newcs
+
+instance MonadReparse m => MonadReparse (RecordT m) where
+  maybeReparse' (RecordT m) = RecordT $ do
+    s <- get
+    r@(mpcs, _) <- maybeReparse' m
+    when (mpcs /= Nothing) (put s)
+    return r
+
+-- | Extension of MonadBuffer that provides access to input characters that
 -- have been read.
-class MonadInput m => MonadInputRecord m where
+class MonadBuffer m => MonadInputRecord m where
   -- | Reverse list of characters that have already been returned by 'popChar'
   -- so far. The list includes characters that have been inserted by
   -- 'maybeReparse' and then popped by 'popChar'.
@@ -314,7 +337,7 @@ instance MonadPlus m => MonadPlus (RecordT m) where
   mzero = RecordT mzero
   mplus (RecordT a) (RecordT b) = RecordT (mplus a b)
 
-instance MonadInput m => MonadInput (RecordT m) where
+instance MonadBuffer m => MonadBuffer (RecordT m) where
   popChar = RecordT $ do
     eofOrChar <- popChar
     case eofOrChar of
@@ -328,13 +351,8 @@ instance MonadInput m => MonadInput (RecordT m) where
     return r
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse (RecordT m) = RecordT $ do
-    s <- get
-    (mpcs, a) <- maybeReparse' m
-    when (mpcs /= Nothing) (put s)
-    return a
 
-instance MonadInput m => MonadInputRecord (RecordT m) where
+instance MonadBuffer m => MonadInputRecord (RecordT m) where
   reverseConsumedChars = RecordT get
 
 instance MonadError e m => MonadError e (RecordT m) where

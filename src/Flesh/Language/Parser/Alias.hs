@@ -140,7 +140,7 @@ instance Monad m => Monad (ReparseT m) where
 
 instance MonadPlus m => MonadPlus (ReparseT m)
 
-instance MonadInput m => MonadInput (ReparseT m) where
+instance MonadBuffer m => MonadBuffer (ReparseT m) where
   popChar = ReparseT $ do
     c <- popChar
     let mc = return $ Just (Just (ReparseT mc), c)
@@ -149,6 +149,8 @@ instance MonadInput m => MonadInput (ReparseT m) where
     where f (_, a) = (Nothing, a)
   peekChar = lift peekChar
   currentPosition = lift currentPosition
+
+instance MonadReparse m => MonadReparse (ReparseT m) where
   maybeReparse = mapReparseT $ maybeReparse . fmap f
     where f Nothing                         = (Nothing, Nothing)
           f (Just (_,  (mpcs@(Just _), _))) = (mpcs,    Nothing)
