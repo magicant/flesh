@@ -26,6 +26,7 @@ import Data.Maybe (fromJust)
 import Data.Text (pack)
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax

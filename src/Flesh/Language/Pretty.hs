@@ -38,6 +38,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Foldable (for_)
 import Data.Map.Lazy (empty)
 import Flesh.Language.Parser.Char
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Error.Print
 import Flesh.Language.Parser.Input

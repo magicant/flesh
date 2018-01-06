@@ -34,6 +34,7 @@ import Data.Map.Strict (insert, singleton)
 import Data.Text (pack)
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Char
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position

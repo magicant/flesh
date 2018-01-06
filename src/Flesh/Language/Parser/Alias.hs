@@ -40,6 +40,7 @@ module Flesh.Language.Parser.Alias (
 
 import Control.Applicative (Alternative, empty, (<|>))
 import Control.Monad (MonadPlus, ap, guard)
+import Control.Monad.Except (MonadError, catchError, throwError)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
@@ -47,7 +48,7 @@ import Data.Map.Strict (lookup)
 import Data.Text (Text, unpack)
 import Flesh.Data.Char
 import Flesh.Language.Alias
-import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Prelude hiding (lookup)
