@@ -49,6 +49,7 @@ import Flesh.Source.Position
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias hiding (value)
 import Flesh.Language.Parser.Char
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax hiding (Assignment)
@@ -223,7 +224,7 @@ assignmentOrNormal t@(Token us) =
 -- an assignment.
 --
 -- Otherwise, the token is identified as Normal.
-identify :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+identify :: MonadReader Alias.DefinitionSet m
          => (Text -> Bool) -- ^ function that tests if a token is reserved
          -> Bool -- ^ whether the token should be checked for an alias
          -> Bool -- ^ whether the token should be checked for an assignment

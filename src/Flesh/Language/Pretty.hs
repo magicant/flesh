@@ -37,7 +37,9 @@ import Control.Monad.State.Strict (MonadState, StateT, get, put, runStateT)
 import Control.Monad.Trans.Class (lift)
 import Data.Foldable (for_)
 import Data.Map.Lazy (empty)
+import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Error.Print
 import Flesh.Language.Parser.Input
@@ -129,7 +131,8 @@ instance MonadError e m => MonadError e (CursorT m) where
   catchError (CursorT a) f =
     CursorT (catchError a (runCursorT . f))
 
-instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
+instance (MonadState InputRecord m, MonadIO m)
+    => MonadBuffer (CursorT m) where
   popChar = CursorT $ do
     InputPosition {underlyingIndex = i, pushedChars = pcs} <- get
     case pcs of
@@ -158,10 +161,12 @@ instance (MonadState InputRecord m, MonadIO m) => MonadInput (CursorT m) where
       [] -> lift (inputCharPosition i)
       ((p, _):_) -> return p
 
-  maybeReparse (CursorT m) = CursorT $ do
-    (mpcs, v) <- m
+instance (MonadState InputRecord m, MonadIO m)
+    => MonadReparse (CursorT m) where
+  maybeReparse' (CursorT m) = CursorT $ do
+    r@(mpcs, _) <- m
     for_ mpcs push
-    return v
+    return r
       where push cs = do
               -- TODO: Use Lens
               InputPosition {underlyingIndex = i, pushedChars = pcs} <- get

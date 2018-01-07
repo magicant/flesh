@@ -33,14 +33,16 @@ module Flesh.Language.Parser.Capture (
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
 import Control.Monad (MonadPlus, mplus, mzero)
+import Control.Monad.Except (MonadError, catchError, throwError)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Writer.Strict (WriterT, censor, pass, runWriterT, tell)
-import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
--- | CaptureT modifies MonadInput to allow capturing the input string consumed
--- by the parser.
+-- | CaptureT modifies MonadBuffer to allow capturing the input string
+-- consumed by the parser.
 newtype CaptureT m a = CaptureT {getCaptureT :: WriterT [Positioned Char] m a}
 
 -- | Performs capture, returning the main result and the input string
@@ -79,7 +81,7 @@ instance MonadPlus m => MonadPlus (CaptureT m) where
   mzero = CaptureT mzero
   mplus (CaptureT a) (CaptureT b) = CaptureT (mplus a b)
 
-instance MonadInput m => MonadInput (CaptureT m) where
+instance MonadBuffer m => MonadBuffer (CaptureT m) where
   popChar = CaptureT $ do
     eofOrChar <- popChar
     case eofOrChar of
@@ -89,9 +91,11 @@ instance MonadInput m => MonadInput (CaptureT m) where
   lookahead = CaptureT . censor (const []) . lookahead . getCaptureT
   peekChar = lift peekChar
   currentPosition = lift currentPosition
-  maybeReparse = CaptureT . pass . fmap f . maybeReparse' . getCaptureT
-    where f (Nothing, a) = (a, id)
-          f (Just _,  a) = (a, const [])
+
+instance MonadReparse m => MonadReparse (CaptureT m) where
+  maybeReparse' = CaptureT . pass . fmap f . maybeReparse' . getCaptureT
+    where f r@(Nothing, _) = (r, id)
+          f r@(Just _,  _) = (r, const [])
 
 instance MonadInputRecord m => MonadInputRecord (CaptureT m) where
   reverseConsumedChars = lift reverseConsumedChars

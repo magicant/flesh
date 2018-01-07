@@ -25,6 +25,7 @@ import Control.Applicative ((<|>))
 import Control.Monad.Except (MonadError, ExceptT, mapExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict (runState)
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position

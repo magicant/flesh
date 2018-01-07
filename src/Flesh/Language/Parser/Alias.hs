@@ -33,27 +33,92 @@ module Flesh.Language.Parser.Alias (
   module Flesh.Language.Alias,
   -- * Context
   ContextT,
+  -- * MonadReparse
+  MonadReparse(..),
   -- * ReparseT
   ReparseT, mapReparseT, runReparseT, evalReparseT, fromMaybeT,
   -- * Helper functions
   isAfterBlankEndingSubstitution, maybeAliasValue) where
 
 import Control.Applicative (Alternative, empty, (<|>))
-import Control.Monad (MonadPlus, ap, guard)
-import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
+import Control.Monad (MonadPlus, ap, guard, when)
+import Control.Monad.Except (
+  ExceptT, MonadError, catchError, mapExceptT, throwError)
+import Control.Monad.Reader (
+  MonadReader, ReaderT, ask, local, mapReaderT, reader)
+import Control.Monad.State.Strict (StateT, get, mapStateT, modify', put)
 import Control.Monad.Trans.Class (MonadTrans, lift)
-import Control.Monad.Trans.Maybe (MaybeT(MaybeT), runMaybeT)
+import Control.Monad.Trans.Maybe (MaybeT(MaybeT), mapMaybeT, runMaybeT)
+import Control.Monad.Writer.Strict (WriterT, mapWriterT)
+import Data.Foldable (for_)
 import Data.Map.Strict (lookup)
 import Data.Text (Text, unpack)
 import Flesh.Data.Char
 import Flesh.Language.Alias
-import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Prelude hiding (lookup)
 
 -- | Monad transformer that makes parse results depend on alias definitions.
 type ContextT = ReaderT DefinitionSet
+
+-- | Extension of MonadBuffer that provides access to input characters that
+-- | Monad that allows replacement of the input character sequence.
+class Monad m => MonadReparse m where
+  {-# MINIMAL maybeReparse | maybeReparse' #-}
+
+  -- | Executes the given monad and examines the 'fst' part of the result. If
+  -- it is Nothing, it is discarded and 'maybeReparse' has no other effect.
+  -- Otherwise, the positioned character string replaces the input character
+  -- sequence that was parsed by the argument parser. Parsing resumes with the
+  -- current position at the beginning of the replacement.
+  --
+  -- 'maybeReparse' must not impose any additional side effect on the
+  -- underlying input source.
+  maybeReparse :: m (Maybe [Positioned Char], a) -> m a
+  maybeReparse = fmap snd . maybeReparse'
+
+  -- | Like 'maybeReparse', but returns the @Maybe [Positioned Char]@ as well.
+  maybeReparse' :: m (Maybe [Positioned Char], a)
+                -> m (Maybe [Positioned Char], a)
+  maybeReparse' = maybeReparse . fmap f
+    where f (mpcs, a) = (mpcs, (mpcs, a))
+
+instance MonadReparse m => MonadReparse (ExceptT e m) where
+  maybeReparse = mapExceptT $ maybeReparse . fmap f
+    where f (Left e)          = (Nothing, Left e)
+          f (Right (mpcs, a)) = (mpcs, Right a)
+
+instance MonadReparse m => MonadReparse (MaybeT m) where
+  maybeReparse = mapMaybeT $ maybeReparse . fmap f
+    where f Nothing          = (Nothing, Nothing)
+          f (Just (mpcs, a)) = (mpcs, Just a)
+
+instance MonadReparse m => MonadReparse (ReaderT r m) where
+  maybeReparse = mapReaderT maybeReparse
+  maybeReparse' = mapReaderT maybeReparse'
+
+instance MonadReparse m => MonadReparse (StateT s m) where
+  maybeReparse = mapStateT $ maybeReparse . fmap f
+    where f ((mpcs, a), s) = (mpcs, (a, s))
+
+instance (MonadReparse m, Monoid w) => MonadReparse (WriterT w m) where
+  maybeReparse = mapWriterT $ maybeReparse . fmap f
+    where f ((mpcs, a), w) = (mpcs, (a, w))
+
+instance Monad m => MonadReparse (PositionedStringT m) where
+  maybeReparse' (PositionedStringT m) = PositionedStringT $ do
+    r@(mpcs, _) <- m
+    for_ mpcs $ modify' . push
+    return r
+      where push newcs oldcs = foldr (:~) oldcs newcs
+
+instance MonadReparse m => MonadReparse (RecordT m) where
+  maybeReparse' (RecordT m) = RecordT $ do
+    s <- get
+    r@(mpcs, _) <- maybeReparse' m
+    when (mpcs /= Nothing) (put s)
+    return r
 
 -- | Monad transformer that represents results of parse that may be
 -- interrupted by alias substitution.
@@ -140,7 +205,7 @@ instance Monad m => Monad (ReparseT m) where
 
 instance MonadPlus m => MonadPlus (ReparseT m)
 
-instance MonadInput m => MonadInput (ReparseT m) where
+instance MonadBuffer m => MonadBuffer (ReparseT m) where
   popChar = ReparseT $ do
     c <- popChar
     let mc = return $ Just (Just (ReparseT mc), c)
@@ -149,6 +214,8 @@ instance MonadInput m => MonadInput (ReparseT m) where
     where f (_, a) = (Nothing, a)
   peekChar = lift peekChar
   currentPosition = lift currentPosition
+
+instance MonadReparse m => MonadReparse (ReparseT m) where
   maybeReparse = mapReparseT $ maybeReparse . fmap f
     where f Nothing                         = (Nothing, Nothing)
           f (Just (_,  (mpcs@(Just _), _))) = (mpcs,    Nothing)
@@ -166,8 +233,6 @@ instance MonadReader r m => MonadReader r (ReparseT m) where
   ask = lift ask
   local f = mapReparseT $ local f
   reader f = lift $ reader f
-
-instance MonadParser m => MonadParser (ReparseT m)
 
 -- | Tests if the current position is after an alias substitution whose value
 -- ends with a blank.

@@ -57,6 +57,8 @@ import Control.Monad.State.Strict (
   MonadState, State, StateT, evalStateT, get, mapStateT, put, runState, state)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.List.NonEmpty (NonEmpty((:|)))
+import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
@@ -155,11 +157,13 @@ instance MonadState s m => MonadState s (AccumT m) where
   put = lift . put
   state = lift . state
 
-instance MonadParser m => MonadInput (AccumT m) where
+instance MonadParser m => MonadBuffer (AccumT m) where
   popChar = lift popChar
   lookahead = mapAccumT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
+
+instance MonadParser m => MonadReparse (AccumT m) where
   maybeReparse = mapAccumT $ maybeReparse . fmap f
     where f ((mpcs, a), s) = (mpcs, (a, s))
 
