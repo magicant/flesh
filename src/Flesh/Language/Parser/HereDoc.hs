@@ -57,6 +57,7 @@ import Control.Monad.State.Strict (
   MonadState, State, StateT, evalStateT, get, mapStateT, put, runState, state)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.List.NonEmpty (NonEmpty((:|)))
+import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input

@@ -32,14 +32,12 @@ parser.
 module Flesh.Language.Parser.Input (
   -- * MonadBuffer
   MonadBuffer(..), followedBy, PositionedStringT(..),
-  -- * MonadReparse
-  MonadReparse(..),
   -- * MonadInputRecord
   MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
   where
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
-import Control.Monad (MonadPlus, mplus, mzero, void, when)
+import Control.Monad (MonadPlus, mplus, mzero, void)
 import Control.Monad.Except (
   ExceptT, MonadError, catchError, mapExceptT, throwError)
 import Control.Monad.Reader (
@@ -49,7 +47,6 @@ import Control.Monad.State.Strict (
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT, mapMaybeT)
 import Control.Monad.Writer.Strict (WriterT, mapWriterT)
-import Data.Foldable (for_)
 import Flesh.Source.Position
 
 -- | Monad that provides access to the stream of characters that are to be
@@ -205,64 +202,6 @@ instance MonadReader r m => MonadReader r (PositionedStringT m) where
   ask = lift ask
   local f = mapPositionedStringT $ local f
   reader = lift . reader
-
--- | Extension of MonadBuffer that provides access to input characters that
--- | Monad that allows replacement of the input character sequence.
-class Monad m => MonadReparse m where
-  {-# MINIMAL maybeReparse | maybeReparse' #-}
-
-  -- | Executes the given monad and examines the 'fst' part of the result. If
-  -- it is Nothing, it is discarded and 'maybeReparse' has no other effect.
-  -- Otherwise, the positioned character string replaces the input character
-  -- sequence that was parsed by the argument parser. Parsing resumes with the
-  -- current position at the beginning of the replacement.
-  --
-  -- 'maybeReparse' must not impose any additional side effect on the
-  -- underlying input source.
-  maybeReparse :: m (Maybe [Positioned Char], a) -> m a
-  maybeReparse = fmap snd . maybeReparse'
-
-  -- | Like 'maybeReparse', but returns the @Maybe [Positioned Char]@ as well.
-  maybeReparse' :: m (Maybe [Positioned Char], a)
-                -> m (Maybe [Positioned Char], a)
-  maybeReparse' = maybeReparse . fmap f
-    where f (mpcs, a) = (mpcs, (mpcs, a))
-
-instance MonadReparse m => MonadReparse (ExceptT e m) where
-  maybeReparse = mapExceptT $ maybeReparse . fmap f
-    where f (Left e)          = (Nothing, Left e)
-          f (Right (mpcs, a)) = (mpcs, Right a)
-
-instance MonadReparse m => MonadReparse (MaybeT m) where
-  maybeReparse = mapMaybeT $ maybeReparse . fmap f
-    where f Nothing          = (Nothing, Nothing)
-          f (Just (mpcs, a)) = (mpcs, Just a)
-
-instance MonadReparse m => MonadReparse (ReaderT r m) where
-  maybeReparse = mapReaderT maybeReparse
-  maybeReparse' = mapReaderT maybeReparse'
-
-instance MonadReparse m => MonadReparse (StateT s m) where
-  maybeReparse = mapStateT $ maybeReparse . fmap f
-    where f ((mpcs, a), s) = (mpcs, (a, s))
-
-instance (MonadReparse m, Monoid w) => MonadReparse (WriterT w m) where
-  maybeReparse = mapWriterT $ maybeReparse . fmap f
-    where f ((mpcs, a), w) = (mpcs, (a, w))
-
-instance Monad m => MonadReparse (PositionedStringT m) where
-  maybeReparse' (PositionedStringT m) = PositionedStringT $ do
-    r@(mpcs, _) <- m
-    for_ mpcs $ modify' . push
-    return r
-      where push newcs oldcs = foldr (:~) oldcs newcs
-
-instance MonadReparse m => MonadReparse (RecordT m) where
-  maybeReparse' (RecordT m) = RecordT $ do
-    s <- get
-    r@(mpcs, _) <- maybeReparse' m
-    when (mpcs /= Nothing) (put s)
-    return r
 
 -- | Extension of MonadBuffer that provides access to input characters that
 -- have been read.

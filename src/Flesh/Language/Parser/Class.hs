@@ -43,6 +43,7 @@ import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.Foldable (fold, foldl, foldl', foldr, foldr', toList)
 import Data.List.NonEmpty (NonEmpty((:|)))
+import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
@@ -105,6 +106,8 @@ some' :: Alternative m => m a -> m (NonEmpty a)
 some' a = (:|) <$> a <*> many a
 
 instance MonadParser m => MonadParser (ReaderT r m)
+
+instance MonadParser m => MonadParser (ReparseT m)
 
 -- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
 -- 'MonadError'.
