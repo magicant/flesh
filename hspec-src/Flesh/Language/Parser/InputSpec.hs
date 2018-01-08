@@ -35,7 +35,7 @@ instance Arbitrary a => Arbitrary (PositionedList a) where
 
 spec :: Spec
 spec = do
-  describe "MonadInput (RecordT m)" $ do
+  describe "MonadBuffer (RecordT m)" $ do
     describe "popChar" $ do
       prop "returns popped character" $ \s n ->
         let _ = s :: PositionedString
