@@ -15,62 +15,22 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Flesh.Language.Parser.ClassSpec (spec) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Except (MonadError, ExceptT, mapExceptT, runExceptT)
+import Control.Monad.Except (ExceptT, mapExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict (runState)
 import Flesh.Language.Parser.Class
+import Flesh.Language.Parser.ClassTestUtil ()
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.ErrorTestUtil ()
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
+import Flesh.Source.PositionTestUtil ()
 import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Arbitrary, Gen, arbitrary, elements, oneof, (===))
-
-instance Arbitrary Reason where
-  arbitrary = oneof [
-    return UnknownReason,
-    return UnclosedDoubleQuote,
-    return UnclosedSingleQuote,
-    return MissingExpansionAfterDollar,
-    return MissingRedirectionTarget,
-    -- return UnclosedHereDocContent ...
-    -- return MissingHereDocContents ...
-    MissingCommandAfter <$> arbitrary,
-    UnclosedSubshell . dummyPosition <$> arbitrary,
-    UnclosedGrouping . dummyPosition <$> arbitrary,
-    MissingDoForWhile . dummyPosition <$> arbitrary,
-    MissingDoForUntil . dummyPosition <$> arbitrary,
-    MissingDoneForDo . dummyPosition <$> arbitrary]
-
-instance Arbitrary Error where
-  arbitrary = do
-    r <- arbitrary
-    s <- arbitrary
-    return $ Error r $ dummyPosition s
-
-instance Arbitrary Severity where
-  arbitrary = elements [Hard, Soft]
-
-instance (MonadError Failure m, Arbitrary a) => Arbitrary (ParserT m a) where
-  arbitrary = oneof [success_, failure_]
-    where success_ = return <$> arbitrary
-          failure_ = do
-            s <- arbitrary :: Gen Severity
-            e <- arbitrary :: Gen Error
-            return $ throwError (s, e)
-
-instance Arbitrary a => Arbitrary (PositionedList a) where
-  arbitrary = do
-    s <- arbitrary
-    xs <- arbitrary
-    return $ spread (dummyPosition s) xs
+import Test.QuickCheck ((===))
 
 type AE = ParserT (RecordT (ExceptT Failure Identity))
 type AES = ParserT (RecordT (ExceptT Failure (PositionedStringT Identity)))
