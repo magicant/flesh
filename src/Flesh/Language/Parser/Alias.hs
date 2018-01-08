@@ -35,6 +35,8 @@ module Flesh.Language.Parser.Alias (
   ContextT,
   -- * MonadReparse
   MonadReparse(..),
+  -- * PushBackT
+  PushBackT, mapPushBackT, runPushBackT, evalPushBackT,
   -- * ReparseT
   ReparseT, mapReparseT, runReparseT, evalReparseT, fromMaybeT,
   -- * Helper functions
@@ -46,7 +48,8 @@ import Control.Monad.Except (
   ExceptT, MonadError, catchError, mapExceptT, throwError)
 import Control.Monad.Reader (
   MonadReader, ReaderT, ask, local, mapReaderT, reader)
-import Control.Monad.State.Strict (StateT, get, mapStateT, modify', put)
+import Control.Monad.State.Strict (
+  StateT, get, mapStateT, modify, modify', put, runStateT)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT(MaybeT), mapMaybeT, runMaybeT)
 import Control.Monad.Writer.Strict (WriterT, mapWriterT)
@@ -119,6 +122,76 @@ instance MonadReparse m => MonadReparse (RecordT m) where
     r@(mpcs, _) <- maybeReparse' m
     when (mpcs /= Nothing) (put s)
     return r
+
+-- | Monad transformer that allows insertion of input characters as a side
+-- effect of parsing.
+newtype PushBackT m a =
+  PushBackT {getPushBackT :: StateT [Positioned Char] m a}
+
+-- | Directly modifies the result of PushBackT.
+mapPushBackT :: (m (a, [Positioned Char]) -> n (b, [Positioned Char]))
+             -> PushBackT m a -> PushBackT n b
+mapPushBackT f = PushBackT . mapStateT f . getPushBackT
+
+-- | Executes the PushBackT monad, returning the main result and the
+-- characters that have been inserted but not consumed.
+runPushBackT :: PushBackT m a -> m (a, [Positioned Char])
+runPushBackT (PushBackT m) = runStateT m []
+
+-- | Executes the PushBackT monad, returning the main result only.
+evalPushBackT :: Functor m => PushBackT m a -> m a
+evalPushBackT = fmap fst . runPushBackT
+
+instance MonadTrans PushBackT where
+  lift = PushBackT . lift
+
+instance Functor m => Functor (PushBackT m) where
+  fmap f = PushBackT . fmap f . getPushBackT
+
+instance Monad m => Applicative (PushBackT m) where
+  pure = PushBackT . pure
+  PushBackT a <*> PushBackT b = PushBackT (a <*> b)
+
+instance MonadPlus m => Alternative (PushBackT m) where
+  empty = PushBackT empty
+  PushBackT a <|> PushBackT b = PushBackT (a <|> b)
+
+instance Monad m => Monad (PushBackT m) where
+  PushBackT a >>= f = PushBackT $ a >>= getPushBackT . f
+
+instance MonadPlus m => MonadPlus (PushBackT m)
+
+instance MonadError e m => MonadError e (PushBackT m) where
+  throwError = PushBackT . throwError
+  catchError m f = PushBackT $ catchError (getPushBackT m) (getPushBackT . f)
+
+instance MonadBuffer m => MonadBuffer (PushBackT m) where
+  popChar = PushBackT $ do
+    pcs <- get
+    case pcs of
+      [] -> popChar
+      (h:t) -> do { put t; return (Right h) }
+  lookahead (PushBackT m) = PushBackT $ do
+    oldpcs <- get
+    a <- lookahead m
+    put oldpcs
+    return a
+  peekChar = PushBackT $ do
+    pcs <- get
+    case pcs of
+      [] -> peekChar
+      (h:_) -> return (Right h)
+  currentPosition = PushBackT $ do
+    pcs <- get
+    case pcs of
+      [] -> currentPosition
+      ((p, _) : _) -> return p
+
+instance Monad m => MonadReparse (PushBackT m) where
+  maybeReparse (PushBackT m) = PushBackT $ do
+    (mpcs, a) <- m
+    for_ mpcs $ modify . (++)
+    return a
 
 -- | Monad transformer that represents results of parse that may be
 -- interrupted by alias substitution.
