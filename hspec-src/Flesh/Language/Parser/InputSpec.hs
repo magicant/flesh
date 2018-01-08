@@ -15,27 +15,20 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Flesh.Language.Parser.InputSpec (spec) where
 
 import Control.Monad (replicateM, replicateM_)
 import Control.Monad.State.Strict (evalState, execState)
 import Flesh.Language.Parser.Input
 import Flesh.Source.Position
+import Flesh.Source.PositionTestUtil ()
 import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Arbitrary, arbitrary, (===))
-
-instance Arbitrary a => Arbitrary (PositionedList a) where
-  arbitrary = do
-    s <- arbitrary
-    xs <- arbitrary
-    return $ spread (dummyPosition s) xs
+import Test.QuickCheck ((===))
 
 spec :: Spec
 spec = do
-  describe "MonadInput (RecordT m)" $ do
+  describe "MonadBuffer (RecordT m)" $ do
     describe "popChar" $ do
       prop "returns popped character" $ \s n ->
         let _ = s :: PositionedString
