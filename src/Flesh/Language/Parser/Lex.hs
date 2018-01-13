@@ -48,10 +48,10 @@ import Flesh.Data.Char (isBlank, isDigit)
 import Flesh.Source.Position
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias hiding (value)
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
-import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax hiding (Assignment)
 import qualified Flesh.Language.Syntax as S
 import Numeric.Natural (Natural)

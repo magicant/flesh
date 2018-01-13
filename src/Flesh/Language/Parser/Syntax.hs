@@ -56,12 +56,12 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text, unpack)
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias hiding (name)
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Capture
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
-import Flesh.Language.Parser.Input
 import Flesh.Language.Parser.Lex as L
 import Flesh.Language.Syntax
 import Flesh.Source.Position

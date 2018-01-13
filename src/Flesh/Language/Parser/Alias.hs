@@ -58,7 +58,7 @@ import Data.Map.Strict (lookup)
 import Data.Text (Text, unpack)
 import Flesh.Data.Char
 import Flesh.Language.Alias
-import Flesh.Language.Parser.Input
+import Flesh.Language.Parser.Buffer
 import Flesh.Source.Position
 import Prelude hiding (lookup)
 

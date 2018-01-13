@@ -26,10 +26,10 @@ Copyright   : (C) 2017 WATANABE Yuki
 License     : GPL-2
 Portability : non-portable (GHC language extensions)
 
-This module defines types and functions for reading input for the syntax
-parser.
+This module defines types and functions for accessing input characters for the
+syntax parser.
 -}
-module Flesh.Language.Parser.Input (
+module Flesh.Language.Parser.Buffer (
   -- * MonadBuffer
   MonadBuffer(..), followedBy, PositionedStringT(..),
   -- * MonadInputRecord

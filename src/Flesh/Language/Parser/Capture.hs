@@ -37,8 +37,8 @@ import Control.Monad.Except (MonadError, catchError, throwError)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Writer.Strict (WriterT, censor, pass, runWriterT, tell)
 import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
-import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
 -- | CaptureT modifies MonadBuffer to allow capturing the input string

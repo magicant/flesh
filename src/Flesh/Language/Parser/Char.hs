@@ -26,9 +26,9 @@ This module defines character parsers.
 -}
 module Flesh.Language.Parser.Char where
 
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
-import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
 -- | Parses any single character.

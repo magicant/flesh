@@ -21,11 +21,11 @@ import Control.Applicative ((<|>))
 import Control.Monad.Except (ExceptT, mapExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict (runState)
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.ClassTestUtil ()
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.ErrorTestUtil ()
-import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Flesh.Source.PositionTestUtil ()
 import Test.Hspec (Spec, describe)
