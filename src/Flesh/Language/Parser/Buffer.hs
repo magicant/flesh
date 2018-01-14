@@ -31,7 +31,9 @@ syntax parser.
 -}
 module Flesh.Language.Parser.Buffer (
   -- * MonadBuffer
-  MonadBuffer(..), followedBy, PositionedStringT(..),
+  MonadBuffer(..), followedBy,
+  CursorT, mapCursorT, runCursorT, evalCursorT, execCursorT, withCursorT,
+  PositionedStringT(..),
   -- * MonadInputRecord
   MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
   where
@@ -43,10 +45,11 @@ import Control.Monad.Except (
 import Control.Monad.Reader (
   MonadReader, ReaderT, ask, local, mapReaderT, reader)
 import Control.Monad.State.Strict (
-  StateT, evalStateT, get, mapStateT, modify', put, runStateT)
+  StateT, evalStateT, get, mapStateT, modify', put, runStateT, withStateT)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Control.Monad.Trans.Maybe (MaybeT, mapMaybeT)
 import Control.Monad.Writer.Strict (WriterT, mapWriterT)
+import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
 -- | Monad that provides access to the stream of characters that are to be
@@ -130,6 +133,84 @@ instance (MonadBuffer m, Monoid w) => MonadBuffer (WriterT w m) where
   lookahead = mapWriterT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
+
+-- | Implementation of MonadBuffer based on StateT.
+newtype CursorT c m a = CursorT {getCursorT :: StateT c m a}
+
+-- | Maps both the main result and the cursor.
+mapCursorT :: (m (a, c) -> n (b, c)) -> CursorT c m a -> CursorT c n b
+mapCursorT f = CursorT . mapStateT f . getCursorT
+
+-- | Executes the CursorT computation to get the final result and cursor in
+-- the inner monad.
+runCursorT :: CursorT c m a -> c -> m (a, c)
+runCursorT = runStateT . getCursorT
+
+-- | Like 'runCursorT', but returns the final result only.
+evalCursorT :: Functor m => CursorT c m a -> c -> m a
+evalCursorT = fmap (fmap fst) . runCursorT
+
+-- | Like 'runCursorT', but returns the final cursor only.
+execCursorT :: Functor m => CursorT c m a -> c -> m c
+execCursorT = fmap (fmap snd) . runCursorT
+
+-- | Executes the CursorT computation with the cursor modified by the given
+-- function.
+withCursorT :: (c -> c) -> CursorT c m a -> CursorT c m a
+withCursorT f = CursorT . withStateT f . getCursorT
+
+instance MonadTrans (CursorT c) where
+  lift = CursorT . lift
+
+instance Functor m => Functor (CursorT c m) where
+  fmap f = CursorT . fmap f . getCursorT
+  a <$ CursorT b = CursorT (a <$ b)
+
+instance Monad m => Applicative (CursorT c m) where
+  pure = CursorT . pure
+  CursorT a <*> CursorT b = CursorT (a <*> b)
+  CursorT a  *> CursorT b = CursorT (a  *> b)
+  CursorT a <*  CursorT b = CursorT (a <*  b)
+
+instance MonadPlus m => Alternative (CursorT c m) where
+  empty = CursorT empty
+  CursorT a <|> CursorT b = CursorT (a <|> b)
+  some = CursorT . some . getCursorT
+  many = CursorT . many . getCursorT
+
+instance Monad m => Monad (CursorT c m) where
+  CursorT a >>= f = CursorT (a >>= getCursorT . f)
+  CursorT a >> CursorT b = CursorT (a >> b)
+
+instance MonadPlus m => MonadPlus (CursorT c m) where
+  mzero = CursorT mzero
+  mplus (CursorT a) (CursorT b) = CursorT (mplus a b)
+
+instance MonadError e m => MonadError e (CursorT c m) where
+  throwError = CursorT . throwError
+  catchError (CursorT a) f = CursorT (catchError a (getCursorT . f))
+
+instance MonadInput c m => MonadBuffer (CursorT c m) where
+  popChar = CursorT $ do
+    c <- get
+    r <- readAt c
+    case r of
+      Left p -> return (Left p)
+      Right (c', pc) -> do
+        put c'
+        return (Right pc)
+  lookahead (CursorT m) = CursorT $ do
+    c <- get
+    r <- m
+    put c
+    return r
+  peekChar = CursorT $ do
+    c <- get
+    r <- readAt c
+    return $ case r of
+      Left p -> Left p
+      Right (_, pc) -> Right pc
+  currentPosition = CursorT $ get >>= positionAt
 
 -- | State monad of PositionedString as a MonadBuffer instance.
 newtype PositionedStringT m a =

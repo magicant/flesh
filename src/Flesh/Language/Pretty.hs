@@ -38,7 +38,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Foldable (for_)
 import Data.Map.Lazy (empty)
 import Flesh.Language.Parser.Alias
-import Flesh.Language.Parser.Buffer
+import Flesh.Language.Parser.Buffer hiding (CursorT, runCursorT)
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
