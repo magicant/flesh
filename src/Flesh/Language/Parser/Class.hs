@@ -57,13 +57,8 @@ import Flesh.Source.Position
 --  * 'empty' and 'mzero' are equal to 'failure'; and
 --  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
 --    failures.
-class (
-  MonadBuffer m,
-  MonadReparse m,
-  MonadRecord m,
-  MonadError Failure m,
-  MonadPlus m)
-    => MonadParser m
+class (MonadReparse m, MonadRecord m, MonadError Failure m, MonadPlus m)
+  => MonadParser m
 
 -- | Failure of unknown reason at the current position.
 failure :: MonadParser m => m a
