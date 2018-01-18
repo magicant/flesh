@@ -97,7 +97,7 @@ instance MonadReparse m => MonadReparse (CaptureT m) where
     where f r@(Nothing, _) = (r, id)
           f r@(Just _,  _) = (r, const [])
 
-instance MonadInputRecord m => MonadInputRecord (CaptureT m) where
+instance MonadRecord m => MonadRecord (CaptureT m) where
   reverseConsumedChars = lift reverseConsumedChars
 
 instance MonadError e m => MonadError e (CaptureT m) where

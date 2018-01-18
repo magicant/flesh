@@ -295,7 +295,7 @@ instance MonadReparse m => MonadReparse (ReparseT m) where
           f (Just (ma, (Nothing,       a))) = (Nothing, Just (ma', a))
             where ma' = fmap maybeReparse ma
 
-instance MonadInputRecord m => MonadInputRecord (ReparseT m) where
+instance MonadRecord m => MonadRecord (ReparseT m) where
   reverseConsumedChars = lift reverseConsumedChars
 
 instance MonadError e m => MonadError e (ReparseT m) where
@@ -309,7 +309,7 @@ instance MonadReader r m => MonadReader r (ReparseT m) where
 
 -- | Tests if the current position is after an alias substitution whose value
 -- ends with a blank.
-isAfterBlankEndingSubstitution :: MonadInputRecord m => m Bool
+isAfterBlankEndingSubstitution :: MonadRecord m => m Bool
 isAfterBlankEndingSubstitution = do
   rcc <- reverseConsumedChars
   cp <- currentPosition

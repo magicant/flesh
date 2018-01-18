@@ -57,13 +57,8 @@ import Flesh.Source.Position
 --  * 'empty' and 'mzero' are equal to 'failure'; and
 --  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
 --    failures.
-class (
-  MonadBuffer m,
-  MonadReparse m,
-  MonadInputRecord m,
-  MonadError Failure m,
-  MonadPlus m)
-    => MonadParser m
+class (MonadReparse m, MonadRecord m, MonadError Failure m, MonadPlus m)
+  => MonadParser m
 
 -- | Failure of unknown reason at the current position.
 failure :: MonadParser m => m a
@@ -173,14 +168,14 @@ instance MonadReparse m => MonadReparse (ParserT m) where
   maybeReparse = mapParserT maybeReparse
   maybeReparse' = mapParserT maybeReparse'
 
-instance MonadInputRecord m => MonadInputRecord (ParserT m) where
+instance MonadRecord m => MonadRecord (ParserT m) where
   reverseConsumedChars = lift reverseConsumedChars
 
 instance MonadError e m => MonadError e (ParserT m) where
   throwError = ParserT . throwError
   catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
-instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
+instance (MonadReparse m, MonadRecord m, MonadError Failure m)
     => Alternative (ParserT m) where
   empty = failure
   a <|> b =
@@ -188,10 +183,10 @@ instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
+instance (MonadReparse m, MonadRecord m, MonadError Failure m)
   => MonadPlus (ParserT m)
 
-instance (MonadReparse m, MonadInputRecord m, MonadError Failure m)
+instance (MonadReparse m, MonadRecord m, MonadError Failure m)
   => MonadParser (ParserT m)
 
 instance MonadReader r m => MonadReader r (ParserT m) where

@@ -167,7 +167,7 @@ instance MonadParser m => MonadReparse (AccumT m) where
   maybeReparse = mapAccumT $ maybeReparse . fmap f
     where f ((mpcs, a), s) = (mpcs, (a, s))
 
-instance MonadParser m => MonadInputRecord (AccumT m) where
+instance MonadParser m => MonadRecord (AccumT m) where
   reverseConsumedChars = lift reverseConsumedChars
 
 instance MonadParser m => MonadParser (AccumT m)

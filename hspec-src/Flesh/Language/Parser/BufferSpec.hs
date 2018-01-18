@@ -56,7 +56,7 @@ spec = do
               reverseConsumedChars
          in r1 === r2
 
-  describe "MonadInputRecord (RecordT m)" $ do
+  describe "MonadRecord (RecordT m)" $ do
     describe "reverseConsumedChars" $ do
       prop "returns consumed characters" $ \s n ->
         let _ = s :: PositionedString
