@@ -19,11 +19,11 @@ module Flesh.Language.Parser.ErrorSpec (spec) where
 
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.ClassTestUtil ()
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.ErrorTestUtil ()
-import Flesh.Language.Parser.Input
 import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===), (==>))

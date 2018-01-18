@@ -44,8 +44,8 @@ import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.Foldable (fold, foldl, foldl', foldr, foldr', toList)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Error
-import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
 -- | Collection of properties required for basic parser implementation.

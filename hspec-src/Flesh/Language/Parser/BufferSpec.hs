@@ -15,11 +15,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module Flesh.Language.Parser.InputSpec (spec) where
+module Flesh.Language.Parser.BufferSpec (spec) where
 
 import Control.Monad (replicateM, replicateM_)
 import Control.Monad.State.Strict (evalState, execState)
-import Flesh.Language.Parser.Input
+import Flesh.Language.Parser.Buffer
 import Flesh.Source.Position
 import Flesh.Source.PositionTestUtil ()
 import Test.Hspec (Spec, describe)

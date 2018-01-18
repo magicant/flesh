@@ -58,9 +58,9 @@ import Control.Monad.State.Strict (
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Alias
+import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
-import Flesh.Language.Parser.Input
 import Flesh.Language.Syntax
 import Flesh.Source.Position
 

@@ -42,6 +42,9 @@ testMaybeAliasValue s v t =
 
 spec :: Spec
 spec = do
+  -- TODO Test PushBackT instances
+  -- TODO Test ReparseT instances
+
   describe "maybeAliasValue" $ do
     prop "returns matching alias value" $ \s v ->
       fmap (fmap snd) (testMaybeAliasValue s v s) === Just v
