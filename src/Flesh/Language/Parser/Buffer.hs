@@ -34,8 +34,8 @@ module Flesh.Language.Parser.Buffer (
   MonadBuffer(..), followedBy,
   CursorT, mapCursorT, runCursorT, evalCursorT, execCursorT, withCursorT,
   PositionedStringT(..),
-  -- * MonadInputRecord
-  MonadInputRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
+  -- * MonadRecord
+  MonadRecord(..), RecordT(..), runRecordT, evalRecordT, mapRecordT)
   where
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
@@ -286,29 +286,28 @@ instance MonadReader r m => MonadReader r (PositionedStringT m) where
 
 -- | Extension of MonadBuffer that provides access to input characters that
 -- have been read.
-class MonadBuffer m => MonadInputRecord m where
+class MonadBuffer m => MonadRecord m where
   -- | Reverse list of characters that have already been returned by 'popChar'
   -- so far. The list includes characters that have been inserted by
   -- 'maybeReparse' and then popped by 'popChar'.
   reverseConsumedChars :: m [Positioned Char]
 
-instance MonadInputRecord m => MonadInputRecord (ExceptT e m) where
+instance MonadRecord m => MonadRecord (ExceptT e m) where
   reverseConsumedChars = lift reverseConsumedChars
 
-instance MonadInputRecord m => MonadInputRecord (MaybeT m) where
+instance MonadRecord m => MonadRecord (MaybeT m) where
   reverseConsumedChars = lift reverseConsumedChars
 
-instance MonadInputRecord m => MonadInputRecord (ReaderT e m) where
+instance MonadRecord m => MonadRecord (ReaderT e m) where
   reverseConsumedChars = lift reverseConsumedChars
 
-instance MonadInputRecord m => MonadInputRecord (StateT a m) where
+instance MonadRecord m => MonadRecord (StateT a m) where
   reverseConsumedChars = lift reverseConsumedChars
 
-instance (MonadInputRecord m, Monoid w)
-    => MonadInputRecord (WriterT w m) where
+instance (MonadRecord m, Monoid w) => MonadRecord (WriterT w m) where
   reverseConsumedChars = lift reverseConsumedChars
 
--- | Implementation of MonadInputRecord based on the state monad.
+-- | Implementation of MonadRecord based on the state monad.
 newtype RecordT m a = RecordT {getRecordT :: StateT [Positioned Char] m a}
 
 -- | Runs the record moand, returning the main result and the consumed input.
@@ -372,7 +371,7 @@ instance MonadBuffer m => MonadBuffer (RecordT m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
 
-instance MonadBuffer m => MonadInputRecord (RecordT m) where
+instance MonadBuffer m => MonadRecord (RecordT m) where
   reverseConsumedChars = RecordT get
 
 instance MonadError e m => MonadError e (RecordT m) where
