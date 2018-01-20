@@ -25,7 +25,7 @@ import Data.Text (pack)
 import Flesh.Language.Alias
 import Flesh.Language.Parser.Alias
 import Flesh.Source.Position
-import Test.Hspec (Spec, describe)
+import Test.Hspec (Spec, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===), (==>))
 
@@ -41,7 +41,7 @@ testMaybeAliasValue s v t =
    in runMaybeT (maybeAliasValue pos t') defs
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   -- TODO Test PushBackT instances
   -- TODO Test ReparseT instances
 

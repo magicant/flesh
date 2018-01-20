@@ -26,10 +26,10 @@ import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
-import Test.Hspec (Spec, context, describe, it, shouldBe)
+import Test.Hspec (Spec, context, describe, parallel, it, shouldBe)
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "subshell" $ do
     let p = dummyPosition "X"
         s = fill (snd <$> subshell)

@@ -22,12 +22,12 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
-import Test.Hspec (Spec, context, describe)
+import Test.Hspec (Spec, context, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===), (==>))
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "blank" $ do
     context "does not accept newline" $ do
       expectFailure "\n" blank Soft UnknownReason 0
