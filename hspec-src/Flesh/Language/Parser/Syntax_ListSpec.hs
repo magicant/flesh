@@ -25,10 +25,10 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import Test.Hspec (Spec, context, describe, it, shouldBe)
+import Test.Hspec (Spec, context, describe, parallel, it, shouldBe)
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "pipeSequence" $ do
     let ps = fill $ toList <$> pipeSequence
         ps' = fill $ toList <$> pipeSequence

@@ -24,7 +24,7 @@ import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.ClassTestUtil ()
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.ErrorTestUtil ()
-import Test.Hspec (Spec, describe)
+import Test.Hspec (Spec, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===), (==>))
 
@@ -52,7 +52,7 @@ isSoftError a =
     _              -> False
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "setReason" $ do
     prop "replaces UnknownReason" $ \s e ->
       let Error r p = e

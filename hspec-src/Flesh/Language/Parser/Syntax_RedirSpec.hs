@@ -24,10 +24,10 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import Test.Hspec (Spec, context, describe)
+import Test.Hspec (Spec, context, describe, parallel)
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "redirect" $ do
     context "parses < operator" $ do
       expectPositionEof "29< foo"    (fileOpPos    <$> fill redirect) 0

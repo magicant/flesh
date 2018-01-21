@@ -22,12 +22,12 @@ import Control.Monad.State.Strict (evalState, execState)
 import Flesh.Language.Parser.Buffer
 import Flesh.Source.Position
 import Flesh.Source.PositionTestUtil ()
-import Test.Hspec (Spec, describe)
+import Test.Hspec (Spec, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===))
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "MonadBuffer (RecordT m)" $ do
     describe "popChar" $ do
       prop "returns popped character" $ \s n ->

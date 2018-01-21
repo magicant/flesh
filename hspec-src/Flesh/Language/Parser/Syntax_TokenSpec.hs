@@ -31,10 +31,10 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
 import Flesh.Language.Parser.TestUtil
-import Test.Hspec (Spec, context, describe, it, shouldBe)
+import Test.Hspec (Spec, context, describe, parallel, it, shouldBe)
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "dollarExpansion" $ do
     let reflect s = expectShow s "" (snd <$> dollarExpansion) s
 

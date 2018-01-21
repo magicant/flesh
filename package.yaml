@@ -30,6 +30,7 @@ tests:
   flesh-hspec:
     main: Main.hs
     source-dirs: hspec-src
+    ghc-options: -threaded -with-rtsopts=-N
     dependencies:
     - flesh
     - hspec >=2 && <3

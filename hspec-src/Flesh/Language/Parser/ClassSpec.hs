@@ -28,7 +28,7 @@ import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.ErrorTestUtil ()
 import Flesh.Source.Position
 import Flesh.Source.PositionTestUtil ()
-import Test.Hspec (Spec, describe)
+import Test.Hspec (Spec, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===))
 
@@ -42,7 +42,7 @@ aesFromAE :: AE a -> AES a
 aesFromAE = mapParserT $ mapRecordT $ mapExceptT $ return . runIdentity
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "notFollowedBy" $ do
     prop "succeeds if argument fails" $ \e i ->
       let f = failureOfError e
