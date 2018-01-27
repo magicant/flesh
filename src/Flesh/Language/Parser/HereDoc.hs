@@ -53,6 +53,7 @@ module Flesh.Language.Parser.HereDoc (
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
 import Control.Monad (MonadPlus, join)
+import Control.Monad.Reader (MonadReader, ask, local, reader)
 import Control.Monad.State.Strict (
   MonadState, State, StateT, evalStateT, get, mapStateT, put, runState, state)
 import Control.Monad.Trans.Class (MonadTrans, lift)
@@ -169,6 +170,11 @@ instance MonadParser m => MonadReparse (AccumT m) where
 
 instance MonadParser m => MonadRecord (AccumT m) where
   reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadReader r m => MonadReader r (AccumT m) where
+  ask = lift ask
+  local f = AccumT . local f . runAccumT
+  reader = AccumT . reader
 
 instance MonadParser m => MonadParser (AccumT m)
 

@@ -39,7 +39,7 @@ module Flesh.Language.Parser.Class (
 import Control.Applicative (Alternative, empty, many, (<|>))
 import Control.Monad (MonadPlus, join)
 import Control.Monad.Except (MonadError, catchError, throwError)
-import Control.Monad.Reader (MonadReader, ReaderT, ask, local, reader)
+import Control.Monad.Reader (MonadReader, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.Foldable (fold, foldl, foldl', foldr, foldr', toList)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -57,7 +57,9 @@ import Flesh.Source.Position
 --  * 'empty' and 'mzero' are equal to 'failure'; and
 --  * '<|>' and 'mplus' behave like 'catchError' but they only catch 'Soft'
 --    failures.
-class (MonadReparse m, MonadRecord m, MonadError Failure m, MonadPlus m)
+class (
+  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
+  MonadError Failure m, MonadPlus m)
   => MonadParser m
 
 -- | Failure of unknown reason at the current position.
@@ -99,8 +101,6 @@ notFollowedBy m = do
 -- | @some' a@ is like @some a@, but returns a NonEmpty list.
 some' :: Alternative m => m a -> m (NonEmpty a)
 some' a = (:|) <$> a <*> many a
-
-instance MonadParser m => MonadParser (ReaderT r m)
 
 instance MonadParser m => MonadParser (ReparseT m)
 
@@ -175,7 +175,9 @@ instance MonadError e m => MonadError e (ParserT m) where
   throwError = ParserT . throwError
   catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
 
-instance (MonadReparse m, MonadRecord m, MonadError Failure m)
+instance (
+  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
+  MonadError Failure m)
     => Alternative (ParserT m) where
   empty = failure
   a <|> b =
@@ -183,10 +185,14 @@ instance (MonadReparse m, MonadRecord m, MonadError Failure m)
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (MonadReparse m, MonadRecord m, MonadError Failure m)
+instance (
+  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
+  MonadError Failure m)
   => MonadPlus (ParserT m)
 
-instance (MonadReparse m, MonadRecord m, MonadError Failure m)
+instance (
+  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
+  MonadError Failure m)
   => MonadParser (ParserT m)
 
 instance MonadReader r m => MonadReader r (ParserT m) where

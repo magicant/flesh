@@ -15,12 +15,18 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Flesh.Language.Parser.ClassSpec (spec) where
 
 import Control.Applicative ((<|>))
 import Control.Monad.Except (ExceptT, mapExceptT, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
+import Control.Monad.Reader (ReaderT, mapReaderT, runReaderT)
 import Control.Monad.State.Strict (runState)
+import Data.Map.Strict (empty)
+import Flesh.Language.Alias
 import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.ClassTestUtil ()
@@ -32,14 +38,20 @@ import Test.Hspec (Spec, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===))
 
-type AE = ParserT (RecordT (ExceptT Failure Identity))
-type AES = ParserT (RecordT (ExceptT Failure (PositionedStringT Identity)))
+type PT m = ParserT (ReaderT DefinitionSet (RecordT (ExceptT Failure m)))
+type AE = PT Identity
+type AES = PT (PositionedStringT Identity)
+
+instance Show (m a) => Show (ReaderT DefinitionSet m a) where
+  showsPrec n m = showsPrec n (runReaderT m empty)
 
 run :: AES a -> PositionedString -> (Either Failure a, PositionedString)
-run = runState . runPositionedStringT . runExceptT . evalRecordT . runParserT
+run = runState . runPositionedStringT . runExceptT . evalRecordT .
+  flip runReaderT empty . runParserT
 
 aesFromAE :: AE a -> AES a
-aesFromAE = mapParserT $ mapRecordT $ mapExceptT $ return . runIdentity
+aesFromAE =
+  mapParserT $ mapReaderT $ mapRecordT $ mapExceptT $ return . runIdentity
 
 spec :: Spec
 spec = parallel $ do

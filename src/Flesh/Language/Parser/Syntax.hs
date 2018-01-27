@@ -45,7 +45,7 @@ module Flesh.Language.Parser.Syntax (
 
 import Control.Applicative (liftA3, many, optional, some, (<|>))
 import Control.Monad (join, void, when)
-import Control.Monad.Reader (MonadReader, runReaderT)
+import Control.Monad.Reader (MonadReader, local)
 import Control.Monad.Trans.Class (lift)
 import Data.Foldable (sequenceA_, toList)
 import Data.List (isPrefixOf)
@@ -96,7 +96,7 @@ dollarExpansionTail = do
             cmdSubstTail = cmdSubstContent <* closeParan
             cmdSubstContent = cs . map snd <$> execCaptureT cmdsubstBody
             cs = Flesh.Language.Syntax.CommandSubstitution
-            cmdsubstBody = runReaderT program empty
+            cmdsubstBody = local (const empty) program
             closeParan = char ')' <|>
               failureOfError (Error UnclosedCommandSubstitution p)
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
@@ -182,7 +182,7 @@ neutralToken = tokenTill endOfToken <* whites
 
 -- | Parses a normal non-empty token followed by optional whitespaces. The
 -- token is identified by 'identify'.
-identifiedToken :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+identifiedToken :: MonadParser m
                 => (Text -> Bool)
                 -- ^ Function that tests if a token is reserved.
                 -> Bool
@@ -305,7 +305,7 @@ type SimpleCommand = ([Token], [Assignment], [Redirection])
 
 -- | Parses a sequence of assignment words, normal word tokens, and
 -- redirections.
-simpleCommandContents :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+simpleCommandContents :: MonadParser m
                       => Bool -- ^ whether to parse assignments
                       -> HereDocT m SimpleCommand
 simpleCommandContents assign = redir <|> token <|> pure ([], [], [])
@@ -323,7 +323,7 @@ simpleCommandContents assign = redir <|> token <|> pure ([], [], [])
 
 -- | Parses a sequence of assignment words, normal word tokens, and
 -- redirections and prepends the given assignment to the final result.
-simpleCommandContentsA :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+simpleCommandContentsA :: MonadParser m
                        => Assignment -> HereDocT m SimpleCommand
 simpleCommandContentsA a = do
   (ts, as, rs) <- simpleCommandContents True
@@ -331,15 +331,13 @@ simpleCommandContentsA a = do
 
 -- | Parses a sequence of assignment words, normal word tokens, and
 -- redirections and prepends the given word token to the final result.
-simpleCommandContentsW :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                       => Token -> HereDocT m SimpleCommand
+simpleCommandContentsW :: MonadParser m => Token -> HereDocT m SimpleCommand
 simpleCommandContentsW t = do
   (ts, as, rs) <- simpleCommandContents False
   pure (t:ts, as, rs)
 
 -- | Parses a subshell command.
-subshell :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-         => HereDocT m (Positioned CompoundCommand)
+subshell :: MonadParser m => HereDocT m (Positioned CompoundCommand)
 subshell = HereDocT $ do
   (pos, _) <- operatorToken "("
   require $ do
@@ -351,7 +349,7 @@ subshell = HereDocT $ do
 
 -- | Parses a brace-enclosed grouping except the first open brace, which must
 -- have just been parsed.
-braceGroupTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+braceGroupTail :: MonadParser m
                => Position -- ^ Position of the open brace.
                -> HereDocT m (Positioned CompoundCommand)
 braceGroupTail p = do
@@ -363,11 +361,11 @@ braceGroupTail p = do
             literal reservedCloseBrace
 
 -- | Parses an "in" clause of a for loop.
-inClause :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [Token]
+inClause :: MonadParser m => m [Token]
 inClause = literal reservedIn *> many aliasableToken
 
 -- | Parses a 'compoundList' surrounded with the "do" and "done" keywords.
-doGroup :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+doGroup :: MonadParser m
         => Reason -- ^ Error reason in case "do" is missing
         -> HereDocT m CommandList
 doGroup r = HereDocT $ do
@@ -380,7 +378,7 @@ doGroup r = HereDocT $ do
 
 -- | Parses a for loop except the first "for" keyword, which must have just
 -- been parsed.
-forClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+forClauseTail :: MonadParser m
               => Position -- ^ Position of the first "for" keyword
               -> HereDocT m (Positioned CompoundCommand)
 {-
@@ -416,7 +414,7 @@ forClauseTail p = do
 
 -- | Parses an if command except the first "if" keyword, which must have just
 -- been parsed.
-ifClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+ifClauseTail :: MonadParser m
              => Position -- ^ Position of the first "if" keyword
              -> HereDocT m (Positioned CompoundCommand)
 ifClauseTail p = do
@@ -443,7 +441,7 @@ ifClauseTail p = do
           elifString = unpack reservedElif
           elseString = unpack reservedElse
 
-whileUntilClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+whileUntilClauseTail :: MonadParser m
   => String -- ^ "while" or "until"
   -> (CommandList -> CommandList -> CompoundCommand)
   -> (Position -> Reason) -- ^ Error reason in case "do" is missing
@@ -456,14 +454,14 @@ whileUntilClauseTail s r e p = do
 
 -- | Parses a "while" command except the first "while" keyword, which must
 -- have just been parsed.
-whileClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+whileClauseTail :: MonadParser m
                 => Position -- ^ Position of the "while" keyword.
                 -> HereDocT m (Positioned CompoundCommand)
 whileClauseTail = whileUntilClauseTail "while" While MissingDoForWhile
 
 -- | Parses a "until" command except the first "until" keyword, which must
 -- have just been parsed.
-untilClauseTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+untilClauseTail :: MonadParser m
                  => Position -- ^ Position of the "until" keyword.
                  -> HereDocT m (Positioned CompoundCommand)
 untilClauseTail = whileUntilClauseTail "until" Until MissingDoForUntil
@@ -474,7 +472,7 @@ untilClauseTail = whileUntilClauseTail "until" Until MissingDoForUntil
 -- The first token is not parsed by this parser. It must have been parsed by
 -- another parser and must be passed as the argument. This parser fails if the
 -- first token does not start a compound command.
-compoundCommandTail :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+compoundCommandTail :: MonadParser m
                     => Positioned Text
                     -> HereDocT m (Positioned CompoundCommand)
 compoundCommandTail (p, t)
@@ -487,8 +485,7 @@ compoundCommandTail (p, t)
   -- TODO case
 
 -- | Parses a command.
-command :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-        => HereDocT m Command
+command :: MonadParser m => HereDocT m Command
 command = subshell' <|> simpleCommandStartingWithRedirection <|> other
   where
     subshell' = do
@@ -512,8 +509,7 @@ command = subshell' <|> simpleCommandStartingWithRedirection <|> other
 -- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
-pipeSequence :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => HereDocT m (NonEmpty Command)
+pipeSequence :: MonadParser m => HereDocT m (NonEmpty Command)
 pipeSequence = do
   h <- command
   t <- many $ lift (operatorToken "|") *> linebreak *> requireHD command
@@ -521,8 +517,7 @@ pipeSequence = do
 
 -- | Parses a @pipeline@, that is, a 'pipeSequence' optionally preceded by the
 -- @!@ reserved word.
-pipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-         => HereDocT m Pipeline
+pipeline :: MonadParser m => HereDocT m Pipeline
 pipeline = withBang <|> withoutBang
   where withBang = do
           _ <- lift $ literal reservedBang
@@ -545,8 +540,7 @@ andOrCondition = op <* whites
             _ -> failureOfPosition p
 
 -- | Parses a conditional pipeline.
-conditionalPipeline :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                    => HereDocT m ConditionalPipeline
+conditionalPipeline :: MonadParser m => HereDocT m ConditionalPipeline
 conditionalPipeline = HereDocT $ do
   c <- andOrCondition
   runHereDocT $ do
@@ -571,8 +565,7 @@ separator :: MonadParser m => HereDocT m Bool
 separator = lift separatorOp <* linebreak <|> False <$ newlineList
 
 -- | Parses an and-or list (@and_or@), not including a trailing separator.
-andOrList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-          => HereDocT m (Bool -> AndOrList)
+andOrList :: MonadParser m => HereDocT m (Bool -> AndOrList)
 andOrList = do
   h <- pipeline
   t <- many conditionalPipeline
@@ -580,7 +573,7 @@ andOrList = do
 
 -- | Given a separator parser, returns a pair of manyAndOrLists and
 -- someAndOrLists.
-manySomeAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+manySomeAndOrLists :: MonadParser m
                    => HereDocT m Bool
                    -> (HereDocT m [AndOrList],
                        HereDocT m (NonEmpty AndOrList))
@@ -593,25 +586,22 @@ manySomeAndOrLists sep = (manyAols, someAols)
 -- | Given a separator parser, parses a possibly empty sequence of and-or
 -- lists. The lists must be each separated by the separator. The separator is
 -- optional after the last list.
-manyAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-               => HereDocT m Bool -> HereDocT m [AndOrList]
+manyAndOrLists :: MonadParser m => HereDocT m Bool -> HereDocT m [AndOrList]
 manyAndOrLists = fst . manySomeAndOrLists
 
 -- | Given a separator parser, parses a non-empty sequence of and-or lists.
 -- The lists must be each separated by the separator. The separator is
 -- optional after the last list.
-someAndOrLists :: (MonadParser m, MonadReader Alias.DefinitionSet m)
+someAndOrLists :: MonadParser m
                => HereDocT m Bool -> HereDocT m (NonEmpty AndOrList)
 someAndOrLists = snd . manySomeAndOrLists
 
 -- | Parses a sequence of one or more and-or lists surrounded by optional
 -- linebreaks.
-compoundList :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => HereDocT m CommandList
+compoundList :: MonadParser m => HereDocT m CommandList
 compoundList = linebreak *> someAndOrLists separator
 
-completeLineBody :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-                 => HereDocT m [AndOrList]
+completeLineBody :: MonadParser m => HereDocT m [AndOrList]
 completeLineBody =
   manyAndOrLists (lift separatorOp) <*
     requireHD (void newlineHD <|> lift (void eof))
@@ -622,14 +612,13 @@ completeLineBody =
 -- 1. A line may contain any number of and-or lists. The lists must be
 --    delimited by @;@ or @&@ except the last @;@ may be omitted.
 -- 1. A line must be delimited by a 'newlineHD' or 'eof'.
-completeLine :: (MonadParser m, MonadReader Alias.DefinitionSet m)
-             => m [AndOrList]
+completeLine :: MonadParser m => m [AndOrList]
 completeLine = do
   _ <- whites
   evalReparseT $ fill completeLineBody
 
 -- | Parses an entire program.
-program :: (MonadParser m, MonadReader Alias.DefinitionSet m) => m [AndOrList]
+program :: MonadParser m => m [AndOrList]
 program = evalReparseT $ fill $
   whitesHD *> linebreak *> manyAndOrLists separator <* lift endOfToken
 -- TODO should not return UnknownReason
