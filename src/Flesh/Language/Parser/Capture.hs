@@ -29,13 +29,15 @@ This module defines types and functions for capturing input strings consumed
 by parsers.
 -}
 module Flesh.Language.Parser.Capture (
-  CaptureT, runCaptureT, execCaptureT) where
+  CaptureT, runCaptureT, mapCaptureT, execCaptureT) where
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
 import Control.Monad (MonadPlus, mplus, mzero)
 import Control.Monad.Except (MonadError, catchError, throwError)
+import Control.Monad.Reader (MonadReader, ask, local, reader)
 import Control.Monad.Trans.Class (MonadTrans, lift)
-import Control.Monad.Writer.Strict (WriterT, censor, pass, runWriterT, tell)
+import Control.Monad.Writer.Strict (
+  WriterT, censor, mapWriterT, pass, runWriterT, tell)
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
@@ -49,6 +51,10 @@ newtype CaptureT m a = CaptureT {getCaptureT :: WriterT [Positioned Char] m a}
 -- consumed.
 runCaptureT :: CaptureT m a -> m (a, [Positioned Char])
 runCaptureT = runWriterT . getCaptureT
+
+mapCaptureT :: (m (a, [Positioned Char]) -> n (b, [Positioned Char]))
+            -> CaptureT m a -> CaptureT n b
+mapCaptureT f = CaptureT . mapWriterT f . getCaptureT
 
 -- | Performs capture, discarding the main result.
 execCaptureT :: Functor m => CaptureT m a -> m [Positioned Char]
@@ -99,6 +105,11 @@ instance MonadReparse m => MonadReparse (CaptureT m) where
 
 instance MonadRecord m => MonadRecord (CaptureT m) where
   reverseConsumedChars = lift reverseConsumedChars
+
+instance MonadReader r m => MonadReader r (CaptureT m) where
+  ask = lift ask
+  local f = CaptureT . local f . getCaptureT
+  reader = CaptureT . reader
 
 instance MonadError e m => MonadError e (CaptureT m) where
   throwError = CaptureT . throwError
