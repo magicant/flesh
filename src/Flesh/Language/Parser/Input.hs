@@ -29,11 +29,14 @@ This module defines types for reading input for the syntax parser.
 -}
 module Flesh.Language.Parser.Input (
   -- * MonadInput
-  MonadInput(..)) where
+  MonadInput(..),
+  -- * OneShotInputT
+  OneShotInputT(..), OneShotInput, mapOneShotInputT) where
 
 import Control.Monad.Except (ExceptT)
 import Control.Monad.State.Strict (StateT)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Class (MonadTrans, lift)
+import Data.Functor.Identity (Identity)
 import Flesh.Source.Position
 
 -- | Monad that provides access to the underlying input character source with
@@ -67,5 +70,39 @@ instance MonadInput c m => MonadInput c (ExceptT e m) where
 instance MonadInput c m => MonadInput c (StateT s m) where
   readAt = lift . readAt
   positionAt = lift . positionAt
+
+-- | Monad wrapper that instantiates MonadInput without an underlying input
+-- source. OneShotInputT uses a PositionedString as a cursor.
+newtype OneShotInputT m a = OneShotInputT {runOneShotInputT :: m a}
+
+-- | Identity monad as a MonadInput instance.
+type OneShotInput = OneShotInputT Identity
+
+-- | Maps the value of OneShotInputT.
+mapOneShotInputT :: (m a -> n b) -> OneShotInputT m a -> OneShotInputT n b
+mapOneShotInputT f = OneShotInputT . f . runOneShotInputT
+
+instance MonadTrans OneShotInputT where
+  lift = OneShotInputT
+
+instance Functor f => Functor (OneShotInputT f) where
+  fmap = mapOneShotInputT . fmap
+  a <$ OneShotInputT b = OneShotInputT (a <$ b)
+
+instance Applicative m => Applicative (OneShotInputT m) where
+  pure = OneShotInputT . pure
+  OneShotInputT a <*> OneShotInputT b = OneShotInputT (a <*> b)
+  OneShotInputT a  *> OneShotInputT b = OneShotInputT (a  *> b)
+  OneShotInputT a <*  OneShotInputT b = OneShotInputT (a <*  b)
+
+instance Monad m => Monad (OneShotInputT m) where
+  OneShotInputT a >>= f = OneShotInputT (a >>= runOneShotInputT . f)
+  OneShotInputT a >> OneShotInputT b = OneShotInputT (a >> b)
+
+instance Monad m => MonadInput PositionedString (OneShotInputT m) where
+  readAt (Nil p) = return $ Left p
+  readAt (c :~ ps) = return $ Right (ps, c)
+  positionAt (Nil p) = return p
+  positionAt ((p, _) :~ _) = return p
 
 -- vim: set et sw=2 sts=2 tw=78:
