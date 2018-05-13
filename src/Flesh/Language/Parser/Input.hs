@@ -28,16 +28,77 @@ Portability : non-portable (GHC language extensions)
 This module defines types for reading input for the syntax parser.
 -}
 module Flesh.Language.Parser.Input (
+  -- * MonadLineInput
+  MonadLineInput(..),
+  -- * LineStandardInputT
+  LineStandardInputT(..), LineStandardInput, mapLineStandardInputT,
   -- * MonadInput
   MonadInput(..),
   -- * OneShotInputT
   OneShotInputT(..), OneShotInput, mapOneShotInputT) where
 
+import Control.Applicative (Alternative, empty, many, some, (<|>))
 import Control.Monad.Except (ExceptT)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans, lift)
 import Data.Functor.Identity (Identity)
 import Flesh.Source.Position
+import System.IO.Error (tryIOError)
+
+-- | Monad that provides line-wise access to the input source based on side
+-- effects.
+class Monad m => MonadLineInput m where
+  -- | Reads the next line from the underlying input source.
+  --
+  -- Input must be line-wise: Characters must be read exactly until the next
+  -- newline is found. The resultant string must end with the newline. If
+  -- there is no newline in the remaining input, then the resultant string
+  -- must be the entire remaining input and 'nextLine' should not be used any
+  -- more.
+  nextLine :: m String
+
+-- | IO Monad wrapper that simply reads the standard input.
+newtype LineStandardInputT m a =
+  LineStandardInputT {getLineStandardInputT :: m a}
+
+type LineStandardInput = LineStandardInputT IO
+
+mapLineStandardInputT :: (m a -> n b)
+                      -> LineStandardInputT m a -> LineStandardInputT n b
+mapLineStandardInputT f = LineStandardInputT . f . getLineStandardInputT
+
+instance Functor f => Functor (LineStandardInputT f) where
+  fmap f = LineStandardInputT . fmap f . getLineStandardInputT
+  a <$ LineStandardInputT b = LineStandardInputT (a <$ b)
+
+instance Applicative m => Applicative (LineStandardInputT m) where
+  pure = LineStandardInputT . pure
+  LineStandardInputT a <*> LineStandardInputT b = LineStandardInputT (a <*> b)
+  LineStandardInputT a  *> LineStandardInputT b = LineStandardInputT (a  *> b)
+  LineStandardInputT a <*  LineStandardInputT b = LineStandardInputT (a <*  b)
+
+instance Alternative m => Alternative (LineStandardInputT m) where
+  empty = LineStandardInputT empty
+  LineStandardInputT a <|> LineStandardInputT b = LineStandardInputT (a <|> b)
+  some = LineStandardInputT . some . getLineStandardInputT
+  many = LineStandardInputT . many . getLineStandardInputT
+
+instance Monad m => Monad (LineStandardInputT m) where
+  LineStandardInputT a >>= f =
+    LineStandardInputT (a >>= getLineStandardInputT . f)
+  LineStandardInputT a >> LineStandardInputT b = LineStandardInputT (a >> b)
+
+instance MonadIO m => MonadLineInput (LineStandardInputT m) where
+  nextLine = LineStandardInputT $ liftIO $ m
+    where m = do
+            errorOrChar <- tryIOError getChar
+            case errorOrChar of
+              Left _ -> return ""
+              Right '\n' -> return "\n"
+              Right c -> do
+                cs <- m
+                return (c:cs)
 
 -- | Monad that provides access to the underlying input character source with
 -- arbitrary backtracking. MonadInput is a low-level basis for implementing
