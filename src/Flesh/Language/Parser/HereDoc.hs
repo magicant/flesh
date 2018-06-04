@@ -160,7 +160,11 @@ instance MonadState s m => MonadState s (AccumT m) where
 
 instance MonadParser m => MonadBuffer (AccumT m) where
   popChar = lift popChar
-  lookahead = mapAccumT lookahead
+  lookahead (AccumT m) = AccumT $ do
+    savestate <- get
+    result <- lookahead m
+    put savestate
+    return result
   peekChar = lift peekChar
   currentPosition = lift currentPosition
 
