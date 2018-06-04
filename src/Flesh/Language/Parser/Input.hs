@@ -228,7 +228,7 @@ instance MonadLineInput m => MonadInput Int (LineInputT m) where
   readAt i = LineInputT m where
     m = do
       LineInputState nf pi re <- get
-      if Sequence.length pi < i
+      if i < Sequence.length pi
       then let i' = succ i
             in seq i' $ return $ Right (i', Sequence.index pi i)
       else if re
@@ -244,7 +244,7 @@ instance MonadLineInput m => MonadInput Int (LineInputT m) where
         m
   positionAt i = LineInputT $ do
     LineInputState nf pi _ <- get
-    return $ if Sequence.length pi < i
+    return $ if i < Sequence.length pi
        then fst $ Sequence.index pi i
        else Position {fragment = nf, index = 0}
 
