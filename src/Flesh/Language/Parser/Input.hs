@@ -216,23 +216,27 @@ instance Monad m => Monad (LineInputT m) where
   LineInputT a >>= f = LineInputT (a >>= getLineInputT . f)
   LineInputT a >> LineInputT b = LineInputT (a >> b)
 
+fillCode :: String -> Fragment -> Fragment
+fillCode c (Fragment _ s i) = (Fragment c s i)
+-- TODO Lens?
+
 nextLineFragment :: Fragment -> Fragment
-nextLineFragment (Fragment c s i) = Fragment c s (i + 1)
+nextLineFragment (Fragment _ s i) = Fragment "" s (i + 1)
 -- TODO Lens?
 
 instance MonadLineInput m => MonadInput Int (LineInputT m) where
   readAt i = LineInputT m where
     m = do
       LineInputState nf pi re <- get
-      let p = Position {fragment = nf, index = 0}
       if Sequence.length pi < i
       then let i' = succ i
             in seq i' $ return $ Right (i', Sequence.index pi i)
       else if re
-      then return $ Left p
+      then return $ Left $ Position {fragment = nf, index = 0}
       else do
         s <- lift nextLine
-        let ps = unposition $ spread p s
+        let p' = Position {fragment = fillCode s nf, index = 0}
+            ps = unposition $ spread p' s
             nf' = nextLineFragment nf
             pi' = pi >< Sequence.fromList ps
             re' = not $ elem '\n' s
