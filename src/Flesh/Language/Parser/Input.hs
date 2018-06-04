@@ -169,8 +169,7 @@ instance Monad m => Monad (OneShotInputT m) where
 instance Monad m => MonadInput PositionedString (OneShotInputT m) where
   readAt (Nil p) = return $ Left p
   readAt (c :~ ps) = return $ Right (ps, c)
-  positionAt (Nil p) = return p
-  positionAt ((p, _) :~ _) = return p
+  positionAt = return . headPosition
 
 -- | State of LineInputT.
 data LineInputState = LineInputState {
@@ -239,7 +238,7 @@ instance MonadLineInput m => MonadInput Int (LineInputT m) where
             ps = unposition $ spread p' s
             nf' = nextLineFragment nf
             pi' = pi >< Sequence.fromList ps
-            re' = not $ elem '\n' s
+            re' = notElem '\n' s
         put $ LineInputState nf' pi' re'
         m
   positionAt i = LineInputT $ do
