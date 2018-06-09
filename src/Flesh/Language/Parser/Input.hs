@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Input (
   -- * MonadInput
   MonadInput(..),
   -- * OneShotInputT
-  OneShotInputT(..), OneShotInput, mapOneShotInputT,
+  OneShotInputT(..), OneShotInput, runOneShotInput, mapOneShotInputT,
   -- * LineInputT
   LineInputT, mapLineInputT, runLineInputT) where
 
@@ -45,7 +45,7 @@ import Control.Monad.Except (ExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State.Strict (StateT, evalStateT, mapStateT, get, put)
 import Control.Monad.Trans.Class (MonadTrans, lift)
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Sequence (Seq, (><))
 import qualified Data.Sequence as Sequence
 import Flesh.Source.Position
@@ -144,6 +144,10 @@ newtype OneShotInputT m a = OneShotInputT {runOneShotInputT :: m a}
 
 -- | Identity monad as a MonadInput instance.
 type OneShotInput = OneShotInputT Identity
+
+-- | Returns the result of OneShotInput.
+runOneShotInput :: OneShotInput a -> a
+runOneShotInput = runIdentity . runOneShotInputT
 
 -- | Maps the value of OneShotInputT.
 mapOneShotInputT :: (m a -> n b) -> OneShotInputT m a -> OneShotInputT n b
