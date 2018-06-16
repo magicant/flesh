@@ -104,8 +104,6 @@ notFollowedBy m = do
 some' :: Alternative m => m a -> m (NonEmpty a)
 some' a = (:|) <$> a <*> many a
 
-instance MonadParser m => MonadParser (ReparseT m)
-
 -- | Combination of monads that constitute most part of a parser monad.
 newtype ParserT c m a = ParserT {getParserT ::
   ReaderT DefinitionSet (RecordT (ReparseT

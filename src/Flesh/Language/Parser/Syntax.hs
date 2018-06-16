@@ -613,13 +613,11 @@ completeLineBody =
 --    delimited by @;@ or @&@ except the last @;@ may be omitted.
 -- 1. A line must be delimited by a 'newlineHD' or 'eof'.
 completeLine :: MonadParser m => m [AndOrList]
-completeLine = do
-  _ <- whites
-  evalReparseT $ fill completeLineBody
+completeLine = whites >> fill completeLineBody
 
 -- | Parses an entire program.
 program :: MonadParser m => m [AndOrList]
-program = evalReparseT $ fill $
+program = fill $
   whitesHD *> linebreak *> manyAndOrLists separator <* lift endOfToken
 -- TODO should not return UnknownReason
 
