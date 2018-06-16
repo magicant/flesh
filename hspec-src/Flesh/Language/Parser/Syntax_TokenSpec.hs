@@ -24,9 +24,7 @@ import Data.Foldable (traverse_)
 import Data.List (elemIndex)
 import Data.Maybe (fromJust)
 import Data.Text (pack)
-import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Char
-import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
 import Flesh.Language.Parser.Syntax
@@ -224,90 +222,81 @@ spec = parallel $ do
       expectFailure "\\\n)" (tokenTill (lc (char ')'))) Soft UnknownReason 0
 
   describe "identifiedToken" $ do
-    let ip f a a' = do
-          r <- runReparseT $ fst <$> identifiedToken f a a'
-          case r of
-            Nothing -> failure
-            Just p -> return p
-        ik f a a' = runReparseT $ snd <$> identifiedToken f a a'
+    let ik f a a' = snd <$> identifiedToken f a a'
         ikReserved r = ik r True True
         ikAllReserved = ikReserved (const True)
         ikNoReserved = ikReserved (const False)
         ikNoReserved' = ikReserved (const False)
         ikAlias a = ik (const False) a True
         ikAssignment a = ik (const False) True a
-        ir f a a' = evalReparseT $ snd <$> identifiedToken f a a'
-        irDefault = ir (const False) True True
 
     context "returns current position" $ do
-      expectPosition "foo;" (ip (const True) True True) 0
+      expectPosition "foo;" (fst <$> identifiedToken (const True) True True) 0
 
     context "any token can be identified as reserved if accepted" $ do
-      expectShow "foo" ";" ikAllReserved "Just (Reserved \"foo\")"
-      expectShow "if" ";"  ikAllReserved "Just (Reserved \"if\")"
-      expectShow "w" ";"   (ikReserved (== pack "w")) "Just (Reserved \"w\")"
+      expectShow "foo" ";" ikAllReserved "Reserved \"foo\""
+      expectShow "if" ";"  ikAllReserved "Reserved \"if\""
+      expectShow "w" ";"   (ikReserved (== pack "w")) "Reserved \"w\""
 
     context "no token can be identified as reserved if rejected" $ do
-      expectShow "foo" ";" ikNoReserved "Just (Normal foo)"
-      expectShow "if" ";"  ikNoReserved "Just (Normal if)"
-      expectShow "w" ";"   (ikReserved (/= pack "w")) "Just (Normal w)"
+      expectShow "foo" ";" ikNoReserved "Normal foo"
+      expectShow "if" ";"  ikNoReserved "Normal if"
+      expectShow "w" ";"   (ikReserved (/= pack "w")) "Normal w"
 
     context "quoted tokens are not identified as reserved" $ do
-      expectShow "f\\oo" ";" ikAllReserved "Just (Normal f\\oo)"
-      expectShow "f'o'o" ";" ikAllReserved "Just (Normal f'o'o)"
-      expectShow "f\"o\"o" ";" ikAllReserved "Just (Normal f\"o\"o)"
+      expectShow "f\\oo" ";" ikAllReserved "Normal f\\oo"
+      expectShow "f'o'o" ";" ikAllReserved "Normal f'o'o"
+      expectShow "f\"o\"o" ";" ikAllReserved "Normal f\"o\"o"
 
     context "doesn't perform alias substitution on reserved words" $ do
       expectShow defaultAliasName ";" ikAllReserved $
-        "Just (Reserved \"" ++ defaultAliasName ++ "\")"
+        "Reserved \"" ++ defaultAliasName ++ "\""
 
     context "modifies pending input on alias substitution" $ do
-      expectSuccessEof defaultAliasName "" (ikNoReserved' >> readAll)
-        defaultAliasValue
+      return () -- tested in "stops alias substitution on recursion" below
 
     it "returns nothing after alias substitution" $
-      let e = runFullInputTesterWithDummyPositions ikNoReserved'
-                defaultAliasName
-       in fmap fst e `shouldBe` Right Nothing
+      let e = runReparseFullInputTester ikNoReserved' defaultAliasName
+       in e `shouldBe` Right Nothing
 
     it "stops alias substitution on recursion" $
       let e = runFullInputTesterWithDummyPositions
-                ((,) <$> irDefault <*> readAll) defaultAliasName
+                ((,) <$> ikNoReserved' <*> readAll) defaultAliasName
           f ((l, r), _) = (show l, r)
           ex = "Normal " ++ defaultAliasName
        in fmap f e `shouldBe` Right (ex, "--color")
 
     it "stops alias substitution on exact recursion" $
       let e = runFullInputTesterWithDummyPositions
-                ((,) <$> irDefault <*> readAll) recursiveAlias
+                ((,) <$> ikNoReserved' <*> readAll) recursiveAlias
           f ((l, r), _) = (show l, r)
           ex = "Normal " ++ recursiveAlias
        in fmap f e `shouldBe` Right (ex, "")
 
     context "doesn't perform alias substitution if disabled" $ do
       expectShow recursiveAlias ";" (ikAlias False) $
-        "Just (Normal " ++ recursiveAlias ++ ")"
+        "Normal " ++ recursiveAlias ++ ""
 
     context "performs alias substitution after blank-ending substitution" $ do
       return () -- should be tested elsewhere
 
     context "identifies assignment" $ do
-      expectShow "a=" ";" ikNoReserved "Just (Assignment a=)"
-      expectShow "abc=" ";" ikNoReserved "Just (Assignment abc=)"
-      expectShow "a=xyz" ";" ikNoReserved "Just (Assignment a=xyz)"
-      --expectShow "foo=b'a'r" ";" ikNoReserved "Just (Assignment foo=b'a'r)"
-      --expectShow "`a b`=" ";" ikNoReserved "Just (Assignment `a b`=)"
+      expectShow "a=" ";" ikNoReserved "Assignment a="
+      expectShow "abc=" ";" ikNoReserved "Assignment abc="
+      expectShow "a=xyz" ";" ikNoReserved "Assignment a=xyz"
+      --expectShow "foo=b'a'r" ";" ikNoReserved "Assignment foo=b'a'r"
+      --expectShow "`a b`=" ";" ikNoReserved "Assignment `a b`="
 
     context "rejects empty assignment name" $ do
-      expectShow "=a" ";" ikNoReserved "Just (Normal =a)"
+      expectShow "=a" ";" ikNoReserved "Normal =a"
 
     context "rejects quoted equal as assignment" $ do
-      expectShow "a\\=" ";" ikNoReserved "Just (Normal a\\=)"
-      expectShow "a'='" ";" ikNoReserved "Just (Normal a'=')"
-      expectShow "a\"=\"" ";" ikNoReserved "Just (Normal a\"=\")"
+      expectShow "a\\=" ";" ikNoReserved "Normal a\\="
+      expectShow "a'='" ";" ikNoReserved "Normal a'='"
+      expectShow "a\"=\"" ";" ikNoReserved "Normal a\"=\""
 
     context "doesn't identify assignment if disabled" $ do
-      expectShow "a=" ";" (ikAssignment False) "Just (Normal a=)"
+      expectShow "a=" ";" (ikAssignment False) "Normal a="
 
   describe "literal" $ do
     context "returns matching unquoted token" $ do

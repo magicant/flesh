@@ -34,18 +34,20 @@ module Flesh.Language.Parser.Class (
   MonadParser, failure, failureOfReason, satisfying, satisfyingP,
   notFollowedBy, some',
   -- * The 'ParserT' monad transformer
-  ParserT(..), runParserT, mapParserT) where
+  ParserT(..), evalParserT) where
 
 import Control.Applicative (Alternative, empty, many, (<|>))
 import Control.Monad (MonadPlus, join)
-import Control.Monad.Except (MonadError, catchError, throwError)
-import Control.Monad.Reader (MonadReader, ask, local, reader)
+import Control.Monad.Except (
+  ExceptT, MonadError, catchError, runExceptT, throwError)
+import Control.Monad.Reader (
+  MonadReader, ReaderT, ask, local, reader, runReaderT)
 import Control.Monad.Trans.Class (MonadTrans, lift)
-import Data.Foldable (fold, foldl, foldl', foldr, foldr', toList)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 
 -- | Collection of properties required for basic parser implementation.
@@ -104,100 +106,68 @@ some' a = (:|) <$> a <*> many a
 
 instance MonadParser m => MonadParser (ReparseT m)
 
--- | Monad wrapper that instantiates 'MonadParser' from 'MonadInput' and
--- 'MonadError'.
---
--- As an instance of 'Functor', 'Foldable', 'Applicative' and 'Monad',
--- @ParserT m@ behaves the same as the original monad @m@. The 'Alternative'
--- instance for @ParserT@ is constructed from the 'MonadError' instance to
--- obey the 'MonadParser' laws.
-newtype ParserT m a = ParserT (m a)
-  deriving (Eq, Show)
+-- | Combination of monads that constitute most part of a parser monad.
+newtype ParserT c m a = ParserT {getParserT ::
+  ReaderT DefinitionSet (RecordT (ReparseT
+    (PushBackT (CursorT c (ExceptT Failure m))))) a}
 
 -- | Returns the value of 'ParserT'.
-runParserT :: ParserT m a -> m a
-runParserT (ParserT m) = m
+evalParserT :: Monad m
+            => ParserT c m a -> DefinitionSet -> c -> m (Either Failure a)
+evalParserT (ParserT m) ds c = m3
+  where m1 = runReaderT m ds
+        m2 = evalPushBackT $ evalReparseT $ evalRecordT m1
+        m3 = runExceptT $ evalCursorT m2 c
 
--- | Directly modifies the value of 'ParserT'.
-mapParserT :: (m a -> n b) -> ParserT m a -> ParserT n b
-mapParserT f = ParserT . f . runParserT
-
-instance Functor m => Functor (ParserT m) where
-  fmap f = ParserT . fmap f . runParserT
+instance Functor m => Functor (ParserT c m) where
+  fmap f = ParserT . fmap f . getParserT
   a <$ ParserT b = ParserT (a <$ b)
 
-instance Foldable m => Foldable (ParserT m) where
-  fold = fold . runParserT
-  foldMap f = foldMap f . runParserT
-  foldr f z = foldr f z . runParserT
-  foldr' f z = foldr' f z . runParserT
-  foldl f z = foldl f z . runParserT
-  foldl' f z = foldl' f z . runParserT
-  foldr1 f = foldr1 f . runParserT
-  foldl1 f = foldl1 f . runParserT
-  toList = toList . runParserT
-  null = null . runParserT
-  length = length . runParserT
-  elem e = elem e . runParserT
-  maximum = maximum . runParserT
-  minimum = minimum . runParserT
-  sum = sum . runParserT
-  product = product . runParserT
-
-instance Applicative m => Applicative (ParserT m) where
+instance (Applicative m, Monad m) => Applicative (ParserT c m) where
   pure = ParserT . pure
   ParserT a <*> ParserT b = ParserT (a <*> b)
   ParserT a  *> ParserT b = ParserT (a  *> b)
   ParserT a <*  ParserT b = ParserT (a <*  b)
 
-instance Monad m => Monad (ParserT m) where
+instance Monad m => Monad (ParserT c m) where
   return = ParserT . return
-  ParserT a >>= f = ParserT (a >>= runParserT . f)
+  ParserT a >>= f = ParserT (a >>= getParserT . f)
   ParserT a >> ParserT b = ParserT (a >> b)
 
-instance MonadTrans ParserT where
-  lift = ParserT
+instance MonadTrans (ParserT c) where
+  lift = ParserT . lift . lift . lift . lift . lift . lift
 
-instance MonadBuffer m => MonadBuffer (ParserT m) where
-  popChar = lift popChar
-  lookahead = mapParserT lookahead
-  peekChar = lift peekChar
-  currentPosition = lift currentPosition
+instance MonadInput c m => MonadBuffer (ParserT c m) where
+  popChar = ParserT popChar
+  lookahead = ParserT . lookahead . getParserT
+  peekChar = ParserT peekChar
+  currentPosition = ParserT currentPosition
 
-instance MonadReparse m => MonadReparse (ParserT m) where
-  maybeReparse = mapParserT maybeReparse
-  maybeReparse' = mapParserT maybeReparse'
+instance Monad m => MonadReparse (ParserT c m) where
+  maybeReparse = ParserT . maybeReparse . getParserT
+  maybeReparse' = ParserT . maybeReparse' . getParserT
 
-instance MonadRecord m => MonadRecord (ParserT m) where
-  reverseConsumedChars = lift reverseConsumedChars
+instance MonadInput c m => MonadRecord (ParserT c m) where
+  reverseConsumedChars = ParserT reverseConsumedChars
 
-instance MonadError e m => MonadError e (ParserT m) where
+instance Monad m => MonadReader DefinitionSet (ParserT c m) where
+  ask = ParserT ask
+  local f = ParserT . local f . getParserT
+  reader = ParserT . reader
+
+instance Monad m => MonadError Failure (ParserT c m) where
   throwError = ParserT . throwError
-  catchError (ParserT m) f = ParserT (catchError m (runParserT . f))
+  catchError (ParserT m) f = ParserT (catchError m (getParserT . f))
 
-instance (
-  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
-  MonadError Failure m)
-    => Alternative (ParserT m) where
+instance MonadInput c m => Alternative (ParserT c m) where
   empty = failure
   a <|> b =
     a `catchError` handle
       where handle (Soft, _) = b
             handle e = throwError e
 
-instance (
-  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
-  MonadError Failure m)
-  => MonadPlus (ParserT m)
+instance MonadInput c m => MonadPlus (ParserT c m)
 
-instance (
-  MonadReparse m, MonadRecord m, MonadReader DefinitionSet m,
-  MonadError Failure m)
-  => MonadParser (ParserT m)
-
-instance MonadReader r m => MonadReader r (ParserT m) where
-  ask = lift ask
-  local f = mapParserT $ local f
-  reader = lift . reader
+instance MonadInput c m => MonadParser (ParserT c m)
 
 -- vim: set et sw=2 sts=2 tw=78:

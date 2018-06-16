@@ -24,14 +24,19 @@ module Flesh.Language.Parser.ClassTestUtil () where
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.ErrorTestUtil ()
-import Test.QuickCheck (Arbitrary, Gen, arbitrary, oneof)
+import Test.QuickCheck (Arbitrary, arbitrary, oneof)
 
-instance (MonadError Failure m, Arbitrary a) => Arbitrary (ParserT m a) where
+-- TODO Take ReparseT etc. into account
+instance (Monad m, Arbitrary a) => Arbitrary (ParserT c m a) where
   arbitrary = oneof [success_, failure_]
     where success_ = return <$> arbitrary
           failure_ = do
-            s <- arbitrary :: Gen Severity
-            e <- arbitrary :: Gen Error
-            return $ throwError (s, e)
+            s <- arbitrary
+            e <- arbitrary
+            return $ ParserT $ throwError (s, e)
+
+-- This is silly, just for making QuickCheck happy.
+instance Show (ParserT c m a) where
+  showsPrec _ _ = id
 
 -- vim: set et sw=2 sts=2 tw=78:

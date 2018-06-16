@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.Syntax_CommandSpec (spec) where
 
 import Data.Foldable (toList)
-import Flesh.Language.Parser.Alias
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
@@ -284,7 +283,6 @@ spec = parallel $ do
   describe "command" $ do
     let sc = fill command
         sc' = fill command
-        asc = runReparseT $ fill command
 
     context "as simple command" $ do
       context "cannot be empty" $ do
@@ -324,12 +322,13 @@ spec = parallel $ do
         expectShowEof "f=o b=r <a" "" sc "f=o b=r 0<a"
 
       it "returns nothing after alias substitution" $
-        let e = runFullInputTesterWithDummyPositions asc defaultAliasName
-         in fmap fst e `shouldBe` Right Nothing
+        let e = runReparseFullInputTester sc defaultAliasName
+         in e `shouldBe` Right Nothing
 
       context "does not alias-substitute second token" $ do
-        expectShowEof ("foo " ++ defaultAliasName) "" asc $
-          "Just foo " ++ defaultAliasName
+        let t = "foo " ++ defaultAliasName
+        expectShowEof t "" sc t
+          
 
     context "as grouping" $ do
       context "starts with a brace" $ do

@@ -24,12 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.TestUtil where
 
 import Control.Applicative (many)
-import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.Reader (ReaderT, runReaderT)
-import Control.Monad.State.Strict (StateT, get, modify', put, runStateT)
-import Control.Monad.Trans.Class (lift)
-import Data.Foldable (for_)
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Reader (runReaderT)
 import Data.Map.Strict (insert, singleton)
 import Data.Text (pack)
 import qualified Flesh.Language.Alias as Alias
@@ -38,12 +34,12 @@ import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.Error
+import Flesh.Language.Parser.Input
 import Flesh.Source.Position
 import Test.Hspec (
   SpecWith, context, expectationFailure, it, shouldBe, shouldSatisfy)
 
-newtype Overrun a = Overrun {
-  runOverrun :: StateT PositionedString (ExceptT Failure Maybe) a}
+newtype Overrun a = Overrun {runOverrun :: Maybe a}
 
 instance Functor Overrun where
   fmap f = Overrun . fmap f . runOverrun
@@ -59,43 +55,13 @@ instance Monad Overrun where
   Overrun a >>= f = Overrun (a >>= runOverrun . f)
   Overrun a >> Overrun b = Overrun (a >> b)
 
-instance MonadError Failure Overrun where
-  throwError = Overrun . throwError
-  catchError (Overrun m) f = Overrun (catchError m (runOverrun . f))
+instance MonadInput PositionedString Overrun where
+  readAt (Nil _) = Overrun Nothing
+  readAt (c :~ ps) = return $ Right (ps, c)
+  positionAt = return . headPosition
 
-instance MonadBuffer Overrun where
-  popChar = Overrun $ do
-    cs <- get
-    case cs of
-      Nil _ -> lift $ lift Nothing
-      c :~ cs' -> do
-        put cs'
-        return $ Right c
-
-  lookahead m = Overrun $ do
-    savedstate <- get
-    result <- runOverrun m
-    put savedstate
-    return result
-
-  peekChar = Overrun $ do
-    cs <- get
-    case cs of
-      Nil _ -> lift $ lift Nothing
-      c :~ _ -> return $ Right c
-
-  currentPosition = Overrun $ headPosition <$> get
-
-instance MonadReparse Overrun where
-  maybeReparse' m = Overrun $ do
-    r@(maybeChars, _) <- runOverrun m
-    for_ maybeChars $ modify' . push
-    return r
-      where push newcs oldcs = foldr (:~) oldcs newcs
-
-type TesterT m = ParserT (RecordT (ReaderT Alias.DefinitionSet m))
-type OverrunTester = TesterT Overrun
-type FullInputTester = TesterT (PositionedStringT (ExceptT Failure Identity))
+type OverrunTester = ParserT PositionedString Overrun
+type FullInputTester = ParserT PositionedString OneShotInput
 
 defaultAliasName :: String
 defaultAliasName = "ls"
@@ -128,22 +94,25 @@ reservedWordAliasDefinitions = singleton n (Alias.definition n v p)
         v = pack reservedWordAliasValue
         p = dummyPosition "alias while=';;'"
 
-runTesterReparseT :: Functor m => TesterT m a -> Alias.DefinitionSet -> m a
-runTesterReparseT parser = runReaderT $ evalRecordT $ runParserT parser
+runParserT :: Monad m
+           => ParserT c m a -> Alias.DefinitionSet -> c
+           -> m (Either Failure (a, c))
+runParserT (ParserT m) ds c = m3
+  where m1 = runReaderT m ds
+        m2 = evalPushBackT $ evalReparseT $ evalRecordT m1
+        m3 = runExceptT $ runCursorT m2 c
 
 runFullInputTesterAlias :: FullInputTester a
                         -> Alias.DefinitionSet -> PositionedString
                         -> Either Failure (a, PositionedString)
 runFullInputTesterAlias parser defs ps =
-  runIdentity $ runExceptT $ runStateT p ps
-    where p = runPositionedStringT $ runTesterReparseT parser defs
+  runOneShotInput $ runParserT parser defs ps
 
 runOverrunTesterAlias :: OverrunTester a
                       -> Alias.DefinitionSet -> PositionedString
                       -> Maybe (Either Failure (a, PositionedString))
 runOverrunTesterAlias parser defs ps =
-  runExceptT $ runStateT m ps
-    where m = runOverrun $ runTesterReparseT parser defs
+  runOverrun $ runParserT parser defs ps
 
 runFullInputTester :: FullInputTester a -> PositionedString
                    -> Either Failure (a, PositionedString)
@@ -163,6 +132,14 @@ runOverrunTesterWithDummyPositions :: OverrunTester a -> String ->
   Maybe (Either Failure (a, PositionedString))
 runOverrunTesterWithDummyPositions parser s = runOverrunTester parser s'
   where s' = spread (dummyPosition s) s
+
+runReparseFullInputTester :: FullInputTester a -> String
+                          -> Either Failure (Maybe a)
+runReparseFullInputTester m s =
+  runOneShotInput $ runExceptT $ evalCursorT m' s'
+    where s' = spread (dummyPosition s) s
+          m' = evalPushBackT $ runReparseT $ evalRecordT $
+            runReaderT (getParserT m) defaultAliasDefinitions
 
 readAll :: MonadParser m => m String
 readAll = fmap (fmap snd) (many anyChar)
