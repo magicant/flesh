@@ -21,37 +21,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.ClassSpec (spec) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Except (ExceptT, mapExceptT, runExceptT)
-import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.Reader (ReaderT, mapReaderT, runReaderT)
-import Control.Monad.State.Strict (runState)
-import Data.Map.Strict (empty)
-import Flesh.Language.Alias
-import Flesh.Language.Parser.Buffer
 import Flesh.Language.Parser.Class
 import Flesh.Language.Parser.ClassTestUtil ()
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.ErrorTestUtil ()
+import Flesh.Language.Parser.TestUtil
 import Flesh.Source.Position
 import Flesh.Source.PositionTestUtil ()
 import Test.Hspec (Spec, describe, parallel)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===))
 
-type PT m = ParserT (ReaderT DefinitionSet (RecordT (ExceptT Failure m)))
-type AE = PT Identity
-type AES = PT (PositionedStringT Identity)
-
-instance Show (m a) => Show (ReaderT DefinitionSet m a) where
-  showsPrec n m = showsPrec n (runReaderT m empty)
-
-run :: AES a -> PositionedString -> (Either Failure a, PositionedString)
-run = runState . runPositionedStringT . runExceptT . evalRecordT .
-  flip runReaderT empty . runParserT
-
-aesFromAE :: AE a -> AES a
-aesFromAE =
-  mapParserT $ mapReaderT $ mapRecordT $ mapExceptT $ return . runIdentity
+run :: FullInputTester a
+    -> PositionedString -> Either Failure (a, PositionedString)
+run = runFullInputTester
 
 spec :: Spec
 spec = parallel $ do
@@ -66,21 +49,18 @@ spec = parallel $ do
 
   describe "Alternative (ParserT m) (<|>)" $ do
     prop "returns hard errors intact" $ \e a i ->
-      let _ = a :: AE Int
-          a' = aesFromAE a
-          f  = require $ failureOfError e
-       in run (f <|> a') i === run f i
+      let _ = a :: FullInputTester Int
+          f = require $ failureOfError e
+       in run (f <|> a) i === run f i
 
     prop "returns success intact" $ \v a i ->
-      let _ = a :: AE Int
-          a' = aesFromAE a
-          s  = return v
-       in run (s <|> a') i === run s i
+      let _ = a :: FullInputTester Int
+          s = return v
+       in run (s <|> a) i === run s i
 
     prop "recovers soft errors" $ \e a i ->
-      let _ = a :: AE Int
-          a' = aesFromAE a
-          f  = failureOfError e
-       in run (f <|> a') i === run a' i
+      let _ = a :: FullInputTester Int
+          f = failureOfError e
+       in run (f <|> a) i === run a i
 
 -- vim: set et sw=2 sts=2 tw=78:
