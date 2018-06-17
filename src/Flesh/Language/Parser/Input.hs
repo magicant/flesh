@@ -36,7 +36,7 @@ module Flesh.Language.Parser.Input (
   -- * MonadInput
   MonadInput(..),
   -- * OneShotInputT
-  OneShotInputT(..), OneShotInput, mapOneShotInputT,
+  OneShotInputT(..), OneShotInput, runOneShotInput, mapOneShotInputT,
   -- * LineInputT
   LineInputT, mapLineInputT, runLineInputT) where
 
@@ -45,7 +45,7 @@ import Control.Monad.Except (ExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State.Strict (StateT, evalStateT, mapStateT, get, put)
 import Control.Monad.Trans.Class (MonadTrans, lift)
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Sequence (Seq, (><))
 import qualified Data.Sequence as Sequence
 import Flesh.Source.Position
@@ -145,6 +145,10 @@ newtype OneShotInputT m a = OneShotInputT {runOneShotInputT :: m a}
 -- | Identity monad as a MonadInput instance.
 type OneShotInput = OneShotInputT Identity
 
+-- | Returns the result of OneShotInput.
+runOneShotInput :: OneShotInput a -> a
+runOneShotInput = runIdentity . runOneShotInputT
+
 -- | Maps the value of OneShotInputT.
 mapOneShotInputT :: (m a -> n b) -> OneShotInputT m a -> OneShotInputT n b
 mapOneShotInputT f = OneShotInputT . f . runOneShotInputT
@@ -169,8 +173,7 @@ instance Monad m => Monad (OneShotInputT m) where
 instance Monad m => MonadInput PositionedString (OneShotInputT m) where
   readAt (Nil p) = return $ Left p
   readAt (c :~ ps) = return $ Right (ps, c)
-  positionAt (Nil p) = return p
-  positionAt ((p, _) :~ _) = return p
+  positionAt = return . headPosition
 
 -- | State of LineInputT.
 data LineInputState = LineInputState {
@@ -216,31 +219,35 @@ instance Monad m => Monad (LineInputT m) where
   LineInputT a >>= f = LineInputT (a >>= getLineInputT . f)
   LineInputT a >> LineInputT b = LineInputT (a >> b)
 
+fillCode :: String -> Fragment -> Fragment
+fillCode c (Fragment _ s i) = (Fragment c s i)
+-- TODO Lens?
+
 nextLineFragment :: Fragment -> Fragment
-nextLineFragment (Fragment c s i) = Fragment c s (i + 1)
+nextLineFragment (Fragment _ s i) = Fragment "" s (i + 1)
 -- TODO Lens?
 
 instance MonadLineInput m => MonadInput Int (LineInputT m) where
   readAt i = LineInputT m where
     m = do
       LineInputState nf pi re <- get
-      let p = Position {fragment = nf, index = 0}
-      if Sequence.length pi < i
+      if i < Sequence.length pi
       then let i' = succ i
             in seq i' $ return $ Right (i', Sequence.index pi i)
       else if re
-      then return $ Left p
+      then return $ Left $ Position {fragment = nf, index = 0}
       else do
         s <- lift nextLine
-        let ps = unposition $ spread p s
+        let p' = Position {fragment = fillCode s nf, index = 0}
+            ps = unposition $ spread p' s
             nf' = nextLineFragment nf
             pi' = pi >< Sequence.fromList ps
-            re' = not $ elem '\n' s
+            re' = notElem '\n' s
         put $ LineInputState nf' pi' re'
         m
   positionAt i = LineInputT $ do
     LineInputState nf pi _ <- get
-    return $ if Sequence.length pi < i
+    return $ if i < Sequence.length pi
        then fst $ Sequence.index pi i
        else Position {fragment = nf, index = 0}
 

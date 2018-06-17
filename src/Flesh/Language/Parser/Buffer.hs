@@ -122,12 +122,16 @@ instance MonadBuffer m => MonadBuffer (ReaderT r m) where
   peekChar = lift peekChar
   currentPosition = lift currentPosition
 
+-- | In the default implementation, 'lookahead' does not restore the state
+-- after executing the inner monad. This behavior might not be what you want.
 instance MonadBuffer m => MonadBuffer (StateT s m) where
   popChar = lift popChar
   lookahead = mapStateT lookahead
   peekChar = lift peekChar
   currentPosition = lift currentPosition
 
+-- | In the default implementation, 'lookahead' does not ignore the output
+-- from the inner monad. This behavior might not be what you want.
 instance (MonadBuffer m, Monoid w) => MonadBuffer (WriterT w m) where
   popChar = lift popChar
   lookahead = mapWriterT lookahead
