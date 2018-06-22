@@ -25,11 +25,13 @@ Portability : portable
 This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
+  -- * Names
+  isPosixNameChar, isPosixNameString,
   -- * Tokens
   DoubleQuoteUnit(..), unquoteDoubleQuoteUnit,
   WordUnit(..), unquoteWordUnit,
   EWord(..), wordUnits, wordText,
-  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken,
+  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken, posixNameFromToken,
   Assignment(..),
   -- * Redirections
   HereDocOp(..), FileOp(..), Redirection(..), fd,
@@ -38,14 +40,29 @@ module Flesh.Language.Syntax (
   AndOrCondition(..), ConditionalPipeline(..), AndOrList(..),
   showSeparatedList, CommandList) where
 
+import Control.Monad (guard)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Flesh.Source.Position (Position, Positioned)
 import Numeric.Natural (Natural)
 
 -- Utility for Show instances
 showSpace :: ShowS
 showSpace = showChar ' '
+
+-- | Returns true iff the argument character can be used in POSIX names.
+isPosixNameChar :: Char -> Bool
+isPosixNameChar c | isDigit c      = True
+                  | isAsciiLower c = True
+                  | isAsciiUpper c = True
+                  | c == '_'       = True
+                  | otherwise      = False
+
+-- | Returns true iff the argument is an unquoted POSIX name.
+isPosixNameString :: String -> Bool
+isPosixNameString [] = False
+isPosixNameString cs@(c:_) = not (isDigit c) && all isPosixNameChar cs
 
 -- | Element of double quotes.
 data DoubleQuoteUnit =
@@ -168,6 +185,14 @@ unquoteToken :: Token -> (Bool, [DoubleQuoteUnit])
 unquoteToken t = (or bs, concat uss)
   where ~(bs, uss) = unq t
         unq = unzip . fmap unquoteWordUnit . toList . fmap snd . tokenUnits
+
+-- | Returns the token text only if the argument is an unquoted POSIX name.
+posixNameFromToken :: Token -> Maybe Text
+posixNameFromToken t = do
+  let ttt = tokenText t
+  tx <- ttt
+  guard $ isPosixNameString $ unpack tx
+  ttt
 
 instance Show Token where
   showsPrec n t = showsPrec n (tokenWord t)
