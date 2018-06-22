@@ -38,6 +38,7 @@ import Control.Monad.State.Strict (
   MonadState, State, evalState, get, modify', put, state)
 import Control.Monad.Writer.Lazy (Endo(Endo), MonadWriter, tell)
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
+import Data.Text (unpack)
 import Flesh.Language.Syntax
 import Flesh.Text.Show
 
@@ -216,7 +217,11 @@ instance Printable Command where
     prints cc
     showSpace'
     printList rs
-  prints FunctionDefinition = undefined -- TODO
+  prints (FunctionDefinition name cmd) = do
+    printString $ unpack name
+    printString "()"
+    printNewline
+    prints cmd
 
 instance Printable Pipeline where
   prints p = do

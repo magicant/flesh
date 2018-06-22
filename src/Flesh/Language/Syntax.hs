@@ -261,6 +261,7 @@ data CompoundCommand =
   | While CommandList CommandList
   -- | loop condition and body.
   | Until CommandList CommandList
+  -- TODO Ksh-style function definition.
   deriving (Eq)
 
 showDoGroup :: CommandList -> ShowS
@@ -304,8 +305,8 @@ data Command =
   SimpleCommand [Token] [Assignment] [Redirection]
   -- | Compound commands
   | CompoundCommand (Positioned CompoundCommand) [Redirection]
-  -- | Function definition.
-  | FunctionDefinition -- FIXME
+  -- | Bourne-style function definition.
+  | FunctionDefinition Text Command
   deriving (Eq)
 
 instance Show Command where
@@ -319,7 +320,8 @@ instance Show Command where
   showsPrec n (CompoundCommand (_, cc) []) = showsPrec n cc
   showsPrec n (CompoundCommand (_, cc) rs) =
     showsPrec n cc . showSpace . showList rs
-  showsPrec _ FunctionDefinition = id -- FIXME
+  showsPrec n (FunctionDefinition name cmd) =
+    showString (unpack name) . showString "() " . showsPrec n cmd
 
 -- | Element of and-or lists. Optionally negated sequence of one or more
 -- commands.
