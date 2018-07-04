@@ -31,7 +31,8 @@ module Flesh.Language.Syntax (
   DoubleQuoteUnit(..), unquoteDoubleQuoteUnit,
   WordUnit(..), unquoteWordUnit,
   EWord(..), wordUnits, wordText,
-  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken, posixNameFromToken,
+  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken, positionOfToken,
+  posixNameFromToken,
   Assignment(..),
   -- * Redirections
   HereDocOp(..), FileOp(..), Redirection(..), fd,
@@ -185,6 +186,10 @@ unquoteToken :: Token -> (Bool, [DoubleQuoteUnit])
 unquoteToken t = (or bs, concat uss)
   where ~(bs, uss) = unq t
         unq = unzip . fmap unquoteWordUnit . toList . fmap snd . tokenUnits
+
+-- | Returns the position of the token
+positionOfToken :: Token -> Position
+positionOfToken (Token ((p, _) :| _)) = p
 
 -- | Returns the token text only if the argument is an unquoted POSIX name.
 posixNameFromToken :: Token -> Maybe Text

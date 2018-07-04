@@ -38,7 +38,7 @@ module Flesh.Language.Parser.Syntax (
   -- * Syntax
   -- ** Commands
   subshell, braceGroupTail, doGroup, forClauseTail, ifClauseTail,
-  whileClauseTail, untilClauseTail, command,
+  whileClauseTail, untilClauseTail, bourneFunctionDefinitionTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine, program) where
@@ -466,6 +466,25 @@ untilClauseTail :: MonadParser m
                  -> HereDocT m (Positioned CompoundCommand)
 untilClauseTail = whileUntilClauseTail "until" Until MissingDoForUntil
 
+-- | Parses a Bourne-style function definition except the first token that
+-- specifies the function name.
+--
+-- The first token is not parsed by this parser. It must have been parsed by
+-- another parser and must be passed as the argument.
+bourneFunctionDefinitionTail :: MonadParser m => Token -> HereDocT m Command
+bourneFunctionDefinitionTail name =
+  FunctionDefinition <$> prefix <* linebreak <*> body
+    where prefix = lift $ l *> r *> checkedName
+          l = operatorToken "("
+          r = require $ setReason MissingRightParenInFunction $
+            operatorToken ")"
+          checkedName = case posixNameFromToken name of
+                          Nothing -> invalidName
+                          Just n -> pure n
+          invalidName = throwError $
+            (Hard, Error (InvalidFunctionName name) (positionOfToken name))
+          body = requireHD $ setReasonHD MissingFunctionBody command
+
 -- | Parses a compound command except the first token that determines the type
 -- of the compound command.
 --
@@ -500,13 +519,14 @@ command = subshell' <|> simpleCommandStartingWithRedirection <|> other
       t <- identifiedToken isReserved True True
       pure $ case t of
                (p, Reserved tx) -> do
+                 -- TODO ksh-style function definition
                  cc <- compoundCommandTail (p, tx)
                  rs <- many redirect
                  pure $ CompoundCommand cc rs
                (_, L.Assignment a) -> sc <$> simpleCommandContentsA a
-               (_, Normal tk) -> sc <$> simpleCommandContentsW tk
+               (_, Normal tk) -> bourneFunctionDefinitionTail tk <|>
+                                 sc <$> simpleCommandContentsW tk
     sc (ts, as, rs) = SimpleCommand ts as rs
--- TODO parse function definitions
 
 -- | Parses a @pipe_sequence@, a sequence of one or more commands.
 pipeSequence :: MonadParser m => HereDocT m (NonEmpty Command)
