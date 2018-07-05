@@ -104,7 +104,6 @@ spec = parallel $ do
 
     context "can end before operators" $ do
       expectShow "foo" ";;" aol' "foo"
-      expectShow "foo" "("  aol' "foo"
       expectShow "foo" ")"  aol' "foo"
 
     context "can end at end of input" $ do
@@ -169,7 +168,7 @@ spec = parallel $ do
       expectFailureEof ";"      completeLine Hard UnknownReason 0
       expectFailureEof "&"      completeLine Hard UnknownReason 0
       expectFailure    "foo;& " completeLine Hard UnknownReason 4
-      expectFailure    "foo("   completeLine Hard UnknownReason 3
+      expectFailure    "foo)"   completeLine Hard UnknownReason 3
       expectFailureEof "foo& ;" completeLine Hard UnknownReason 5
       expectFailureEof "foo;;"  completeLine Hard UnknownReason 3
 

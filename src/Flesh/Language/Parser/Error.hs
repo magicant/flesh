@@ -64,6 +64,9 @@ data Reason =
   | MissingDoForWhile Position -- ^ with position of the "while" keyword
   | MissingDoForUntil Position -- ^ with position of the "until" keyword
   | MissingDoneForDo Position -- ^ with position of the "do" keyword
+  | MissingRightParenInFunction
+  | InvalidFunctionName Token
+  | MissingFunctionBody
   deriving (Eq, Show)
 
 -- | Parse error description.

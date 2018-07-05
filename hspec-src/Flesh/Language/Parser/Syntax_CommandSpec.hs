@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Flesh.Language.Parser.Syntax_CommandSpec (spec) where
 
 import Data.Foldable (toList)
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
 import Flesh.Language.Parser.Syntax
@@ -280,6 +281,45 @@ spec = parallel $ do
       expectFailureEof "foo" u Hard (MissingDoForUntil p) 3
     -- Other tests are omitted because they are the same with whileClauseTail
 
+  describe "bourneFunctionDefinitionTail " $ do
+    let p = dummyPosition "X"
+        t1 = Token $ (p, Unquoted (Char 'f')) :| []
+        t2 = Token $ (p, Unquoted (Char '@')) :| []
+        f1 = fill $ bourneFunctionDefinitionTail t1
+        f2 = fill $ bourneFunctionDefinitionTail t2
+
+    context "simplest form" $ do
+      expectShowEof "(){ :;}" "" f1 "f() { :; }"
+
+    context "with whites and linebreak" $ do
+      expectShowEof "( \t) \t#foo\n\\\n# \n {\n:; } #" "\n" f1 "f() { :; }"
+
+    context "redirections in body" $ do
+      expectShowEof "(){ :;}<a>b" "" f1 "f() { :; } 0<a 1>b"
+
+    context "consumes only one command as the body" $ do
+      expectShowEof "(){ :;}" ";:" f1 "f() { :; }"
+
+    context "must start with (" $ do
+      expectFailureEof "&" f1 Soft UnknownReason 0
+      expectFailureEof ")" f1 Soft UnknownReason 0
+      expectFailureEof "&" f2 Soft UnknownReason 0
+      expectFailureEof ")" f2 Soft UnknownReason 0
+
+    context "must have ) after (" $ do
+      expectFailureEof "(&" f1 Hard MissingRightParenInFunction 1
+      expectFailureEof "(X" f1 Hard MissingRightParenInFunction 1
+      expectFailureEof "( " f1 Hard MissingRightParenInFunction 2
+      expectFailureEof "(&" f2 Hard MissingRightParenInFunction 1
+      expectFailureEof "(X" f2 Hard MissingRightParenInFunction 1
+      expectFailureEof "( " f2 Hard MissingRightParenInFunction 2
+
+    context "must have a POSIX name" $ do
+      expectFailureEof "()" f2 Hard (InvalidFunctionName t2) 0
+
+    context "must have a body" $ do
+      expectFailureEof "() #" f1 Hard MissingFunctionBody 4
+
   describe "command" $ do
     let sc = fill command
         sc' = fill command
@@ -362,5 +402,15 @@ spec = parallel $ do
 
       context "does not start with a quoted 'until'" $ do
         expectShowEof "unt\\il foo" "; do :; done" sc "unt\\il foo"
+
+    context "as Bourne-style function definition" $ do
+      context "starts with a name followed by a '('" $ do
+        expectShowEof "foo()(:)" "" sc "foo() (:)"
+
+      context "does not start with a reserved word" $ do
+        expectFailureEof "in()(:)" sc Soft UnknownReason 0
+
+      context "does not start with an assignment" $ do
+        expectShowEof "a=1" "()(:)" sc "a=1"
 
 -- vim: set et sw=2 sts=2 tw=78:

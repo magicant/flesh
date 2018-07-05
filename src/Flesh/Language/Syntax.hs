@@ -25,11 +25,14 @@ Portability : portable
 This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
+  -- * Names
+  isPosixNameChar, isPosixNameString,
   -- * Tokens
   DoubleQuoteUnit(..), unquoteDoubleQuoteUnit,
   WordUnit(..), unquoteWordUnit,
   EWord(..), wordUnits, wordText,
-  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken,
+  Token(..), tokenUnits, tokenWord, tokenText, unquoteToken, positionOfToken,
+  posixNameFromToken,
   Assignment(..),
   -- * Redirections
   HereDocOp(..), FileOp(..), Redirection(..), fd,
@@ -38,14 +41,29 @@ module Flesh.Language.Syntax (
   AndOrCondition(..), ConditionalPipeline(..), AndOrList(..),
   showSeparatedList, CommandList) where
 
+import Control.Monad (guard)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Flesh.Source.Position (Position, Positioned)
 import Numeric.Natural (Natural)
 
 -- Utility for Show instances
 showSpace :: ShowS
 showSpace = showChar ' '
+
+-- | Returns true iff the argument character can be used in POSIX names.
+isPosixNameChar :: Char -> Bool
+isPosixNameChar c | isDigit c      = True
+                  | isAsciiLower c = True
+                  | isAsciiUpper c = True
+                  | c == '_'       = True
+                  | otherwise      = False
+
+-- | Returns true iff the argument is an unquoted POSIX name.
+isPosixNameString :: String -> Bool
+isPosixNameString [] = False
+isPosixNameString cs@(c:_) = not (isDigit c) && all isPosixNameChar cs
 
 -- | Element of double quotes.
 data DoubleQuoteUnit =
@@ -169,6 +187,18 @@ unquoteToken t = (or bs, concat uss)
   where ~(bs, uss) = unq t
         unq = unzip . fmap unquoteWordUnit . toList . fmap snd . tokenUnits
 
+-- | Returns the position of the token
+positionOfToken :: Token -> Position
+positionOfToken (Token ((p, _) :| _)) = p
+
+-- | Returns the token text only if the argument is an unquoted POSIX name.
+posixNameFromToken :: Token -> Maybe Text
+posixNameFromToken t = do
+  let ttt = tokenText t
+  tx <- ttt
+  guard $ isPosixNameString $ unpack tx
+  ttt
+
 instance Show Token where
   showsPrec n t = showsPrec n (tokenWord t)
   showList ts = showList (fmap tokenWord ts)
@@ -261,6 +291,7 @@ data CompoundCommand =
   | While CommandList CommandList
   -- | loop condition and body.
   | Until CommandList CommandList
+  -- TODO Ksh-style function definition.
   deriving (Eq)
 
 showDoGroup :: CommandList -> ShowS
@@ -304,8 +335,8 @@ data Command =
   SimpleCommand [Token] [Assignment] [Redirection]
   -- | Compound commands
   | CompoundCommand (Positioned CompoundCommand) [Redirection]
-  -- | Function definition.
-  | FunctionDefinition -- FIXME
+  -- | Bourne-style function definition.
+  | FunctionDefinition Text Command
   deriving (Eq)
 
 instance Show Command where
@@ -319,7 +350,8 @@ instance Show Command where
   showsPrec n (CompoundCommand (_, cc) []) = showsPrec n cc
   showsPrec n (CompoundCommand (_, cc) rs) =
     showsPrec n cc . showSpace . showList rs
-  showsPrec _ FunctionDefinition = id -- FIXME
+  showsPrec n (FunctionDefinition name cmd) =
+    showString (unpack name) . showString "() " . showsPrec n cmd
 
 -- | Element of and-or lists. Optionally negated sequence of one or more
 -- commands.

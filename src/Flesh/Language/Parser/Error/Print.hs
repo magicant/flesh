@@ -91,6 +91,12 @@ describe (MissingDoForUntil p) =
 describe (MissingDoneForDo p) =
   ("a \"done\" is required to close the do-done clause", [b])
     where b = note p "the \"do\" was here"
+describe MissingRightParenInFunction =
+  ("a \"(\" must be followed by a \")\"", [])
+describe (InvalidFunctionName tk) =
+  (shows tk " is not a valid function name", [])
+describe MissingFunctionBody =
+  ("the function body is missing", [])
 
 -- | Converts an error to a human-readable format.
 showsError :: Error -> ShowS
