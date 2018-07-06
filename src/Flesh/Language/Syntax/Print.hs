@@ -170,7 +170,6 @@ instance Printable CompoundCommand where
     printShows name
     printForWords optwords
     printNewline
-    printIndent
     printDoGroup ls
       where printForWords Nothing = return ()
             printForWords (Just ws) = do
