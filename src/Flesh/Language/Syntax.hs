@@ -37,13 +37,14 @@ module Flesh.Language.Syntax (
   -- * Redirections
   HereDocOp(..), FileOp(..), Redirection(..), fd,
   -- * Syntax
-  IfThenList, CompoundCommand(..), Command(..), Pipeline(..),
+  IfThenList, CaseItem, CompoundCommand(..), Command(..), Pipeline(..),
   AndOrCondition(..), ConditionalPipeline(..), AndOrList(..),
   showSeparatedList, CommandList) where
 
 import Control.Monad (guard)
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
+import Data.Monoid (Endo(Endo), appEndo)
 import Data.Text (Text, pack, unpack)
 import Flesh.Source.Position (Position, Positioned)
 import Numeric.Natural (Natural)
@@ -276,6 +277,10 @@ fd (HereDoc (HereDocOp _ fd' _ _) _) = fd'
 -- corresponding statement.
 type IfThenList = NonEmpty (CommandList, CommandList)
 
+-- | Body of the case command. One or more patterns and zero or more and-or
+-- lists.
+type CaseItem = (NonEmpty Token, [AndOrList])
+
 -- | Commands that can contain other commands.
 data CompoundCommand =
   -- | one or more and-or lists.
@@ -284,7 +289,8 @@ data CompoundCommand =
   | Subshell CommandList
   -- | name, optional words, and loop body.
   | For Token (Maybe [Token]) CommandList
-  -- TODO case command
+  -- | word and case items.
+  | Case Token [CaseItem]
   -- | list of (el)if-then clauses and optional else clause.
   | If IfThenList (Maybe CommandList)
   -- | loop condition and body.
@@ -293,6 +299,17 @@ data CompoundCommand =
   | Until CommandList CommandList
   -- TODO Ksh-style function definition.
   deriving (Eq)
+
+showEach :: (a -> ShowS) -> [a] -> ShowS
+showEach f = appEndo . mconcat . fmap (Endo . f)
+
+showPattern :: Token -> ShowS
+showPattern p = showString " | " . shows p
+
+showCaseItem :: CaseItem -> ShowS
+showCaseItem (p :| ps, ls) =
+  showChar '(' . shows p . showEach showPattern ps . showString ") " .
+    showList ls . showString ";; "
 
 showDoGroup :: CommandList -> ShowS
 showDoGroup c =
@@ -311,6 +328,9 @@ instance Show CompoundCommand where
       where showForWords Nothing = id
             showForWords (Just ws) =
               showString " in " . shows ws . showChar ';'
+  showsPrec _ (Case w is) =
+    showString "case " . shows w . showString " in " .
+      showEach showCaseItem is . showString "esac"
   showsPrec _ (If its me) =
     showIfThenList its . maybeShowElse me . showString " fi"
       where showIfThenList (ifthen :| elifthens) =
