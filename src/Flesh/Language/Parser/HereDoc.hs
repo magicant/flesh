@@ -234,6 +234,7 @@ instance MonadPlus m => Alternative (HereDocT m) where
 instance MonadTrans HereDocT where
   lift = HereDocT . lift . fmap return
 
+-- | Joins a parser with an inner parser contained in HereDocT.
 joinHereDocT :: MonadParser m => m (HereDocT m a) -> HereDocT m a
 joinHereDocT = HereDocT . join . lift . fmap runHereDocT
 
