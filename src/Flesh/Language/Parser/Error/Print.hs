@@ -91,6 +91,20 @@ describe (MissingDoForUntil p) =
 describe (MissingDoneForDo p) =
   ("a \"done\" is required to close the do-done clause", [b])
     where b = note p "the \"do\" was here"
+describe MissingWordAfterCase =
+  ("a word is required after the \"case\"", [])
+describe (MissingInForCase p) =
+  ("an \"in\" is required here in the case command", [b])
+    where b = note p "the case command was introduced here"
+describe (MissingPatternAfter w) =
+  ("a pattern is required after the \"" ++ w ++ "\"", [])
+describe MissingRightParenInCase =
+  ("a \")\" is required after the case pattern", [])
+describe EsacAsCasePattern =
+  ("an unquoted \"esac\" cannot be the first case pattern", [])
+describe (MissingEsacForCase p) =
+  ("an \"esac\" is required to close the case command", [b])
+    where b = note p "the case command was introduced here"
 describe MissingRightParenInFunction =
   ("a \"(\" must be followed by a \")\"", [])
 describe (InvalidFunctionName tk) =
