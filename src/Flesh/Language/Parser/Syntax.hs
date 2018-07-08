@@ -37,8 +37,9 @@ module Flesh.Language.Parser.Syntax (
   redirect, hereDocContent, newlineHD, whitesHD, linebreak,
   -- * Syntax
   -- ** Commands
-  subshell, braceGroupTail, doGroup, forClauseTail, ifClauseTail,
-  whileClauseTail, untilClauseTail, bourneFunctionDefinitionTail, command,
+  subshell, braceGroupTail, doGroup, forClauseTail, caseClauseTail,
+  ifClauseTail, whileClauseTail, untilClauseTail,
+  bourneFunctionDefinitionTail, command,
   -- ** Lists
   pipeSequence, pipeline, conditionalPipeline, andOrList, compoundList,
   completeLine, program) where
@@ -47,12 +48,12 @@ import Control.Applicative (liftA3, many, optional, some, (<|>))
 import Control.Monad (join, void, when)
 import Control.Monad.Reader (MonadReader, local)
 import Control.Monad.Trans.Class (lift)
-import Data.Foldable (sequenceA_, toList)
+import Data.Foldable (concat, sequenceA_, toList)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (empty)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text, unpack)
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias hiding (name)
@@ -412,6 +413,47 @@ forClauseTail p = do
           noSemicolon = lift $ require $
             setReason LineBeginningWithSemicolon $ notFollowedBy semicolon
 
+casePatterns :: MonadParser m => m (NonEmpty Token)
+casePatterns = do
+  l <- optional $ operatorToken "("
+  (if isJust l then require else id) $ do
+    p <- setReason (MissingPatternAfter "(") aliasableToken
+    when (tokenText p == Just reservedEsac) $
+      throwError (Soft, Error EsacAsCasePattern (positionOfToken p))
+    ps <- many $ do
+      void $ operatorToken "|"
+      require $ setReason (MissingPatternAfter "|") aliasableToken
+    void $ require $ setReason MissingRightParenInCase $ operatorToken ")"
+    pure (p :| ps)
+
+caseList :: MonadParser m => HereDocT m [CaseItem]
+caseList = fmap concat $ optional $ do
+  ps <- lift casePatterns
+  (ls, t) <- requireHD $ do
+    _ <- linebreak
+    ls <- manyAndOrLists separator -- compoundList
+    t <- fmap concat $ optional $ do
+      _ <- lift $ operatorToken ";;"
+      _ <- linebreak
+      t <- caseList
+      pure t
+    pure (ls, t)
+  pure ((ps, ls) : t)
+
+-- | Parses a case command except the first "case" keyword, which must have
+-- just been parsed.
+caseClauseTail :: MonadParser m
+               => Position -- ^ Position of the first "case" keyword
+               -> HereDocT m (Positioned CompoundCommand)
+caseClauseTail p = do
+  word <- lift $ setReason MissingWordAfterCase aliasableToken
+  _ <- linebreak
+  _ <- lift $ setReason (MissingInForCase p) $ literal reservedIn
+  _ <- linebreak
+  is <- caseList
+  _ <- lift $ setReason (MissingEsacForCase p) $ literal reservedEsac
+  pure (p, Case word is)
+
 -- | Parses an if command except the first "if" keyword, which must have just
 -- been parsed.
 ifClauseTail :: MonadParser m
@@ -497,11 +539,11 @@ compoundCommandTail :: MonadParser m
 compoundCommandTail (p, t)
   | t == reservedOpenBrace = requireHD $ braceGroupTail p
   | t == reservedFor = requireHD $ forClauseTail p
+  | t == reservedCase = requireHD $ caseClauseTail p
   | t == reservedIf = requireHD $ ifClauseTail p
   | t == reservedWhile = requireHD $ whileClauseTail p
   | t == reservedUntil = requireHD $ untilClauseTail p
   | otherwise = lift $ failureOfPosition p
-  -- TODO case
 
 -- | Parses a command.
 command :: MonadParser m => HereDocT m Command
