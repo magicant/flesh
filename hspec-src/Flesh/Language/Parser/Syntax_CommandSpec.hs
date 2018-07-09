@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Flesh.Language.Parser.Syntax_CommandSpec (spec) where
 
-import Data.Foldable (toList)
+import Data.Foldable (toList, traverse_)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.HereDoc
@@ -167,6 +167,127 @@ spec = parallel $ do
 
     context "cannot have semicolon after newline" $ do
       expectFailureEof "x\n;do :;done" f Hard LineBeginningWithSemicolon 2
+
+  describe "caseClauseTail" $ do
+    let p = dummyPosition "X"
+        f = fill (caseClauseTail p)
+        f' = fill (caseClauseTail p)
+        f1 = fst <$> f
+        f2 = snd <$> f
+        f2' = snd <$> f'
+        reflect s = expectShowEof s "" f2 ("case " ++ s)
+
+    context "empty body" $ do
+      expectSuccessEof "X in esac" "" f1 p
+      expectShowEof "X in esac" "" f2 "case X in esac"
+
+    context "word may be any token" $ do
+      traverse_ reflect $ fmap (++ " in esac") ["\"\"", "case", "in", "esac"]
+      expectShowEof "\"\n\"\\\n\"\" in esac" "" f2 "case \"\n\"\"\" in esac"
+
+    context "single pattern, with (, empty command, with ;;" $ do
+      reflect "X in (X) ;; esac"
+
+    context "many patterns, with (, empty command, with ;;" $ do
+      reflect "X in (X | Y) ;; esac"
+      reflect "X in (X | Y | Z) ;; esac"
+
+    context "single pattern, without (, empty command, with ;;" $ do
+      expectShowEof "X in X) ;; esac" "" f2 "case X in (X) ;; esac"
+
+    context "many patterns, without (, empty command, with ;;" $ do
+      expectShowEof "X in X|Y) ;; esac" "" f2 "case X in (X | Y) ;; esac"
+      expectShowEof "X in X|Y | Z) ;; esac" "" f2
+        "case X in (X | Y | Z) ;; esac"
+
+    context "single pattern, with (, non-empty command, with ;;" $ do
+      reflect "X in (X) :;; esac"
+
+    context "single pattern, with (, empty command, without ;;" $ do
+      expectShowEof "X in (X) esac" "" f2 "case X in (X) ;; esac"
+
+    context "single pattern, with (, non-empty command, without ;;" $ do
+      expectShowEof "X in (X) :; esac" "" f2 "case X in (X) :;; esac"
+      expectShowEof "X in (X) :& esac" "" f2 "case X in (X) :&;; esac"
+      expectShowEof "X in (X) a; b& esac" "" f2 "case X in (X) a; b&;; esac"
+      expectShowEof "X in (X) a& b; esac" "" f2 "case X in (X) a& b;; esac"
+
+    context "many case items" $ do
+      reflect "X in (A) ;; (B) ;; (C) ;; esac"
+      reflect "X in (A) :;; (B) :&;; (C) :;; esac"
+      expectShowEof "X in (A) ;; (B) esac" "" f2
+        "case X in (A) ;; (B) ;; esac"
+      expectShowEof "X in (A) ;; (B) :; esac" "" f2
+        "case X in (A) ;; (B) :;; esac"
+      expectShowEof "X in (A) ;; (B) :& esac" "" f2
+        "case X in (A) ;; (B) :&;; esac"
+
+    context "can contain whites and linebreaks" $ do
+      expectShowEof "X #X\n\n#\n \t in esac" "" f2 "case X in esac"
+      expectShowEof "X in #X\n\n#\n \t esac" "" f2 "case X in esac"
+      expectShowEof "X in #X\n\n#\n \t (X)esac" "" f2 "case X in (X) ;; esac"
+      expectShowEof "X in( \\\n \t X)esac" "" f2 "case X in (X) ;; esac"
+      expectShowEof "X in(X \\\n \t )esac" "" f2 "case X in (X) ;; esac"
+      expectShowEof "X in(X) #X\n\n#\n \t esac" "" f2 "case X in (X) ;; esac"
+      expectShowEof "X in(X \\\n \t |Y)esac" "" f2 "case X in (X | Y) ;; esac"
+      expectShowEof "X in(X| \\\n \t Y)esac" "" f2 "case X in (X | Y) ;; esac"
+      expectShowEof "X in(X) #X\n\n#\n\t ;;esac" "" f2 "case X in (X) ;; esac"
+      expectShowEof "X in(X);; #X\n\n#\n\t esac" "" f2 "case X in (X) ;; esac"
+      expectShowEof "X in(X) #X\n\n#\n\t :;;esac" "" f2
+        "case X in (X) :;; esac"
+      expectShowEof "X in(X): #X\n\n#\n\t ;;esac" "" f2
+        "case X in (X) :;; esac"
+      expectShowEof "X in(X);; #X\n\n#\n\t (Y)esac" "" f2
+        "case X in (X) ;; (Y) ;; esac"
+      expectShowEof "X in(X);; #X\n\n#\n\t Y)esac" "" f2
+        "case X in (X) ;; (Y) ;; esac"
+
+    context "must start with a word" $ do
+      expectFailureEof ""     f2 Soft MissingWordAfterCase 0
+      expectFailureEof "<foo" f2 Soft MissingWordAfterCase 0
+      expectFailureEof "("    f2 Soft MissingWordAfterCase 0
+
+    context "word must be followed by in" $ do
+      expectFailureEof "X"     f2 Soft (MissingInForCase p) 1
+      expectFailureEof "X("    f2 Soft (MissingInForCase p) 1
+      expectFailureEof "X foo" f2 Soft (MissingInForCase p) 2
+      expectFailureEof "X do"  f2 Soft (MissingInForCase p) 2
+
+    context "unquoted esac cannot be first pattern" $ do
+      expectShowEof "X in esac" ")esac" f2 "case X in esac"
+      expectFailure "X in (esac)" f2' Hard EsacAsCasePattern 6
+      expectFailure "X in (esac|" f2' Hard EsacAsCasePattern 6
+
+    context "quoted esac can be first pattern" $ do
+      reflect "esac in (es''ac) ;; esac"
+      expectShowEof "esac in es''ac) ;; esac" "" f2
+        "case esac in (es''ac) ;; esac"
+
+    context "esac can be second pattern" $ do
+      reflect "esac in (X | esac) ;; esac"
+
+    context "pattern is required after (" $ do
+      let r = MissingPatternAfter "("
+      expectFailureEof "X in ("         f2  Hard r 6
+      expectFailure    "X in ()"        f2' Hard r 6
+      expectFailure    "X in (\nX)esac" f2' Hard r 6
+
+    context "pattern is required after |" $ do
+      let r = MissingPatternAfter "|"
+      expectFailureEof "X in (X|"         f2  Hard r 8
+      expectFailure    "X in (X|)"        f2' Hard r 8
+      expectFailure    "X in (X|\nY)esac" f2' Hard r 8
+
+    context ") is required after pattern" $ do
+      expectFailureEof "X in (X"        f2  Hard MissingRightParenInCase 7
+      expectFailure    "X in (X;;"      f2' Hard MissingRightParenInCase 7
+      expectFailure    "X in (X\n)esac" f2' Hard MissingRightParenInCase 7
+
+    context "must end with esac" $ do
+      expectFailureEof "X in"     f2 Soft (MissingEsacForCase p) 4
+      expectFailureEof "X in(X)"  f2 Soft (MissingEsacForCase p) 7
+      expectFailureEof "X in(X):" f2 Soft (MissingEsacForCase p) 8
+      expectFailureEof "X in(X))" f2 Soft (MissingEsacForCase p) 7
 
   describe "ifClauseTail" $ do
     let p = dummyPosition "X"
@@ -386,6 +507,13 @@ spec = parallel $ do
 
       context "does not start with a quoted parenthesis" $ do
         expectShowEof "\\( foo" "\n)" sc "\\( foo"
+
+    context "as case command" $ do
+      context "starts with a 'case'" $ do
+        expectShowEof "case X in esac" "" sc "case X in esac"
+
+      context "does not start with a quoted 'case'" $ do
+        expectShowEof "ca\\se X in X" ") esac" sc "ca\\se X in X"
 
     context "as while command" $ do
       context "starts with a 'while'" $ do

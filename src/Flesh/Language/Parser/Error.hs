@@ -64,6 +64,12 @@ data Reason =
   | MissingDoForWhile Position -- ^ with position of the "while" keyword
   | MissingDoForUntil Position -- ^ with position of the "until" keyword
   | MissingDoneForDo Position -- ^ with position of the "do" keyword
+  | MissingWordAfterCase
+  | MissingInForCase Position -- ^ with position of the "case" keyword
+  | MissingPatternAfter String
+  | MissingRightParenInCase
+  | EsacAsCasePattern
+  | MissingEsacForCase Position -- ^ with position of the "case" keyword
   | MissingRightParenInFunction
   | InvalidFunctionName Token
   | MissingFunctionBody

@@ -33,7 +33,7 @@ module Flesh.Language.Syntax.Print (
   PrintS, runPrint,
   Printable(..), ListPrintable(..)) where
 
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.State.Strict (
   MonadState, State, evalState, get, modify', put, state)
 import Control.Monad.Writer.Lazy (Endo(Endo), MonadWriter, tell)
@@ -175,6 +175,28 @@ instance Printable CompoundCommand where
             printForWords (Just ws) = do
               printString " in "
               printShows ws
+  prints (Case w is) = do
+    printString "case "
+    printShows w
+    printString " in"
+    indented $ sequence_ $ printCaseItem <$> is
+    printNewline
+    printString "esac"
+      where printCaseItem (p :| ps, ls) = do
+              printNewline
+              printChar '('
+              printShows p
+              sequence_ $ printPattern <$> ps
+              printChar ')'
+              indented $ do
+                printNewline
+                unless (null ls) $ do
+                  printList ls
+                  printIndent
+                printString ";;"
+            printPattern p = do
+              printString " | "
+              printShows p
   prints (If its me) = do
     printsIfThenList its
     maybePrintsElse me
