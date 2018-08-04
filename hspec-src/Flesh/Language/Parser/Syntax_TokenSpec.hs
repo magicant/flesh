@@ -23,7 +23,7 @@ module Flesh.Language.Parser.Syntax_TokenSpec (spec) where
 import Data.Foldable (traverse_)
 import Data.List (elemIndex)
 import Data.Maybe (fromJust)
-import Data.Text (pack)
+import Data.Text (pack, singleton)
 import Flesh.Language.Parser.Char
 import Flesh.Language.Parser.Error
 import Flesh.Language.Parser.Lex
@@ -35,6 +35,56 @@ spec :: Spec
 spec = parallel $ do
   describe "dollarExpansion" $ do
     let reflect s = expectShow s "" (snd <$> dollarExpansion) s
+
+    context "non-braced parameter expansion" $ do
+      context "can be a single digit" $ do
+        expectSuccess "$1" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '1'
+        expectSuccess "$9" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '9'
+        expectPosition "$1" (fst <$> dollarExpansion) 0
+        expectPosition "$9" (fst <$> dollarExpansion) 0
+
+      context "can be a special parameter" $ do
+        expectSuccess "$@" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '@'
+        expectSuccess "$*" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '*'
+        expectSuccess "$#" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '#'
+        expectSuccess "$?" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '?'
+        expectSuccess "$-" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '-'
+        expectSuccess "$$" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '$'
+        expectSuccess "$!" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '!'
+        expectSuccess "$0" "" (snd <$> dollarExpansion) $
+          Parameter $ singleton '0'
+        expectPosition "$@" (fst <$> dollarExpansion) 0
+        expectPosition "$*" (fst <$> dollarExpansion) 0
+        expectPosition "$#" (fst <$> dollarExpansion) 0
+        expectPosition "$?" (fst <$> dollarExpansion) 0
+        expectPosition "$-" (fst <$> dollarExpansion) 0
+        expectPosition "$$" (fst <$> dollarExpansion) 0
+        expectPosition "$!" (fst <$> dollarExpansion) 0
+        expectPosition "$0" (fst <$> dollarExpansion) 0
+
+      context "can be a POSIX name" $ do
+        expectSuccessEof "$name" "" (snd <$> dollarExpansion) $
+          Parameter $ pack "name"
+        expectSuccess "$name" ";" (snd <$> dollarExpansion) $
+          Parameter $ pack "name"
+        expectSuccess "$name" "}" (snd <$> dollarExpansion) $
+          Parameter $ pack "name"
+        expectSuccessEof "$X" "" (snd <$> dollarExpansion) $
+          Parameter $ pack "X"
+        expectSuccessEof "$_" "" (snd <$> dollarExpansion) $
+          Parameter $ pack "_"
+        expectSuccessEof "$foo0_name" "" (snd <$> dollarExpansion) $
+          Parameter $ pack "foo0_name"
+        expectPositionEof "$name" (fst <$> dollarExpansion) 0
 
     context "command substitution" $ do
       context "can be empty" $ do

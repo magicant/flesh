@@ -26,7 +26,7 @@ This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
   -- * Names
-  isPosixNameChar, isPosixNameString,
+  isPosixNameChar, isPosixNameString, isSpecialParameter,
   -- * Tokens
   DoubleQuoteUnit(..), unquoteDoubleQuoteUnit,
   WordUnit(..), unquoteWordUnit,
@@ -66,6 +66,10 @@ isPosixNameString :: String -> Bool
 isPosixNameString [] = False
 isPosixNameString cs@(c:_) = not (isDigit c) && all isPosixNameChar cs
 
+-- | Returns true iff the argument char is a special parameter name.
+isSpecialParameter :: Char -> Bool
+isSpecialParameter = flip elem "@*#?-$!0"
+
 -- | Element of double quotes.
 data DoubleQuoteUnit =
     -- | Single bear character.
@@ -73,9 +77,10 @@ data DoubleQuoteUnit =
     -- | Character escaped by a backslash.
     | Backslashed !Char
     -- | Parameter expansion.
-    | Parameter -- FIXME
+    | Parameter Text -- TODO prefix, TODO modifier
     -- | @$(...)@
     | CommandSubstitution String
+    -- | @`...`@
     | Backquoted String
     -- | @$((...))@ where the inner EWord is of the form @(...)@
     | Arithmetic EWord
@@ -84,7 +89,8 @@ data DoubleQuoteUnit =
 instance Show DoubleQuoteUnit where
   showsPrec _ (Char c) = showChar c
   showsPrec _ (Backslashed c) = \s -> '\\':c:s
-  showsPrec _ Parameter = id
+  showsPrec _ (Parameter name) =
+    showString "${" . showString (unpack name) . showChar '}'
   showsPrec _ (CommandSubstitution cs) =
     showString "$(" . showString cs . showChar ')'
   showsPrec n (Backquoted cs) = bq . f (n /= 0) cs . bq
