@@ -26,7 +26,7 @@ This module defines the abstract syntax tree of the shell language.
 -}
 module Flesh.Language.Syntax (
   -- * Names
-  isPosixNameChar, isPosixNameString,
+  isPosixNameChar, isPosixNameString, isSpecialParameter,
   -- * Tokens
   DoubleQuoteUnit(..), unquoteDoubleQuoteUnit,
   WordUnit(..), unquoteWordUnit,
@@ -65,6 +65,10 @@ isPosixNameChar c | isDigit c      = True
 isPosixNameString :: String -> Bool
 isPosixNameString [] = False
 isPosixNameString cs@(c:_) = not (isDigit c) && all isPosixNameChar cs
+
+-- | Returns true iff the argument char is a special parameter name.
+isSpecialParameter :: Char -> Bool
+isSpecialParameter = flip elem "@*#?-$!0"
 
 -- | Element of double quotes.
 data DoubleQuoteUnit =

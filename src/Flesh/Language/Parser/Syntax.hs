@@ -48,13 +48,14 @@ import Control.Applicative (liftA3, many, optional, some, (<|>))
 import Control.Monad (join, void, when)
 import Control.Monad.Reader (MonadReader, local)
 import Control.Monad.Trans.Class (lift)
+import Data.Char (isDigit)
 import Data.Foldable (concat, sequenceA_, toList)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (empty)
 import Data.Maybe (fromMaybe, isJust)
-import Data.Text (Text, unpack)
+import Data.Text (Text, pack, singleton, unpack)
 import qualified Flesh.Language.Alias as Alias
 import Flesh.Language.Parser.Alias hiding (name)
 import Flesh.Language.Parser.Buffer
@@ -89,7 +90,6 @@ dollarExpansionTail = do
   ~(p, c) <- lc $ setReason MissingExpansionAfterDollar anyChar
   case c of
     -- TODO braced parameter expansion
-    -- TODO unbraced parameter expansion
     '(' -> require $ arithTail <|> cmdSubstTail
       where arithTail = arithContent <* lc closeParan
             arithContent = Arithmetic . EWord . fmap (fmap Unquoted) <$>
@@ -100,6 +100,9 @@ dollarExpansionTail = do
             cmdsubstBody = local (const empty) program
             closeParan = char ')' <|>
               failureOfError (Error UnclosedCommandSubstitution p)
+    _ | isDigit c || isSpecialParameter c -> return $ Parameter $ singleton c
+    _ | isPosixNameChar c -> Parameter . pack . (c:) <$> posixNameTail
+      where posixNameTail = many $ snd <$> satisfy isPosixNameChar
     _ -> failureOfError (Error MissingExpansionAfterDollar p)
 
 -- | Parses an expansion that starts with a dollar.
