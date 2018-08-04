@@ -46,6 +46,10 @@ describe UnclosedCommandSubstitution =
   ("the command substitution is unclosed", [])
 describe MissingExpansionAfterDollar =
   ("a valid expansion is required after the \"$\"", [])
+describe MissingParameterName =
+  ("a valid parameter name is required after the \"${\"", [])
+describe UnclosedExpansion =
+  ("the parameter expansion is unclosed", [])
 describe MissingRedirectionTarget =
   ("the redirection target is missing", [])
 describe (UnclosedHereDocContent op) =

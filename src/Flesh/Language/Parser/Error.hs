@@ -49,6 +49,8 @@ data Reason =
   | UnclosedSingleQuote
   | UnclosedCommandSubstitution
   | MissingExpansionAfterDollar
+  | MissingParameterName
+  | UnclosedExpansion
   | MissingRedirectionTarget
   | UnclosedHereDocContent HereDocOp
   | MissingHereDocContents (NonEmpty HereDocOp)
