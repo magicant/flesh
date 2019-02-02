@@ -121,6 +121,8 @@ unquoteDoubleQuoteUnit u               = (False, u)
 data WordUnit =
     -- | Unquoted double-quote unit as a word unit.
     Unquoted !DoubleQuoteUnit
+    -- | Tilde expansion.
+    | Tilde [Positioned Char]
     -- | Double-quote.
     | DoubleQuote [Positioned DoubleQuoteUnit]
     -- | Single-quote.
@@ -129,6 +131,8 @@ data WordUnit =
 
 instance Show WordUnit where
   showsPrec n (Unquoted unit) = showsPrec n unit
+  showsPrec _ (Tilde chars) =
+    showChar '~' . (\s -> foldr (showChar . snd) s chars)
   showsPrec _ (DoubleQuote units) =
     showChar '"' . (\s -> foldr (showsPrec 1 . snd) s units) . showChar '"'
   showsPrec _ (SingleQuote chars) =
@@ -144,6 +148,7 @@ instance Show WordUnit where
 unquoteWordUnit :: WordUnit -> (Bool, [WordUnit])
 unquoteWordUnit (Unquoted u) = (b, [Unquoted u'])
   where (b, u') = unquoteDoubleQuoteUnit u
+unquoteWordUnit t@(Tilde _) = (False, [t])
 unquoteWordUnit (DoubleQuote us) = (True, unq <$> us)
   where unq = Unquoted . snd . unquoteDoubleQuoteUnit . snd
 unquoteWordUnit (SingleQuote cs) = (True, Unquoted . Char . snd <$> cs)
