@@ -263,7 +263,7 @@ hereDocLine tabbed isLiteral = do
      else doubleQuoteUnit' (`elem` "\\$`") (`elem` "\"\\$`") `manyTo` lc nl
        where nl = fmap (fmap Char) (char '\n')
 
-hereDocDelimiter :: MonadParser m => Bool -> [DoubleQuoteUnit] -> m ()
+hereDocDelimiter :: MonadParser m => Bool -> [WordUnit] -> m ()
 hereDocDelimiter tabbed delim = do
   hereDocTab tabbed
   _ <- string (show delim)

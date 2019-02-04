@@ -141,12 +141,12 @@ instance Show WordUnit where
 
 -- | Removes backslash escapes, double-quotes, and single-quotes without word
 -- expansion. The Boolean is true iff quotation was removed.
-unquoteWordUnit :: WordUnit -> (Bool, [DoubleQuoteUnit])
-unquoteWordUnit (Unquoted u) = (b, [u'])
-  where ~(b, u') = unquoteDoubleQuoteUnit u
+unquoteWordUnit :: WordUnit -> (Bool, [WordUnit])
+unquoteWordUnit (Unquoted u) = (b, [Unquoted u'])
+  where (b, u') = unquoteDoubleQuoteUnit u
 unquoteWordUnit (DoubleQuote us) = (True, unq <$> us)
-  where unq = snd . unquoteDoubleQuoteUnit . snd
-unquoteWordUnit (SingleQuote cs) = (True, Char . snd <$> cs)
+  where unq = Unquoted . snd . unquoteDoubleQuoteUnit . snd
+unquoteWordUnit (SingleQuote cs) = (True, Unquoted . Char . snd <$> cs)
 
 -- | Expandable word, a possibly empty list of word units.
 newtype EWord = EWord [Positioned WordUnit]
@@ -189,7 +189,7 @@ tokenText = wordText . tokenWord
 
 -- | Removes backslash escapes, double-quotes, and single-quotes without word
 -- expansion. The Boolean is true iff quotation was removed.
-unquoteToken :: Token -> (Bool, [DoubleQuoteUnit])
+unquoteToken :: Token -> (Bool, [WordUnit])
 unquoteToken t = (or bs, concat uss)
   where ~(bs, uss) = unq t
         unq = unzip . fmap unquoteWordUnit . toList . fmap snd . tokenUnits
